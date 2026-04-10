@@ -5,6 +5,10 @@
 
 ---
 
+### Authors
+
+- Francesca Cooke (CEO)
+
 ## Overview
 
 This tutorial introduces **Graph Neural Networks (GNNs)** as fast surrogate models for Computational Fluid Dynamics (CFD). Rather than solving the governing PDEs numerically at every time step, a GNN is trained to approximate the solution update directly from the mesh — dramatically reducing inference cost while preserving spatial fidelity on unstructured grids.
