@@ -1,0 +1,32 @@
+noise_schedule:
+  schedule_type: "cosine"
+  T: 1000
+  beta_start: 1e-4
+  beta_end: 0.02
+
+score_network:
+  time_embed_dim: 128
+  n_layers: 6
+  node_dim: 64
+  edge_dim: 64
+  global_dim: 64
+  hidden_dims: [256, 256]
+
+synthetic_dataset:
+  n_graphs: 1000
+  n_nodes_range: [20, 50]
+  node_feature_dim: 8
+  k: 6
+  global_dim: 16
+  seed: 42
+
+data:
+  batch_size: 32
+  val_split: 0.1
+  num_workers: 4
+  shuffle: true
+
+mlp:
+  activation: "silu"
+  layer_norm: true
+  residual: true
