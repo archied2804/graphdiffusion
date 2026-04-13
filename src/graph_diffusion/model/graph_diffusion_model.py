@@ -135,6 +135,7 @@ class GraphDiffusionModel(nn.Module):
         graph_template: Data,
         n_steps: int | None = None,
         sampler: str = "ddpm",
+        clamp_range: tuple[float, float] | None = None,
     ) -> Data:
         """Reverse diffusion: generate new node features for a given graph.
 
@@ -147,6 +148,10 @@ class GraphDiffusionModel(nn.Module):
                 ``self.noise_schedule.T``.
             sampler (str): Sampling strategy. Currently supports ``"ddpm"``.
                 Defaults to ``"ddpm"``.
+            clamp_range (tuple[float, float] | None): If provided, clamp
+                node features to ``(min, max)`` after each reverse step.
+                Useful for bounded diffusion (e.g. radial coordinates).
+                Defaults to ``None`` (no clamping).
 
         Returns:
             Data: A new ``Data`` object with the same topology as
@@ -218,6 +223,10 @@ class GraphDiffusionModel(nn.Module):
             if step > 1:
                 z = torch.randn_like(x_t)
                 x_t = x_t + torch.sqrt(beta_t) * z
+
+            # Clamp to bounded range if specified
+            if clamp_range is not None:
+                x_t = x_t.clamp(min=clamp_range[0], max=clamp_range[1])
 
         result.x = x_t
         return result
