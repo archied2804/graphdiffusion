@@ -1,0 +1,198 @@
+{
+  "main": {
+    "id": "5c93d602a6126a4f",
+    "type": "split",
+    "children": [
+      {
+        "id": "7909b793b7f80741",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "431861d14961078f",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "experiments/EXP-001_circle_radial_baseline.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "EXP-001_circle_radial_baseline"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "1ce98e21752fea17",
+    "type": "split",
+    "children": [
+      {
+        "id": "0e38972e899e7e14",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "d45dede49635fde1",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "46ca830b9d79ab6b",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "9005de6931314e05",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "a38d2052291908ce",
+    "type": "split",
+    "children": [
+      {
+        "id": "627c462978937fd4",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "0c416c0288608d48",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "experiments/EXP-001_circle_radial_baseline.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for EXP-001_circle_radial_baseline"
+            }
+          },
+          {
+            "id": "e742f07c9c9c3adc",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "experiments/EXP-001_circle_radial_baseline.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from EXP-001_circle_radial_baseline"
+            }
+          },
+          {
+            "id": "3bac52fb1344eac3",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "3cff2eb177d9a6ae",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "559795c3ac36b8fc",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "experiments/EXP-001_circle_radial_baseline.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of EXP-001_circle_radial_baseline"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "431861d14961078f",
+  "lastOpenFiles": [
+    "assets/EXP-001_generated_shapes.png",
+    "assets",
+    "index.md",
+    "architecture.md",
+    "experiments/EXPERIMENT_PLAN.md",
+    "experiments/README.md",
+    "experiments/EXP-001_circle_radial_baseline.md",
+    "experiments/changelog.md",
+    "experiments/_template.md"
+  ]
+}

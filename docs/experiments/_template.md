@@ -55,9 +55,9 @@ Epochs, optimiser, learning rate, schedule, hardware, wall-clock time.
 
 ### Plots
 
-Embed or link to generated figures:
+Embed or link to generated figures (copy PNGs into `docs/assets/`):
 
-![[outputs/EXP-NNN_slug/generated_shapes.png]]
+![[assets/EXP-NNN_generated_shapes.png]]
 
 ### Observations
 
