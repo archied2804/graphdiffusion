@@ -82,7 +82,7 @@ to `[0.5, 1.5]` keeps generated radii physically plausible.
 
 Generated shapes after 3 epochs (4 samples, `clamp_range=[0.5, 1.5]`):
 
-![[generated_shapes.png]]
+![[assets/EXP-001_generated_shapes.png]]
 
 ### Observations
 
