@@ -10,6 +10,7 @@ Provides a thin abstraction layer (``BaseTransform``) over PyG's
 
 import abc
 
+import torch
 import torch_geometric.transforms
 from torch_geometric.data import Data
 from torch_geometric.nn import knn_graph
@@ -21,6 +22,7 @@ __all__ = [
     "AddSelfLoops",
     "KNNGraph",
     "Compose",
+    "ComputeAngularEdgeFeatures",
 ]
 
 
@@ -188,4 +190,51 @@ class Compose(BaseTransform):
         """
         for t in self.transforms:
             data = t(data)
+        return data
+
+
+class ComputeAngularEdgeFeatures(BaseTransform):
+    """Compute angular edge features from node positions on a circle.
+
+    For each edge ``(i, j)``, computes the angular difference
+    ``Δθ = θ_j − θ_i`` (where ``θ = atan2(pos_y, pos_x)``) and sets
+    ``data.edge_attr = [sin(Δθ), cos(Δθ)]``.
+
+    This encodes relative angular separation in a rotation-invariant
+    manner suitable for ring graphs on a unit circle.
+    """
+
+    def forward(self, data: Data) -> Data:
+        """Compute angular edge features from ``data.pos``.
+
+        Args:
+            data (Data): A PyG ``Data`` object with ``data.pos`` (Cartesian
+                positions) and ``data.edge_index`` set.
+
+        Returns:
+            Data: The same ``Data`` object with ``data.edge_attr`` set to
+                shape ``(E, 2)`` containing ``[sin(Δθ), cos(Δθ)]``.
+
+        Raises:
+            ValueError: If ``data.pos`` is ``None``.
+            ValueError: If ``data.edge_index`` is ``None``.
+        """
+        if data.pos is None:
+            raise ValueError("data.pos must not be None for ComputeAngularEdgeFeatures")
+        if data.edge_index is None:
+            raise ValueError(
+                "data.edge_index must not be None for " "ComputeAngularEdgeFeatures"
+            )
+
+        # Compute per-node angle from Cartesian positions
+        theta = torch.atan2(data.pos[:, 1], data.pos[:, 0])  # (N,)
+
+        # Compute angular difference per edge
+        src, dst = data.edge_index
+        delta_theta = theta[dst] - theta[src]  # (E,)
+
+        data.edge_attr = torch.stack(
+            [torch.sin(delta_theta), torch.cos(delta_theta)], dim=-1
+        )  # (E, 2)
+
         return data
