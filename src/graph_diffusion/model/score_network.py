@@ -45,6 +45,12 @@ class ScoreNetwork(nn.Module):
         layer_norm (bool): Whether to apply LayerNorm. Defaults to ``True``.
         residual (bool): Whether to use residual connections.
             Defaults to ``True``.
+        input_dim (int | None): Dimensionality of raw input node features
+            when it differs from ``node_dim``.  When set, a linear
+            ``input_proj`` lifts features to ``node_dim`` before the GN
+            layers and a linear ``output_decode`` projects back to
+            ``input_dim`` after the output MLP.  When ``None`` (default),
+            no projection is applied and behaviour is unchanged.
 
     Raises:
         ValueError: If ``n_layers < 1``.
@@ -61,11 +67,19 @@ class ScoreNetwork(nn.Module):
         activation: str = "silu",
         layer_norm: bool = True,
         residual: bool = True,
+        input_dim: int | None = None,
     ) -> None:
         super().__init__()
 
         if n_layers < 1:
             raise ValueError(f"n_layers must be >= 1, got {n_layers}")
+
+        # Optional input / output projection for mismatched raw feature dim
+        self.input_proj: nn.Linear | None = None
+        self.output_decode: nn.Linear | None = None
+        if input_dim is not None and input_dim != node_dim:
+            self.input_proj = nn.Linear(input_dim, node_dim)
+            self.output_decode = nn.Linear(node_dim, input_dim)
 
         self.time_embedding = SinusoidalTimeEmbedding(time_embed_dim)
         self.time_proj = nn.Linear(time_embed_dim, global_dim)
@@ -117,6 +131,10 @@ class ScoreNetwork(nn.Module):
         u = data.u
         batch = data.batch
 
+        # Lift raw features to internal node_dim when input_proj is set
+        if self.input_proj is not None:
+            x = self.input_proj(x)
+
         # Inject time embedding into global attribute
         t_emb = self.time_embedding(t)  # (B, time_embed_dim)
         u = u + self.time_proj(t_emb)  # (B, global_dim)
@@ -127,4 +145,9 @@ class ScoreNetwork(nn.Module):
 
         # Project node features to output
         eps_pred = self.output_proj(x)
+
+        # Decode back to raw feature dim when output_decode is set
+        if self.output_decode is not None:
+            eps_pred = self.output_decode(eps_pred)
+
         return eps_pred  # type: ignore[no-any-return]
