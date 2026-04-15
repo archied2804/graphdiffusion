@@ -36,3 +36,7 @@ mlp:
   residual: true
 
 clamp_range: [0.5, 1.5]
+
+distributed:
+  backend: "nccl"
+  find_unused_parameters: false

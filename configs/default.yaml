@@ -30,3 +30,7 @@ mlp:
   activation: "silu"
   layer_norm: true
   residual: true
+
+distributed:
+  backend: "nccl"
+  find_unused_parameters: false
