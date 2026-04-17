@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "experiments/EXP-001_circle_radial_baseline.md",
+                "file": "index.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "EXP-001_circle_radial_baseline"
+              "title": "index"
             }
           }
         ]
@@ -94,7 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "experiments/EXP-001_circle_radial_baseline.md",
+                "file": "index.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -104,7 +104,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for EXP-001_circle_radial_baseline"
+              "title": "Backlinks for index"
             }
           },
           {
@@ -113,12 +113,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "experiments/EXP-001_circle_radial_baseline.md",
+                "file": "index.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Outgoing links from EXP-001_circle_radial_baseline"
+              "title": "Outgoing links from index"
             }
           },
           {
@@ -156,13 +156,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "experiments/EXP-001_circle_radial_baseline.md",
+                "file": "index.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of EXP-001_circle_radial_baseline"
+              "title": "Outline of index"
             }
           }
         ]
@@ -185,14 +185,14 @@
   },
   "active": "431861d14961078f",
   "lastOpenFiles": [
-    "assets/EXP-001_generated_shapes.png",
-    "assets",
-    "index.md",
     "architecture.md",
-    "experiments/EXPERIMENT_PLAN.md",
     "experiments/README.md",
+    "experiments/EXPERIMENT_PLAN.md",
     "experiments/EXP-001_circle_radial_baseline.md",
     "experiments/changelog.md",
-    "experiments/_template.md"
+    "experiments/_template.md",
+    "assets/EXP-001_generated_shapes.png",
+    "index.md",
+    "assets"
   ]
 }
