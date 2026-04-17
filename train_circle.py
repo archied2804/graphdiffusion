@@ -12,6 +12,7 @@ Usage:
 """
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -22,6 +23,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import yaml
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 # Ensure src/ is on the path for editable installs
@@ -148,8 +150,17 @@ def main() -> None:
     if clamp_cfg is not None:
         clamp_range = (float(clamp_cfg[0]), float(clamp_cfg[1]))
 
+    # --- Output directory ---
+    output_path = Path(args.output)
+    output_dir = output_path.parent
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # --- TensorBoard ---
+    writer = SummaryWriter(log_dir=str(output_dir / "tensorboard"))
+
     # --- Training ---
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    loss_log: list[dict[str, float]] = []
 
     for epoch in range(1, args.epochs + 1):
         model.train()
@@ -187,12 +198,38 @@ def main() -> None:
                 val_batches += 1
 
         avg_val_loss = val_loss / max(val_batches, 1)
+        loss_log.append(
+            {"epoch": epoch, "train_loss": avg_loss, "val_loss": avg_val_loss}
+        )
+        writer.add_scalar("Loss/train", avg_loss, epoch)
+        writer.add_scalar("Loss/test", avg_val_loss, epoch)
         print(
             f"Epoch {epoch:3d}/{args.epochs}  "
             f"train_loss={avg_loss:.4f}  val_loss={avg_val_loss:.4f}"
         )
 
+    writer.close()
     print("Training complete.")
+
+    # --- Save checkpoint and loss log ---
+    checkpoint_path = output_dir / "checkpoint.pt"
+    torch.save(
+        {
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            "config": config,
+            "epoch": args.epochs,
+            "epochs": args.epochs,
+            "lr": args.lr,
+        },
+        checkpoint_path,
+    )
+    print(f"Saved checkpoint to {checkpoint_path}")
+
+    loss_log_path = output_dir / "loss_log.json"
+    with open(loss_log_path, "w") as f:
+        json.dump(loss_log, f, indent=2)
+    print(f"Saved loss log to {loss_log_path}")
 
     # --- Generate and plot sample shapes ---
     model.eval()
