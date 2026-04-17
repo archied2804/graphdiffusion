@@ -9,3 +9,8 @@ wheels/
 # Virtual environments
 .venv
 .github
+
+# Runtime outputs
+data/
+outputs/
+generated_shapes.png

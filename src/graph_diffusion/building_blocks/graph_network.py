@@ -3,13 +3,13 @@ graph_diffusion.building_blocks.graph_network
 ===============================================
 
 Full Battaglia et al. (2018) graph network block with optional edge, node,
-and global update functions.  Uses ``torch_scatter.scatter`` directly for
+and global update functions.  Uses ``torch_geometric.utils.scatter`` for
 all aggregation operations.
 """
 
 import torch
 import torch.nn as nn
-from torch_scatter import scatter
+from torch_geometric.utils import scatter
 
 from graph_diffusion.building_blocks.mlp import MLP
 
