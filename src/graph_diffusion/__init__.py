@@ -17,6 +17,10 @@ from graph_diffusion.data import (
     UnitCircleDataset,
 )
 from graph_diffusion.model import GraphDiffusionModel, ScoreNetwork
+from graph_diffusion.postprocessing import (
+    load_checkpoint,
+    read_tensorboard_logs,
+)
 
 __all__ = [
     "BaseGraphDataset",
@@ -28,4 +32,6 @@ __all__ = [
     "NoiseSchedule",
     "ScoreNetwork",
     "GraphDiffusionModel",
+    "load_checkpoint",
+    "read_tensorboard_logs",
 ]
