@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "index.md",
+                "file": "manual_testing.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "index"
+              "title": "manual_testing"
             }
           }
         ]
@@ -185,14 +185,15 @@
   },
   "active": "431861d14961078f",
   "lastOpenFiles": [
-    "architecture.md",
-    "experiments/README.md",
     "experiments/EXPERIMENT_PLAN.md",
+    "manual_testing.md",
+    "index.md",
     "experiments/EXP-001_circle_radial_baseline.md",
+    "experiments/README.md",
+    "architecture.md",
     "experiments/changelog.md",
     "experiments/_template.md",
     "assets/EXP-001_generated_shapes.png",
-    "index.md",
     "assets"
   ]
 }
