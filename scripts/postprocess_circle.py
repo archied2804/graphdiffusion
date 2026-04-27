@@ -10,7 +10,18 @@ Usage:
     python scripts/postprocess_circle.py \
         --experiment-dir outputs/EXP-001_circle_radial_baseline \
         --config configs/circle_radial.yaml \
-        --n-samples 50
+        --n-samples 50 \
+        --visualize-diffusion \
+        --save-samples
+
+Outputs (saved to --experiment-dir):
+    evaluation_report.json   Quantitative metrics (per-sample & aggregate)
+    loss_curves.png          Training / validation loss over epochs
+    radii_histogram.png      Reference vs generated radii distributions
+    sample_gallery.png       Gallery of 16 generated shapes
+    quality_distributions.png  Smoothness & circularity histograms
+    diffusion_process.png    (--visualize-diffusion) Reverse diffusion stages
+    generated_samples.pt     (--save-samples) Raw radii, angles, & metrics
 """
 
 import argparse
@@ -113,6 +124,22 @@ def main() -> None:
         default="cuda" if torch.cuda.is_available() else "cpu",
         help="Device for inference",
     )
+    parser.add_argument(
+        "--visualize-diffusion",
+        action="store_true",
+        help="Generate a multi-panel plot showing the reverse diffusion process",
+    )
+    parser.add_argument(
+        "--save-samples",
+        action="store_true",
+        help="Save raw generated radii, angles, and metrics to a .pt file",
+    )
+    parser.add_argument(
+        "--n-snapshots",
+        type=int,
+        default=8,
+        help="Number of intermediate snapshots for diffusion visualisation",
+    )
     args = parser.parse_args()
 
     exp_dir = Path(args.experiment_dir)
@@ -183,6 +210,14 @@ def main() -> None:
             }
             per_sample_metrics.append(metrics)
 
+    # Pre-compute sorted angles from template for reuse
+    theta_template = np.arctan2(
+        template.pos[:, 1].cpu().numpy(),
+        template.pos[:, 0].cpu().numpy(),
+    )
+    theta_order = np.argsort(theta_template)
+    theta_sorted = theta_template[theta_order]
+
     gen_radii_all = np.concatenate(all_radii)
     gen_stats = compute_radii_stats(gen_radii_all)
 
@@ -229,13 +264,44 @@ def main() -> None:
         json.dump(report, f, indent=2)
     print(f"\nSaved evaluation report to {report_path}")
 
+    # --- Save raw samples ---
+    if args.save_samples:
+        samples_path = exp_dir / "generated_samples.pt"
+        torch.save(
+            {
+                "radii": [torch.from_numpy(r) for r in all_radii],
+                "theta": torch.from_numpy(theta_sorted),
+                "per_sample_metrics": per_sample_metrics,
+                "config": config,
+            },
+            samples_path,
+        )
+        print(f"Saved raw samples to {samples_path}")
+
     # --- Plots ---
     _plot_loss_curves(exp_dir)
     _plot_radii_histogram(ref_radii_all, gen_radii_all, exp_dir)
     _plot_sample_gallery(all_radii, template, exp_dir)
     _plot_smoothness_distribution(per_sample_metrics, exp_dir)
 
-    print(f"All plots saved to {exp_dir}/")
+    # --- Diffusion process visualisation ---
+    if args.visualize_diffusion:
+        print("\nGenerating diffusion process visualisation...")
+        torch.manual_seed(0)
+        _, trajectory = model.sample_with_trajectory(
+            template,
+            n_snapshots=args.n_snapshots,
+            clamp_range=clamp_range,
+        )
+        _plot_diffusion_process(trajectory, template, exp_dir)
+
+    # --- Output summary ---
+    print(f"\n{'=' * 50}")
+    print("Output files:")
+    for p in sorted(exp_dir.iterdir()):
+        if p.is_file():
+            print(f"  {p}")
+    print(f"{'=' * 50}")
 
 
 def _plot_loss_curves(exp_dir: Path) -> None:
@@ -357,6 +423,69 @@ def _plot_smoothness_distribution(
     fig.savefig(exp_dir / "quality_distributions.png", dpi=150, bbox_inches="tight")
     plt.close(fig)
     print("  Saved quality_distributions.png")
+
+
+def _plot_diffusion_process(
+    trajectory: list[tuple[int, torch.Tensor]],
+    template: Data,
+    exp_dir: Path,
+) -> None:
+    """Visualise the reverse diffusion process from noise to final shape.
+
+    Each panel shows the shape at an intermediate timestep, progressing
+    from pure noise (t = T) on the left to the clean sample (t = 0) on
+    the right.
+    """
+    theta = np.arctan2(
+        template.pos[:, 1].cpu().numpy(),
+        template.pos[:, 0].cpu().numpy(),
+    )
+    order = np.argsort(theta)
+    theta_sorted = theta[order]
+    t_ref = np.linspace(0, 2 * np.pi, 100)
+
+    n_panels = len(trajectory)
+    cols = min(n_panels, 5)
+    rows = (n_panels + cols - 1) // cols
+
+    fig, axes = plt.subplots(rows, cols, figsize=(3.5 * cols, 3.5 * rows))
+    axes = np.array(axes).flatten()
+
+    for i, (timestep, x_t) in enumerate(trajectory):
+        ax = axes[i]
+        r = x_t[:, 0].numpy()[order]
+
+        x_cart = r * np.cos(theta_sorted)
+        y_cart = r * np.sin(theta_sorted)
+        # Close the curve
+        x_cart = np.append(x_cart, x_cart[0])
+        y_cart = np.append(y_cart, y_cart[0])
+
+        # Unit circle reference
+        ax.plot(np.cos(t_ref), np.sin(t_ref), "k--", alpha=0.3, linewidth=0.5)
+        ax.plot(x_cart, y_cart, "b-", linewidth=1.2, alpha=0.9)
+        ax.set_aspect("equal")
+        ax.set_title(f"t = {timestep}", fontsize=10, fontweight="bold")
+        ax.grid(True, alpha=0.2)
+
+        # Adaptive axis limits: wider for noisy early steps
+        lim = max(2.0, float(np.max(np.abs(r))) * 1.3)
+        ax.set_xlim(-lim, lim)
+        ax.set_ylim(-lim, lim)
+        ax.tick_params(labelsize=7)
+
+    for i in range(n_panels, len(axes)):
+        axes[i].set_visible(False)
+
+    fig.suptitle(
+        "Reverse Diffusion Process: Noise → Shape",
+        fontsize=14,
+        fontweight="bold",
+    )
+    fig.tight_layout()
+    fig.savefig(exp_dir / "diffusion_process.png", dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print("  Saved diffusion_process.png")
 
 
 if __name__ == "__main__":
