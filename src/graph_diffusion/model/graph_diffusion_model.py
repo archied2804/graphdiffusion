@@ -230,3 +230,109 @@ class GraphDiffusionModel(nn.Module):
 
         result.x = x_t
         return result
+
+    @torch.no_grad()
+    def sample_with_trajectory(
+        self,
+        graph_template: Data,
+        n_snapshots: int = 8,
+        n_steps: int | None = None,
+        sampler: str = "ddpm",
+        clamp_range: tuple[float, float] | None = None,
+    ) -> tuple[Data, list[tuple[int, torch.Tensor]]]:
+        """Reverse diffusion with trajectory snapshots for visualisation.
+
+        Identical to :meth:`sample` but additionally captures intermediate
+        ``x_t`` tensors at evenly-spaced timesteps throughout the reverse
+        process.
+
+        Args:
+            graph_template (Data): Graph topology template (see :meth:`sample`).
+            n_snapshots (int): Number of intermediate snapshots to capture
+                (excluding the final result). Defaults to ``8``.
+            n_steps (int | None): Number of denoising steps. Defaults to
+                ``self.noise_schedule.T``.
+            sampler (str): Sampling strategy. Currently ``"ddpm"`` only.
+            clamp_range (tuple[float, float] | None): Optional per-step
+                clamping bounds.
+
+        Returns:
+            tuple[Data, list[tuple[int, torch.Tensor]]]:
+                - Final denoised ``Data`` object (same as :meth:`sample`).
+                - Trajectory list of ``(timestep, x_t)`` pairs ordered from
+                  ``t = T`` (noise) to ``t = 0`` (clean). The final ``t = 0``
+                  snapshot is always included.
+        """
+        if sampler not in _SAMPLERS:
+            raise ValueError(
+                f"sampler must be one of {sorted(_SAMPLERS)}, got '{sampler}'"
+            )
+
+        total_steps = self.noise_schedule.T
+        steps = n_steps if n_steps is not None else total_steps
+
+        result = copy.copy(graph_template)
+
+        if graph_template.pos is not None:
+            n_nodes = graph_template.pos.size(0)
+        else:
+            n_nodes = graph_template.x.size(0)
+
+        if graph_template.x is not None:
+            node_dim = graph_template.x.size(1)
+        else:
+            node_dim = graph_template.u.size(1)
+
+        x_t = torch.randn(n_nodes, node_dim, device=graph_template.edge_index.device)
+
+        batch_vec = graph_template.batch
+        if batch_vec is None:
+            batch_vec = torch.zeros(n_nodes, dtype=torch.long, device=x_t.device)
+
+        n_graphs = int(batch_vec.max().item()) + 1
+
+        # Determine which timesteps to snapshot
+        snapshot_steps = set()
+        for i in range(n_snapshots):
+            # Evenly-spaced from steps (noise) down to 1
+            s = steps - int(i * steps / n_snapshots)
+            snapshot_steps.add(s)
+
+        trajectory: list[tuple[int, torch.Tensor]] = []
+        # Capture the initial noise (t = T)
+        trajectory.append((steps, x_t.clone().cpu()))
+
+        for step in range(steps, 0, -1):
+            t_idx = torch.full(
+                (n_graphs,), step - 1, dtype=torch.long, device=x_t.device
+            )
+
+            noisy_data = copy.copy(graph_template)
+            noisy_data.x = x_t
+            noisy_data.batch = batch_vec
+
+            eps_pred = self.score_network(noisy_data, t_idx)
+
+            beta_t = self.noise_schedule.get_t(t_idx, "betas")[batch_vec]
+            alpha_t = self.noise_schedule.get_t(t_idx, "alphas")[batch_vec]
+            sqrt_one_minus_alpha_bar_t = self.noise_schedule.get_t(
+                t_idx, "sqrt_one_minus_alphas_cumprod"
+            )[batch_vec]
+
+            x_t = (1.0 / torch.sqrt(alpha_t)) * (
+                x_t - (beta_t / sqrt_one_minus_alpha_bar_t) * eps_pred
+            )
+
+            if step > 1:
+                z = torch.randn_like(x_t)
+                x_t = x_t + torch.sqrt(beta_t) * z
+
+            if clamp_range is not None:
+                x_t = x_t.clamp(min=clamp_range[0], max=clamp_range[1])
+
+            # Capture snapshot at selected timesteps
+            if step - 1 in snapshot_steps or step == 1:
+                trajectory.append((step - 1, x_t.clone().cpu()))
+
+        result.x = x_t
+        return result, trajectory

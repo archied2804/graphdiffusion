@@ -1,35 +1,35 @@
 #!/bin/bash --login
 #
-# run_circle.sh — Single-GPU training for circle diffusion experiments
-# =====================================================================
+# run_circle.slurm — Single-GPU training for circle diffusion experiments
+# ========================================================================
 #
-# Submit this from the ROOT of the cloned DGN_Simple repository after
-# running `uv sync` once to create the virtual environment.
+# Clones the repo into $TMPDIR, installs deps, runs train_circle.py,
+# runs postprocess_circle.py, and writes all outputs to a persistent
+# directory in $HOME/dgn_outputs/<EXP_SLUG>. Cleans up only the
+# ephemeral workspace — outputs are never deleted by this script.
 #
-# Prerequisites (done once after cloning, before first sbatch):
-#   cd ~/DGN_Simple
-#   uv sync
+# Usage — pass --account on the sbatch line (required) plus --export:
 #
-# Usage:
 #   sbatch --account=<your-account-code> \
 #          --export=EXP_SLUG=EXP-001_circle_radial_baseline,\
 #                   CONFIG=configs/circle_radial.yaml,\
-#                   EPOCHS=100 \
-#          scripts/run_circle.sh
+#                   EPOCHS=100\
+#          scripts/run_circle.slurm
 #
-# Required export variable:
+# Required export variables:
 #   EXP_SLUG   Experiment slug used as the output directory name.
 #              Examples: EXP-001_circle_radial_baseline
 #                        EXP-002a_circle_radial_k1
 #                        EXP-003c_circle_radial_amp030
 #
 # Optional export variables (all have sensible defaults):
-#   CONFIG       Path to YAML config, relative to repo root.
-#                Default: configs/circle_radial.yaml
-#   EPOCHS       Number of training epochs.             Default: 100
-#   LR           Learning rate.                         Default: 1e-3
-#   N_SAMPLES    Shapes generated for evaluation.       Default: 50
-#   OUTPUT_BASE  Parent directory for outputs.          Default: $HOME/dgn_outputs
+#   CONFIG     Path to YAML config, relative to repo root.
+#              Default: configs/circle_radial.yaml
+#   EPOCHS     Number of training epochs.   Default: 100
+#   LR         Learning rate.               Default: 1e-3
+#   N_SAMPLES  Shapes generated after training for evaluation. Default: 50
+#   REPO_BRANCH  Branch to clone.           Default: main
+#   OUTPUT_BASE  Parent dir for outputs.    Default: $HOME/dgn_outputs
 # -------------------------------------------------------------------------
 
 # ── Configurable variables ──
@@ -38,10 +38,12 @@ CONFIG="${CONFIG:-configs/circle_radial.yaml}"
 EPOCHS="${EPOCHS:-100}"
 LR="${LR:-1e-3}"
 N_SAMPLES="${N_SAMPLES:-50}"
+REPO_BRANCH="${REPO_BRANCH:-main}"
 OUTPUT_BASE="${OUTPUT_BASE:-$HOME/dgn_outputs}"
 
 # ── SLURM directives ──
 #SBATCH --partition=gpuH_short
+#SBATCH --account=${ACCOUNT}
 #SBATCH --gres=gpu:1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=8
@@ -51,7 +53,7 @@ OUTPUT_BASE="${OUTPUT_BASE:-$HOME/dgn_outputs}"
 #SBATCH --error=%x_%j.err
 
 # ── Derived paths ──
-REPO_DIR="${SLURM_SUBMIT_DIR}"
+WORK_DIR="${TMPDIR:-/tmp}/dgn_circle_${SLURM_JOB_ID}"
 OUTPUT_DIR="${OUTPUT_BASE}/${EXP_SLUG}"
 
 # ── Validate required inputs ──
@@ -59,6 +61,19 @@ if [[ "${EXP_SLUG}" == "EXP-UNKNOWN" ]]; then
     echo "ERROR: EXP_SLUG must be set via --export=EXP_SLUG=EXP-NNN_..."
     exit 1
 fi
+
+# ── Cleanup — removes only the ephemeral workspace ──
+cleanup() {
+    echo ""
+    echo "=== Cleanup ==="
+    if [[ -d "${WORK_DIR}" ]]; then
+        rm -rf "${WORK_DIR}"
+        echo "Removed ephemeral workspace: ${WORK_DIR}"
+    fi
+    echo "Outputs preserved in: ${OUTPUT_DIR}"
+    echo "=== Done ==="
+}
+trap cleanup EXIT
 
 # ── 1. Print job info ──
 echo "=== Job Info ==="
@@ -70,7 +85,7 @@ echo "LR         : ${LR}"
 echo "N_samples  : ${N_SAMPLES}"
 echo "Node       : $(hostname)"
 echo "Date       : $(date)"
-echo "Repo dir   : ${REPO_DIR}"
+echo "Work dir   : ${WORK_DIR}"
 echo "Output dir : ${OUTPUT_DIR}"
 echo "================"
 echo ""
@@ -81,17 +96,25 @@ START_TIME=$(date +%s)
 module purge
 module load libs/cuda/12.8.1
 
-# ── 3. Move to repo and activate environment ──
-cd "${REPO_DIR}" || { echo "ERROR: cannot cd to ${REPO_DIR}"; exit 1; }
+# ── 3. Clone repository ──
+echo "=== Cloning repository ==="
+git clone --depth 1 --branch "${REPO_BRANCH}" "${REPO_URL}" "${WORK_DIR}"
+if [[ $? -ne 0 ]]; then
+    echo "ERROR: git clone failed — check REPO_URL and REPO_BRANCH"
+    exit 1
+fi
+cd "${WORK_DIR}" || exit 1
 
+# Record the exact commit for reproducibility
 GIT_COMMIT=$(git rev-parse HEAD)
-echo "Repo   : ${REPO_DIR}"
-echo "Commit : ${GIT_COMMIT}"
+echo "Cloned at commit: ${GIT_COMMIT}"
 
+# ── 4. Create virtual environment and install dependencies ──
 echo ""
-echo "=== Activating environment ==="
-uv sync --quiet
+echo "=== Installing dependencies ==="
+uv sync --no-dev --quiet
 source .venv/bin/activate
+
 
 echo "Python : $(python --version)"
 echo "PyTorch: $(python -c 'import torch; print(torch.__version__)')"
@@ -108,7 +131,8 @@ cat > "${OUTPUT_DIR}/run_metadata.json" <<EOF
   "job_id":     "${SLURM_JOB_ID}",
   "node":       "$(hostname)",
   "git_commit": "${GIT_COMMIT}",
-  "repo_dir":   "${REPO_DIR}",
+  "repo_url":   "${REPO_URL}",
+  "repo_branch":"${REPO_BRANCH}",
   "config":     "${CONFIG}",
   "epochs":     ${EPOCHS},
   "lr":         ${LR},
