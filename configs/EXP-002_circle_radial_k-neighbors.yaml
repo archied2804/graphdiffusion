@@ -1,0 +1,58 @@
+# EXP-002: k-neighbors ablation
+# ================================
+# Parent:   EXP-001 (configs/circle_radial.yaml)
+# Variable: circle_dataset.k_neighbors ∈ {1, 2, 4, 6}
+#
+# BEFORE SUBMITTING: set k_neighbors below to the variant you want,
+# then use the matching EXP_SLUG on the sbatch command line.
+#
+#   k_neighbors: 1  →  EXP_SLUG=EXP-002a_circle_radial_k1
+#   k_neighbors: 2  →  EXP_SLUG=EXP-002b_circle_radial_k2
+#   k_neighbors: 4  →  EXP_SLUG=EXP-002c_circle_radial_k4
+#   k_neighbors: 6  →  EXP_SLUG=EXP-002d_circle_radial_k6
+#
+# All other values are identical to configs/circle_radial.yaml.
+# ─────────────────────────────────────────────────────────────
+
+noise_schedule:
+  schedule_type: "cosine"
+  T: 200
+  beta_start: 1e-4
+  beta_end: 0.02
+
+score_network:
+  input_dim: 1
+  node_dim: 32
+  edge_dim: 2
+  global_dim: 8
+  time_embed_dim: 64
+  n_layers: 4
+  hidden_dims: [64, 64]
+
+circle_dataset:
+  n_graphs: 2000
+  n_nodes: 64
+  n_fourier_modes: 5
+  amplitude_scale: 0.15
+  r_min: 0.5
+  r_max: 1.5
+  k_neighbors: 1       # ← CHANGE THIS before each submission (1 / 2 / 4 / 6)
+  global_dim: 8
+  seed: 42
+
+data:
+  batch_size: 64
+  val_split: 0.1
+  num_workers: 4
+  shuffle: true
+
+mlp:
+  activation: "silu"
+  layer_norm: true
+  residual: true
+
+clamp_range: [0.5, 1.5]
+
+distributed:
+  backend: "nccl"
+  find_unused_parameters: false
