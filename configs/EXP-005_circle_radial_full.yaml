@@ -1,7 +1,7 @@
 # EXP-005: full 100-epoch training with cosine LR schedule and early stopping
 # Parent: Best of EXP-002 / EXP-003
-# NOTE: Update k_neighbors and amplitude_scale after reviewing EXP-002/003 results.
-#       Current values use EXP-001 baseline settings as placeholder.
+# k_neighbors=6 chosen from EXP-002 (KS=0.0944, best val_loss=0.0378)
+# amplitude_scale=0.15 chosen from EXP-003 (meaningful complexity, KS=0.0653)
 
 noise_schedule:
   schedule_type: "cosine"
@@ -19,14 +19,14 @@ score_network:
   hidden_dims: [64, 64]
 
 circle_dataset:
-  root: "data/circle"        # update if best k/amp differs from baseline
+  root: "data/circle_k6"
   n_graphs: 2000
   n_nodes: 64
   n_fourier_modes: 5
-  amplitude_scale: 0.15      # update after EXP-003 results
+  amplitude_scale: 0.15
   r_min: 0.5
   r_max: 1.5
-  k_neighbors: 2             # update after EXP-002 results
+  k_neighbors: 6
   global_dim: 8
   seed: 42
 
