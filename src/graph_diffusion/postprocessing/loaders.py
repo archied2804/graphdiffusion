@@ -8,10 +8,12 @@ trained diffusion models.
 
 from __future__ import annotations
 
+from typing import Any, cast
+
 import torch
 
 
-def load_checkpoint(file_path: str) -> dict:
+def load_checkpoint(file_path: str) -> dict[str, Any]:
     """Load a checkpoint file and print summary info.
 
     Args:
@@ -20,8 +22,9 @@ def load_checkpoint(file_path: str) -> dict:
     Returns:
         Checkpoint dictionary.
     """
-    checkpoint = torch.load(
-        file_path, map_location=torch.device("cpu"), weights_only=False
+    checkpoint = cast(
+        dict[str, Any],
+        torch.load(file_path, map_location=torch.device("cpu"), weights_only=False),
     )
     print(f"Loaded checkpoint from: {file_path}")
     epoch = checkpoint.get("epoch", checkpoint.get("epochs", "?"))

@@ -7,12 +7,12 @@ training data distribution. Produces quantitative metrics and diagnostic
 plots.
 
 Usage:
-    python scripts/postprocess_circle.py \
-        --experiment-dir outputs/EXP-001_circle_radial_baseline \
-        --config configs/circle_radial.yaml \
-        --n-samples 50 \
-        --visualize-diffusion \
-        --save-samples
+python scripts/postprocess_circle.py \
+    --experiment-dir outputs/EXP-001_circle_radial_baseline \
+    --config configs/circle_radial.yaml \
+    --n-samples 50 \
+    --visualize-diffusion \
+    --save-samples
 
 Outputs (saved to --experiment-dir):
     evaluation_report.json   Quantitative metrics (per-sample & aggregate)
@@ -40,6 +40,8 @@ from torch_geometric.data import Data
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from graph_diffusion.building_blocks.feature_transforms import LogitNormTransform
 
 from metrics import (
     compute_boundary_violations,
@@ -90,9 +92,18 @@ def build_model(config: dict) -> GraphDiffusionModel:
         input_dim=sn_cfg.get("input_dim", 1),
     )
 
+    feature_transform = None
+    ft_cfg = config.get("feature_transform")
+    if ft_cfg and ft_cfg.get("type") == "logit_norm":
+        feature_transform = LogitNormTransform(
+            r_min=float(ft_cfg.get("r_min", 0.5)),
+            r_max=float(ft_cfg.get("r_max", 1.5)),
+        )
+
     return GraphDiffusionModel(
         score_network=score_network,
         noise_schedule=noise_schedule,
+        feature_transform=feature_transform,
     )
 
 
@@ -155,9 +166,10 @@ def main() -> None:
 
     # --- Load dataset for reference stats ---
     ds_cfg = config.get("circle_dataset", {})
+    data_root = ds_cfg.get("root", "data/circle")
     pre_transform = ComputeAngularEdgeFeatures()
     dataset = UnitCircleDataset(
-        root="data/circle",
+        root=data_root,
         n_graphs=ds_cfg.get("n_graphs", 2000),
         n_nodes=ds_cfg.get("n_nodes", 64),
         n_fourier_modes=ds_cfg.get("n_fourier_modes", 5),
@@ -166,14 +178,24 @@ def main() -> None:
         r_max=ds_cfg.get("r_max", 1.5),
         k_neighbors=ds_cfg.get("k_neighbors", 2),
         global_dim=ds_cfg.get("global_dim", 8),
+        include_curvature=ds_cfg.get("include_curvature", False),
+        include_arc_length=ds_cfg.get("include_arc_length", False),
         seed=ds_cfg.get("seed", 42),
         pre_transform=pre_transform,
     )
 
+    # Determine r bounds: prefer clamp_range, fall back to feature_transform, then defaults
     clamp_cfg = config.get("clamp_range")
-    clamp_range = tuple(clamp_cfg) if clamp_cfg else None
-    r_min = clamp_cfg[0] if clamp_cfg else 0.5
-    r_max = clamp_cfg[1] if clamp_cfg else 1.5
+    ft_cfg = config.get("feature_transform")
+    if clamp_cfg:
+        r_min = float(clamp_cfg[0])
+        r_max = float(clamp_cfg[1])
+    elif ft_cfg:
+        r_min = float(ft_cfg.get("r_min", 0.5))
+        r_max = float(ft_cfg.get("r_max", 1.5))
+    else:
+        r_min, r_max = 0.5, 1.5
+    clamp_range: tuple[float, float] | None = (r_min, r_max) if clamp_cfg else None
 
     # --- Reference distribution from training data ---
     ref_radii = []
