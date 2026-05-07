@@ -29,6 +29,10 @@ from tqdm import tqdm
 # Ensure src/ is on the path for editable installs
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
+from graph_diffusion.building_blocks.feature_transforms import (
+    FeatureTransform,
+    LogitNormTransform,
+)
 from graph_diffusion.building_blocks.noise_schedule import NoiseSchedule
 from graph_diffusion.data.circledataset import UnitCircleDataset
 from graph_diffusion.data.dataloader import GraphDataLoader
@@ -80,12 +84,25 @@ def main() -> None:
     config = load_config(args.config)
     device = torch.device(args.device)
 
+    # --- Feature transform (EXP-004: logit-norm bounded diffusion) ---
+    feature_transform: FeatureTransform | None = None
+    ft_cfg = config.get("feature_transform")
+    if ft_cfg and ft_cfg.get("type") == "logit_norm":
+        feature_transform = LogitNormTransform(
+            r_min=float(ft_cfg.get("r_min", 0.5)),
+            r_max=float(ft_cfg.get("r_max", 1.5)),
+        )
+        print(
+            f"Using LogitNormTransform(r_min={ft_cfg.get('r_min')}, r_max={ft_cfg.get('r_max')})"
+        )
+
     # --- Dataset ---
     ds_cfg = config.get("circle_dataset", {})
+    data_root = ds_cfg.get("root", "data/circle")
     pre_transform = ComputeAngularEdgeFeatures()
 
     dataset = UnitCircleDataset(
-        root="data/circle",
+        root=data_root,
         n_graphs=ds_cfg.get("n_graphs", 2000),
         n_nodes=ds_cfg.get("n_nodes", 64),
         n_fourier_modes=ds_cfg.get("n_fourier_modes", 5),
@@ -94,6 +111,8 @@ def main() -> None:
         r_max=ds_cfg.get("r_max", 1.5),
         k_neighbors=ds_cfg.get("k_neighbors", 2),
         global_dim=ds_cfg.get("global_dim", 8),
+        include_curvature=ds_cfg.get("include_curvature", False),
+        include_arc_length=ds_cfg.get("include_arc_length", False),
         seed=ds_cfg.get("seed", 42),
         pre_transform=pre_transform,
     )
@@ -137,6 +156,7 @@ def main() -> None:
     model = GraphDiffusionModel(
         score_network=score_network,
         noise_schedule=noise_schedule,
+        feature_transform=feature_transform,
     ).to(device)
 
     n_params = sum(p.numel() for p in model.parameters())
@@ -158,8 +178,23 @@ def main() -> None:
     # --- TensorBoard ---
     writer = SummaryWriter(log_dir=str(output_dir / "tensorboard"))
 
-    # --- Training ---
+    # --- Optimiser, scheduler, early stopping ---
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    training_cfg = config.get("training", {})
+
+    scheduler: torch.optim.lr_scheduler.LRScheduler | None = None
+    if training_cfg.get("scheduler") == "cosine_annealing":
+        eta_min = float(training_cfg.get("eta_min", 1e-5))
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=args.epochs, eta_min=eta_min
+        )
+        print(f"CosineAnnealingLR: eta_min={eta_min}")
+
+    early_stopping_patience: int | None = training_cfg.get("early_stopping_patience")
+    best_val_loss = float("inf")
+    best_epoch = 0
+    patience_counter = 0
+
     loss_log: list[dict[str, float]] = []
 
     for epoch in range(1, args.epochs + 1):
@@ -208,23 +243,63 @@ def main() -> None:
             f"train_loss={avg_loss:.4f}  val_loss={avg_val_loss:.4f}"
         )
 
+        if scheduler is not None:
+            scheduler.step()
+
+        # Early stopping — save best checkpoint when val_loss improves
+        if early_stopping_patience is not None:
+            if avg_val_loss < best_val_loss:
+                best_val_loss = avg_val_loss
+                best_epoch = epoch
+                patience_counter = 0
+                torch.save(
+                    {
+                        "model_state_dict": model.state_dict(),
+                        "optimizer_state_dict": optimizer.state_dict(),
+                        "config": config,
+                        "epoch": epoch,
+                        "epochs": epoch,
+                        "lr": args.lr,
+                    },
+                    output_dir / "checkpoint_best.pt",
+                )
+            else:
+                patience_counter += 1
+                if patience_counter >= early_stopping_patience:
+                    print(
+                        f"Early stopping at epoch {epoch} "
+                        f"(best val_loss={best_val_loss:.4f} at epoch {best_epoch})"
+                    )
+                    break
+
     writer.close()
     print("Training complete.")
 
     # --- Save checkpoint and loss log ---
     checkpoint_path = output_dir / "checkpoint.pt"
-    torch.save(
-        {
-            "model_state_dict": model.state_dict(),
-            "optimizer_state_dict": optimizer.state_dict(),
-            "config": config,
-            "epoch": args.epochs,
-            "epochs": args.epochs,
-            "lr": args.lr,
-        },
-        checkpoint_path,
-    )
-    print(f"Saved checkpoint to {checkpoint_path}")
+    epochs_run = loss_log[-1]["epoch"] if loss_log else 0
+    if (
+        early_stopping_patience is not None
+        and (output_dir / "checkpoint_best.pt").exists()
+    ):
+        # Promote the best checkpoint (saved during early stopping) to checkpoint.pt
+        import shutil
+
+        shutil.copy(output_dir / "checkpoint_best.pt", checkpoint_path)
+        print(f"Saved best checkpoint (epoch {best_epoch}) to {checkpoint_path}")
+    else:
+        torch.save(
+            {
+                "model_state_dict": model.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "config": config,
+                "epoch": epochs_run,
+                "epochs": epochs_run,
+                "lr": args.lr,
+            },
+            checkpoint_path,
+        )
+        print(f"Saved checkpoint to {checkpoint_path}")
 
     loss_log_path = output_dir / "loss_log.json"
     with open(loss_log_path, "w") as f:
