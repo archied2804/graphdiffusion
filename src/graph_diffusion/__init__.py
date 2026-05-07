@@ -7,7 +7,9 @@ Denoising diffusion probabilistic models on graphs (PyTorch Geometric).
 
 from graph_diffusion.building_blocks import (
     MLP,
+    FeatureTransform,
     GraphNetworkBlock,
+    LogitNormTransform,
     NoiseSchedule,
 )
 from graph_diffusion.data import (
@@ -30,6 +32,8 @@ __all__ = [
     "MLP",
     "GraphNetworkBlock",
     "NoiseSchedule",
+    "FeatureTransform",
+    "LogitNormTransform",
     "ScoreNetwork",
     "GraphDiffusionModel",
     "load_checkpoint",
