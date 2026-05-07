@@ -1,0 +1,43 @@
+# EXP-002a: k-neighbors ablation — k=1
+# Parent: EXP-001 (configs/circle_radial.yaml)
+# Variable: circle_dataset.k_neighbors = 1
+
+noise_schedule:
+  schedule_type: "cosine"
+  T: 200
+  beta_start: 1e-4
+  beta_end: 0.02
+
+score_network:
+  input_dim: 1
+  node_dim: 32
+  edge_dim: 2
+  global_dim: 8
+  time_embed_dim: 64
+  n_layers: 4
+  hidden_dims: [64, 64]
+
+circle_dataset:
+  root: "data/circle_k1"
+  n_graphs: 2000
+  n_nodes: 64
+  n_fourier_modes: 5
+  amplitude_scale: 0.15
+  r_min: 0.5
+  r_max: 1.5
+  k_neighbors: 1
+  global_dim: 8
+  seed: 42
+
+data:
+  batch_size: 64
+  val_split: 0.1
+  num_workers: 4
+  shuffle: true
+
+mlp:
+  activation: "silu"
+  layer_norm: true
+  residual: true
+
+clamp_range: [0.5, 1.5]

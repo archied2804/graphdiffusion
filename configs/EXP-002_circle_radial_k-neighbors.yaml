@@ -36,7 +36,7 @@ circle_dataset:
   amplitude_scale: 0.15
   r_min: 0.5
   r_max: 1.5
-  k_neighbors: 1       # ← CHANGE THIS before each submission (1 / 2 / 4 / 6)
+  k_neighbors: 4       # ← CHANGE THIS before each submission (1 / 2 / 4 / 6)
   global_dim: 8
   seed: 42
 
