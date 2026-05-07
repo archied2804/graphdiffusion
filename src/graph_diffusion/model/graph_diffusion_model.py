@@ -13,6 +13,7 @@ import torch.nn as nn
 import torch.nn.functional as F  # noqa: N812
 from torch_geometric.data import Data
 
+from graph_diffusion.building_blocks.feature_transforms import FeatureTransform
 from graph_diffusion.building_blocks.noise_schedule import NoiseSchedule
 from graph_diffusion.model.score_network import ScoreNetwork
 
@@ -35,16 +36,23 @@ class GraphDiffusionModel(nn.Module):
     Args:
         score_network (ScoreNetwork): The noise prediction network.
         noise_schedule (NoiseSchedule): Pre-computed diffusion schedule.
+        feature_transform (FeatureTransform | None): Optional invertible
+            transform applied to node features before diffusion and inverted
+            after sampling.  When set, the model operates in the transformed
+            (unbounded) space and ``clamp_range`` in :meth:`sample` is
+            ignored.  Defaults to ``None``.
     """
 
     def __init__(
         self,
         score_network: ScoreNetwork,
         noise_schedule: NoiseSchedule,
+        feature_transform: FeatureTransform | None = None,
     ) -> None:
         super().__init__()
         self.score_network = score_network
         self.noise_schedule = noise_schedule
+        self.feature_transform = feature_transform
 
     def forward_diffusion(
         self,
@@ -105,6 +113,9 @@ class GraphDiffusionModel(nn.Module):
             torch.Tensor: Scalar loss tensor (differentiable).
         """
         x_0 = batch.x
+        # Apply feature transform to operate in unbounded diffusion space
+        if self.feature_transform is not None:
+            x_0 = self.feature_transform.forward(x_0)
         batch_vec = batch.batch
 
         # Number of graphs in the batch
@@ -225,8 +236,13 @@ class GraphDiffusionModel(nn.Module):
                 x_t = x_t + torch.sqrt(beta_t) * z
 
             # Clamp to bounded range if specified
-            if clamp_range is not None:
+            # (skipped when feature_transform is set)
+            if clamp_range is not None and self.feature_transform is None:
                 x_t = x_t.clamp(min=clamp_range[0], max=clamp_range[1])
+
+        # Invert feature transform to recover bounded domain
+        if self.feature_transform is not None:
+            x_t = self.feature_transform.inverse(x_t)
 
         result.x = x_t
         return result
@@ -327,12 +343,15 @@ class GraphDiffusionModel(nn.Module):
                 z = torch.randn_like(x_t)
                 x_t = x_t + torch.sqrt(beta_t) * z
 
-            if clamp_range is not None:
+            if clamp_range is not None and self.feature_transform is None:
                 x_t = x_t.clamp(min=clamp_range[0], max=clamp_range[1])
 
-            # Capture snapshot at selected timesteps
+            # Capture snapshot at selected timesteps (in diffusion space)
             if step - 1 in snapshot_steps or step == 1:
                 trajectory.append((step - 1, x_t.clone().cpu()))
+
+        if self.feature_transform is not None:
+            x_t = self.feature_transform.inverse(x_t)
 
         result.x = x_t
         return result, trajectory
