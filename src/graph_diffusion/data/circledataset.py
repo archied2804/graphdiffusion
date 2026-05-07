@@ -8,6 +8,7 @@ coordinates as the sole diffused node feature.
 """
 
 from collections.abc import Callable
+from typing import cast
 
 import numpy as np
 import torch
@@ -42,6 +43,28 @@ class UnitCircleDataset(BaseGraphDataset):
     - ``edge_index``: ring connectivity, shape ``(2, E)``
     - ``u``: zero-initialised global attribute, shape ``(1, global_dim)``
 
+    When ``include_curvature`` or ``include_arc_length`` is ``True``, the
+    node feature vector ``x`` is extended:
+
+    - ``include_curvature=True``:  appends signed curvature ``κ_i`` computed
+      via 2-D finite differences on the Cartesian arc ``(x_i, y_i)``.
+    - ``include_arc_length=True``: appends the normalised cumulative
+      arc-length fraction ``s_i / L ∈ [0, 1]``.
+
+    The resulting ``x`` shape is:
+
+    +---------------------------+------------+
+    | flags                     | x shape    |
+    +===========================+============+
+    | neither                   | (N, 1)     |
+    +---------------------------+------------+
+    | curvature only            | (N, 2)     |
+    +---------------------------+------------+
+    | arc-length only           | (N, 2)     |
+    +---------------------------+------------+
+    | both                      | (N, 3)     |
+    +---------------------------+------------+
+
     Args:
         root (str): Root directory where the dataset should be saved.
         n_graphs (int): Number of graphs to generate. Defaults to ``2000``.
@@ -56,6 +79,10 @@ class UnitCircleDataset(BaseGraphDataset):
             Defaults to ``2``.
         global_dim (int): Dimensionality of the global attribute ``u``.
             Defaults to ``8``.
+        include_curvature (bool): If ``True``, append per-node curvature
+            to ``x``. Defaults to ``False``.
+        include_arc_length (bool): If ``True``, append normalised cumulative
+            arc-length fraction to ``x``. Defaults to ``False``.
         transform (Callable | None): Runtime transform. Defaults to ``None``.
         pre_transform (Callable | None): Processing-time transform.
             Defaults to ``None``.
@@ -82,6 +109,8 @@ class UnitCircleDataset(BaseGraphDataset):
         r_max: float = 1.5,
         k_neighbors: int = 2,
         global_dim: int = 8,
+        include_curvature: bool = False,
+        include_arc_length: bool = False,
         transform: Callable[[Data], Data] | None = None,
         pre_transform: Callable[[Data], Data] | None = None,
         seed: int = 42,
@@ -112,6 +141,8 @@ class UnitCircleDataset(BaseGraphDataset):
         self.r_max = r_max
         self.k_neighbors = k_neighbors
         self.global_dim = global_dim
+        self.include_curvature = include_curvature
+        self.include_arc_length = include_arc_length
         self.seed = seed
 
         super().__init__(root, transform=transform, pre_transform=pre_transform)
@@ -143,8 +174,22 @@ class UnitCircleDataset(BaseGraphDataset):
             # Clamp to [r_min, r_max]
             r = np.clip(r, self.r_min, self.r_max)
 
-            # Node features: radial coordinate only
-            x = torch.tensor(r, dtype=torch.float32).unsqueeze(1)  # (N, 1)
+            # Cartesian positions of perturbed curve for geometric features
+            xc = r * np.cos(theta)
+            yc = r * np.sin(theta)
+
+            # Node features: start with radial coordinate
+            features = [r]
+
+            if self.include_curvature:
+                features.append(self._compute_curvature(xc, yc))
+
+            if self.include_arc_length:
+                features.append(self._compute_arc_length_fraction(xc, yc))
+
+            x = torch.tensor(
+                np.stack(features, axis=1), dtype=torch.float32
+            )  # (N, F)
 
             # Reference positions on the unit circle
             pos = torch.tensor(
@@ -158,6 +203,65 @@ class UnitCircleDataset(BaseGraphDataset):
             graphs.append(Data(x=x, edge_index=edge_index.clone(), pos=pos, u=u))
 
         return graphs
+
+    @staticmethod
+    def _compute_curvature(xc: np.ndarray, yc: np.ndarray) -> np.ndarray:
+        """Compute 2-D curvature via periodic central finite differences.
+
+        Uses the standard signed curvature formula for a parametric planar
+        curve:  κ = |x'y'' - y'x''| / (x'² + y'²)^(3/2)
+
+        First and second derivatives are estimated with periodic central
+        differences so the ring boundary is handled correctly.
+
+        Args:
+            xc: x-coordinates of the perturbed curve, shape ``(N,)``.
+            yc: y-coordinates, shape ``(N,)``.
+
+        Returns:
+            np.ndarray: Curvature values, shape ``(N,)``.
+        """
+        # Periodic first differences: proportional to x', y'
+        dx = np.roll(xc, -1) - np.roll(xc, 1)
+        dy = np.roll(yc, -1) - np.roll(yc, 1)
+
+        # Periodic second differences: proportional to x'', y''
+        d2x = np.roll(xc, -1) - 2.0 * xc + np.roll(xc, 1)
+        d2y = np.roll(yc, -1) - 2.0 * yc + np.roll(yc, 1)
+
+        # Cross product of first and second derivatives (scaled numerator)
+        # and squared speed (scaled denominator) — Δθ factors cancel exactly
+        numerator = np.abs(dx * d2y - dy * d2x)
+        denominator = (dx**2 + dy**2 + 1e-10) ** 1.5
+
+        return cast(np.ndarray, (4.0 * numerator / denominator).astype(np.float64))
+
+    @staticmethod
+    def _compute_arc_length_fraction(
+        xc: np.ndarray, yc: np.ndarray
+    ) -> np.ndarray:
+        """Compute normalised cumulative arc-length fraction s_i / L.
+
+        Arc-length elements are estimated from chord lengths between
+        consecutive Cartesian positions with periodic wrap-around.
+
+        Args:
+            xc: x-coordinates of the perturbed curve, shape ``(N,)``.
+            yc: y-coordinates, shape ``(N,)``.
+
+        Returns:
+            np.ndarray: Normalised arc-length fractions in ``[0, 1]``,
+                shape ``(N,)``.
+        """
+        # Chord length to the next node (periodic)
+        ds = np.sqrt(
+            (np.roll(xc, -1) - xc) ** 2 + (np.roll(yc, -1) - yc) ** 2
+        )
+        s = np.cumsum(ds)
+        total = s[-1]
+        # Shift so node 0 starts at 0 (cumsum of ds gives s_1…s_N; s_0 = 0)
+        s_shifted = np.concatenate([[0.0], s[:-1]])
+        return cast(np.ndarray, (s_shifted / (total + 1e-10)).astype(np.float64))
 
     def _build_ring_edge_index(self) -> torch.Tensor:
         """Build bidirectional ring edge index.
