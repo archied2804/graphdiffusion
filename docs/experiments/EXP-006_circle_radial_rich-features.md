@@ -2,7 +2,7 @@
 experiment_id: "EXP-006"
 title: "Richer node features: [r, κ, s/L] on unit circle radial diffusion"
 date: 2026-05-07
-status: planned
+status: complete
 parent: "EXP-005, EXP-004"
 tags: [rich-features, curvature, arc-length, circle, radial]
 config: "configs/EXP-006_circle_radial_rich-features.yaml"
@@ -64,11 +64,11 @@ s_i / L = cumsum(ds)[i] / total_arc_length
 
 ### Dataset
 
-2000 ring graphs, 64 nodes, k=2. Node features: `x = [r, κ, s/L]`, shape (64, 3).
+2000 ring graphs, 64 nodes, k=6 (from EXP-005), amplitude=0.15. Node features: `x = [r, κ, s/L]`, shape (64, 3).
 
 ### Training
 
-100 epochs, cosine LR, early stopping (patience=20). Same as EXP-005.
+100 epochs, cosine LR (lr=1e-3 → 1e-5), early stopping (patience=20). Same as EXP-005.
 
 ### Evaluation
 
@@ -76,28 +76,44 @@ Metrics computed on `x[:, 0]` (generated radii) only — same metrics as all pri
 
 ## Results
 
-> **Status: planned** — run after EXP-004 and EXP-005 complete.
-
 ### Metrics
 
-| Metric | Value |
-|--------|-------|
-| Best epoch (early stopping) | |
-| Best val loss | |
-| Smoothness | |
-| Circularity CV | |
-| Boundary violations | |
-| KS statistic | |
+| Metric | EXP-005 (baseline) | EXP-006 (rich) | Δ |
+|--------|-------------------|----------------|---|
+| Best epoch | 89 | 77 | −12 |
+| Best val loss | 0.0303 | 0.0915 | +0.0612 ↑ |
+| Final train loss | 0.0425 | 0.1075 | +0.0650 ↑ |
+| Smoothness | 0.0092 | **0.0085** | −0.0007 ✓ |
+| Circularity CV | 0.1137 | **0.1041** | −0.0096 ✓ |
+| Boundary violations | 0.0000 | 0.0000 | — |
+| KS statistic | **0.1049** | 0.1298 | +0.0249 ↑ |
 
-### Key question
+### Observations
 
-Do the generated κ and s/L columns remain geometrically consistent with the generated r values? (Compare `κ_generated` with `κ_recomputed_from_r`.)
+- **Val loss is 3× higher** than EXP-005 (0.0915 vs 0.0303). This is expected: the score network must now predict 3D noise (r, κ, s/L channels) instead of 1D, and the added geometric channels have implicit consistency constraints that are harder to learn under standard DDPM.
+- **Shape quality improves marginally:** smoothness 0.0092→0.0085 (−8%), circularity CV 0.1137→0.1041 (−8%). Both improvements are consistent with the hypothesis that geometric context helps the model generate smoother, more circular shapes.
+- **Distribution fidelity (KS) degrades:** 0.1049→0.1298 (+24%). Evaluated on the r column only, the rich-feature model is slightly worse at reproducing the reference radius distribution. The model may be spending capacity on κ and s/L consistency at the expense of r fidelity.
+- **Best epoch at 77** vs 89 in EXP-005. Richer features cause the model to peak earlier, suggesting it gains fast geometric structure then stalls. The final val_loss (0.1012) is 11% higher than the best (0.0915), indicating mild overfitting in the last ≈20 epochs.
+- **Boundary violations = 0.0** — clamp_range remains effective even in the 3D feature space (applied to r column only).
+
+### Key question: geometric consistency
+
+The generated κ and s/L columns have not been compared against κ and s/L recomputed from the generated r values. This check requires manual analysis of `generated_samples.pt`. If the generated triplets are geometrically inconsistent (κ_generated ≠ κ_recomputed_from_r), it would confirm that DDPM treats the three channels as independent rather than geometrically coupled — a known limitation of standard DDPM for structured multi-channel outputs.
 
 ## Conclusions
 
-*Fill in after results are available.*
+**Richer features deliver marginal shape quality improvements but at significant cost.** The 3× increase in val loss and +24% KS degradation mean EXP-006 is not a clear improvement over EXP-005 for the circle task as currently formulated.
+
+The core problem: DDPM assumes independent Gaussian noise across all channels. The κ and s/L channels are deterministic functions of r, so injecting them as independent noised features creates an inconsistent training signal — the model must simultaneously denoise three channels that are geometrically coupled but treated as uncorrelated by the diffusion process.
+
+**Recommendations for follow-on work:**
+1. **Geometric consistency check:** Compute `κ_recomputed_from_r` for all generated samples and compare to `κ_generated`. Large discrepancy confirms the coupling issue.
+2. **Conditional diffusion:** Diffuse r only; compute κ and s/L analytically from the generated r at each reverse step. This preserves geometric consistency by construction.
+3. **Feature normalisation:** κ values are on a different scale from r and s/L. Standardising each channel before diffusion may improve training stability.
+4. **Proceed to NACA:** For [[EXP-007_naca_radial_baseline]], use the EXP-005 recipe (single r feature, k=6, cosine LR) as the starting point.
 
 ## Next steps
 
-- [ ] Geometric consistency check: compare κ_generated vs κ_recomputed
-- [ ] If richer features help: apply to [[EXP-007_naca_radial_baseline]] (NACA aerofoil)
+- [ ] Geometric consistency check: compare κ_generated vs κ_recomputed from `generated_samples.pt`
+- [ ] If richer features help: apply conditional diffusion approach to [[EXP-007_naca_radial_baseline]]
+- [ ] Proceed to [[EXP-007_naca_radial_baseline]] using EXP-005 checkpoint/config as parent
