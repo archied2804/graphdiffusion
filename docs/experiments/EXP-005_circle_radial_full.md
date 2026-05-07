@@ -2,7 +2,7 @@
 experiment_id: "EXP-005"
 title: "Full 100-epoch training with cosine LR schedule and early stopping"
 date: 2026-05-07
-status: running
+status: complete
 parent: "EXP-002, EXP-003"
 tags: [full-training, cosine-annealing, early-stopping, circle, radial]
 config: "configs/EXP-005_circle_radial_full.yaml"
@@ -49,24 +49,35 @@ Up to 100 epochs. CosineAnnealingLR from lr=1e-3 to eta_min=1e-5. Early stopping
 
 ## Results
 
-> **Status: running** — fill in after training completes.
-
 ### Metrics
 
 | Metric | Value |
 |--------|-------|
-| Best epoch (early stopping) | |
-| Best val loss | |
-| Final train loss | |
-| Smoothness | |
-| Circularity CV | |
-| Boundary violations | |
-| KS statistic | |
+| Best epoch (early stopping) | 89 |
+| Best val loss | **0.0303** |
+| Final train loss | 0.0425 |
+| Smoothness | **0.0092** |
+| Circularity CV | 0.1137 |
+| Boundary violations | **0.0000** |
+| KS statistic | 0.1049 |
+
+### Observations
+
+- **Early stopping did not trigger** — best checkpoint is epoch 89, but val_loss at epoch 100 (0.0408) is still within patience window from epoch 89 (89 + 20 = 109 > 100). All 100 epochs ran; the best checkpoint at epoch 89 (val_loss=0.0303) was saved as `checkpoint.pt`.
+- **Val loss improved significantly** vs 50-epoch ablation baseline: 0.0378 (EXP-002d, 50 epochs) → 0.0303 (EXP-005, 89 best epoch) — a 20% improvement. The cosine LR schedule enabled continued improvement in the second half of training.
+- **KS stat = 0.1049** — slightly worse than the 50-epoch k=6 ablation (0.0944). Evaluated with 50 samples (vs 16 in ablations), so the sample size difference may account for some variance. The distribution fidelity is still strong.
+- **Smoothness = 0.0092** matches EXP-002b (k=2) closely despite the wider k=6 connectivity — the additional training epochs appear to have recovered the smoothness advantage.
+- **Boundary violations = 0.0** — consistent with all prior experiments; clamp_range is effective.
+- The slight val_loss degradation after epoch 89 (0.0303 → 0.0408) suggests mild overfitting in the final epochs that cosine annealing could not fully prevent. Patience=20 is correct but the model would benefit from earlier stopping at epoch 89.
 
 ## Conclusions
 
-*Fill in after results are available.*
+**EXP-005 establishes the circle radial reference result:** k=6, amplitude=0.15, 89 best epochs, val_loss=0.0303, KS=0.1049, smoothness=0.0092, BVR=0.0.
+
+Compared to the best 50-epoch ablation (EXP-002d, k=6): val_loss improved by 20%, smoothness improved from 0.0153 to 0.0092. The full training run confirms that k=6 + cosine LR + best-checkpoint saving is the right training recipe for this circle task.
+
+This checkpoint is the parent for [[EXP-006_circle_radial_rich-features]].
 
 ## Next steps
 
-- [ ] Use this checkpoint as parent for [[EXP-006_circle_radial_rich-features]]
+- [x] Use this checkpoint as parent for [[EXP-006_circle_radial_rich-features]]
