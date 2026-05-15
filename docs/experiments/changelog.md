@@ -41,3 +41,29 @@ Motivated by: [[EXP-001_circle_radial_baseline]]
 - Before: 109 tests
 - After: 139 tests (+30)
 - All passing, zero regressions
+
+---
+
+## 2026-05-07 — Full training infrastructure (EXP-005)
+
+Motivated by: [[EXP-005_circle_radial_full]]
+
+### Modified classes
+
+| Class | Change | Backward-compatible? |
+|-------|--------|---------------------|
+| `train_circle.py` | Added `CosineAnnealingLR` scheduler; early stopping with best-checkpoint saving | ✅ Yes (opt-in via config) |
+
+---
+
+## 2026-05-07 — Rich node features (EXP-006)
+
+Motivated by: [[EXP-006_circle_radial_rich-features]]
+
+### Modified classes
+
+| Class | Change | Backward-compatible? |
+|-------|--------|---------------------|
+| `UnitCircleDataset` | Added `include_curvature`, `include_arc_length` params; `_compute_curvature` and `_compute_arc_length_fraction` methods | ✅ Yes (both default to `False`) |
+| `train_circle.py` | Passes `include_curvature`, `include_arc_length` to `UnitCircleDataset` from config | ✅ Yes |
+| `scripts/postprocess_circle.py` | Passes same flags; evaluation uses `x[:, 0]` (r only) for comparability | ✅ Yes |

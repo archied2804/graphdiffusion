@@ -9,6 +9,7 @@ Provides a thin abstraction layer (``BaseTransform``) over PyG's
 """
 
 import abc
+import math
 
 import torch
 import torch_geometric.transforms
@@ -23,6 +24,7 @@ __all__ = [
     "KNNGraph",
     "Compose",
     "ComputeAngularEdgeFeatures",
+    "ComputeArcLengthEdgeFeatures",
 ]
 
 
@@ -235,6 +237,70 @@ class ComputeAngularEdgeFeatures(BaseTransform):
 
         data.edge_attr = torch.stack(
             [torch.sin(delta_theta), torch.cos(delta_theta)], dim=-1
+        )  # (E, 2)
+
+        return data
+
+
+class ComputeArcLengthEdgeFeatures(BaseTransform):
+    """Compute arc-length edge features from physical boundary positions.
+
+    Assumes nodes are ordered sequentially around the boundary curve
+    (as in panel-method discretisations of closed curves). For each edge
+    ``(i, j)``, encodes the signed fractional arc-length difference
+    ``Δs/L`` as ``[sin(2π Δs/L), cos(2π Δs/L)]``, analogous to
+    ``ComputeAngularEdgeFeatures`` for non-circular boundaries.
+
+    Chord lengths between consecutive nodes are used to approximate
+    arc-length elements.
+    """
+
+    def forward(self, data: Data) -> Data:
+        """Compute arc-length edge features from ``data.pos``.
+
+        Args:
+            data (Data): A PyG ``Data`` object with ``data.pos`` (physical
+                Cartesian positions, ordered around the boundary) and
+                ``data.edge_index`` set.
+
+        Returns:
+            Data: The same ``Data`` object with ``data.edge_attr`` set to
+                shape ``(E, 2)`` containing ``[sin(2π Δs/L), cos(2π Δs/L)]``.
+
+        Raises:
+            ValueError: If ``data.pos`` is ``None``.
+            ValueError: If ``data.edge_index`` is ``None``.
+        """
+        if data.pos is None:
+            raise ValueError(
+                "data.pos must not be None for ComputeArcLengthEdgeFeatures"
+            )
+        if data.edge_index is None:
+            raise ValueError(
+                "data.edge_index must not be None for ComputeArcLengthEdgeFeatures"
+            )
+
+        pos = data.pos  # (N, 2)
+
+        # Chord length from each node to the next (periodic wrap)
+        ds = torch.norm(torch.roll(pos, -1, dims=0) - pos, dim=1)  # (N,)
+
+        # Cumulative arc-length: s[0]=0, s[1]=ds[0], s[2]=ds[0]+ds[1], ...
+        s = torch.zeros(pos.size(0), dtype=torch.float32, device=pos.device)
+        s[1:] = torch.cumsum(ds[:-1], dim=0)
+
+        total_length = ds.sum().clamp(min=1e-10)
+
+        src, dst = data.edge_index
+        delta_s_frac = (s[dst] - s[src]) / total_length  # signed fractional diff
+
+        two_pi = 2.0 * math.pi
+        data.edge_attr = torch.stack(
+            [
+                torch.sin(two_pi * delta_s_frac),
+                torch.cos(two_pi * delta_s_frac),
+            ],
+            dim=-1,
         )  # (E, 2)
 
         return data

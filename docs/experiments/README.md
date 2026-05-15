@@ -49,6 +49,20 @@ configs inherit from them or copy + modify.
 | ID | Slug | Status | One-liner |
 |----|------|--------|-----------|
 | 001 | [[EXP-001_circle_radial_baseline]] | ✅ complete | First radial diffusion on unit circle — validates pipeline |
+| 002 | [[EXP-002_circle_radial_k-neighbors]] | ✅ complete | k-neighbors ablation — k=6 wins on distribution fidelity |
+| 003 | [[EXP-003_circle_radial_amplitude]] | ✅ complete | Amplitude ablation — 0.15 is the right complexity |
+| 004 | [[EXP-004_circle_radial_logit]] | ✅ complete | Logit-transform bounded diffusion — not adopted |
+| 005 | [[EXP-005_circle_radial_full]] | ✅ complete | Full training — reference result val_loss=0.0303 |
+| 006 | [[EXP-006_circle_radial_rich-features]] | ✅ complete | Rich features [r,κ,s/L] — marginal gain at 3× higher loss |
+| — | [[EXP-00x_series_summary]] | ✅ complete | EXP-00x circle series summary & recommendations |
+| 010 | [[EXP-010_ellipse_radial_baseline]] | 🔜 planned | pOnEllipse data pipeline + pressure field baseline |
+| 011 | [[EXP-011_ellipse_shape_method_A]] | 🔜 planned | Shape Method A — unit ellipse r(θ) radial |
+| 012 | [[EXP-012_ellipse_shape_method_B]] | 🔜 planned | Shape Method B — Cartesian (x, y) direct |
+| 013 | [[EXP-013_ellipse_smoothness_reg]] | ✅ complete | Smoothness reg (λ=1e-4, SNR-weighted) — negative result, roughness +18% |
+| 013b | [[EXP-013b_ellipse_smoothness_reg_strong]] | ✅ complete | Smoothness reg λ=1e-3 — monotone degradation; approach abandoned |
+| 014 | [[EXP-014_ellipse_shape_method_D]] | 🔜 planned | Shape Method D — aspect-ratio normalisation + (a,b) conditioning |
+| 015 | [[EXP-015_ellipse_conditional_global]] | 🔜 planned | Conditional inverse design — global pressure summary → u |
+| 016 | [[EXP-016_ellipse_conditional_node]] | 🔜 planned | Conditional inverse design — node-level pressure concatenation |
 
 ## Obsidian integration
 

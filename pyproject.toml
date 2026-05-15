@@ -18,6 +18,8 @@ dependencies = [
     "tqdm>=4.66",
     "matplotlib>=3.10.9",
     "tensorboard>=2.20.0",
+    "h5py>=3.0",
+    "requests>=2.31",
 ]
 
 [project.optional-dependencies]
@@ -44,7 +46,7 @@ select = ["E", "F", "W", "I", "N", "UP", "ANN", "B", "SIM"]
 ignore = []
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["ANN"]             # relaxed annotations in tests
+"tests/*" = ["ANN", "N806"]    # relaxed annotations + uppercase tensor dim vars in tests
 
 # ─── Black ──────────────────────────────────────────────────────────────────
 [tool.black]
@@ -61,3 +63,9 @@ ignore_missing_imports = true   # torch-scatter has no stubs
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--tb=short -q"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.20.0",
+    "types-requests>=2.33.0.20260508",
+]

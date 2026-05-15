@@ -48,9 +48,18 @@ class ScoreNetwork(nn.Module):
         input_dim (int | None): Dimensionality of raw input node features
             when it differs from ``node_dim``.  When set, a linear
             ``input_proj`` lifts features to ``node_dim`` before the GN
-            layers and a linear ``output_decode`` projects back to
-            ``input_dim`` after the output MLP.  When ``None`` (default),
-            no projection is applied and behaviour is unchanged.
+            layers.  When ``None`` (default), no input projection is used.
+        cond_dim (int | None): Dimensionality of an optional per-graph
+            conditioning vector (e.g. global pressure summary in EXP-015).
+            When set, a ``cond_proj: Linear(cond_dim, global_dim)`` is added
+            and its output is summed into ``u`` alongside the time embedding.
+            Defaults to ``None``.
+        output_dim (int | None): Override the output dimensionality of
+            ``output_decode``.  Useful when the score network predicts noise
+            for a subset of input channels (e.g. EXP-016 where only the
+            radial channel is noised but the pressure channel is also in the
+            input).  When ``None``, falls back to ``input_dim`` for backward
+            compatibility.  Defaults to ``None``.
 
     Raises:
         ValueError: If ``n_layers < 1``.
@@ -68,18 +77,30 @@ class ScoreNetwork(nn.Module):
         layer_norm: bool = True,
         residual: bool = True,
         input_dim: int | None = None,
+        cond_dim: int | None = None,
+        output_dim: int | None = None,
     ) -> None:
         super().__init__()
 
         if n_layers < 1:
             raise ValueError(f"n_layers must be >= 1, got {n_layers}")
 
-        # Optional input / output projection for mismatched raw feature dim
+        # Optional input projection when raw feature dim != node_dim
         self.input_proj: nn.Linear | None = None
-        self.output_decode: nn.Linear | None = None
         if input_dim is not None and input_dim != node_dim:
             self.input_proj = nn.Linear(input_dim, node_dim)
-            self.output_decode = nn.Linear(node_dim, input_dim)
+
+        # Output decode: projects node_dim back to the desired output size.
+        # Priority: output_dim (explicit) > input_dim (backward compat) > None.
+        self.output_decode: nn.Linear | None = None
+        effective_out = output_dim if output_dim is not None else input_dim
+        if effective_out is not None and effective_out != node_dim:
+            self.output_decode = nn.Linear(node_dim, effective_out)
+
+        # Optional conditioning projection (EXP-015 global pressure summary)
+        self.cond_proj: nn.Linear | None = None
+        if cond_dim is not None:
+            self.cond_proj = nn.Linear(cond_dim, global_dim)
 
         self.time_embedding = SinusoidalTimeEmbedding(time_embed_dim)
         self.time_proj = nn.Linear(time_embed_dim, global_dim)
@@ -112,18 +133,23 @@ class ScoreNetwork(nn.Module):
         self,
         data: Data,
         t: torch.Tensor,
+        cond: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        """Predict noise from a noisy graph and timestep.
+        """Predict noise from a noisy graph, timestep, and optional conditioning.
 
         Args:
             data (Data): A PyG ``Data`` object containing ``x`` (noisy node
                 features), ``edge_index``, ``edge_attr``, ``u`` (global), and
                 ``batch``.
             t (torch.Tensor): Integer timesteps, shape ``(B,)``.
+            cond (torch.Tensor | None): Optional per-graph conditioning vector,
+                shape ``(B, cond_dim)``.  Ignored when ``cond_proj`` is
+                ``None``.  Defaults to ``None``.
 
         Returns:
             torch.Tensor: Predicted noise ``eps_pred``, shape
-                ``(N_total, F)`` — same shape as ``data.x``.
+                ``(N_total, output_dim)`` or ``(N_total, node_dim)`` when
+                no output projection is set.
         """
         x = data.x
         edge_index = data.edge_index
@@ -139,6 +165,10 @@ class ScoreNetwork(nn.Module):
         t_emb = self.time_embedding(t)  # (B, time_embed_dim)
         u = u + self.time_proj(t_emb)  # (B, global_dim)
 
+        # Inject optional conditioning into global attribute (EXP-015)
+        if self.cond_proj is not None and cond is not None:
+            u = u + self.cond_proj(cond)
+
         # Pass through stacked GN layers
         for gn_layer in self.gn_layers:
             x, edge_attr, u = gn_layer(x, edge_index, edge_attr, u, batch)
@@ -146,7 +176,7 @@ class ScoreNetwork(nn.Module):
         # Project node features to output
         eps_pred = self.output_proj(x)
 
-        # Decode back to raw feature dim when output_decode is set
+        # Decode back to target feature dim when output_decode is set
         if self.output_decode is not None:
             eps_pred = self.output_decode(eps_pred)
 

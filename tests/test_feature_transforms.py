@@ -1,6 +1,5 @@
 """Tests for graph_diffusion.building_blocks.feature_transforms."""
 
-
 import pytest
 import torch
 

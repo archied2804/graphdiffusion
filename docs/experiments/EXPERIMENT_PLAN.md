@@ -1,13 +1,12 @@
 ---
-tags: [plan, experiments, circle, radial]
+tags: [plan, experiments, circle, radial, ellipse, aerodynamic]
 ---
 
 # Experimentation Plan
 
 This document lays out the planned experiment sequence for validating and
-extending the `graph_diffusion` framework, starting from the completed
-[[EXP-001_circle_radial_baseline]] and building towards aerodynamic shape
-generation.
+extending the `graph_diffusion` framework. The EXP-00x circle series is
+**complete**. The EXP-01x series moves to real aerodynamic data.
 
 ## Experiment roadmap
 
@@ -16,92 +15,120 @@ graph LR
     EXP001["EXP-001<br/>circle radial<br/>baseline ✅"] --> EXP002
     EXP001 --> EXP003
     EXP001 --> EXP004
-    EXP002["EXP-002<br/>k-neighbors<br/>ablation"] --> EXP005
-    EXP003["EXP-003<br/>amplitude-scale<br/>ablation"] --> EXP005
-    EXP004["EXP-004<br/>logit-transform<br/>bounded diffusion"]
-    EXP005["EXP-005<br/>full training<br/>100 epochs"] --> EXP006
+    EXP002["EXP-002<br/>k-neighbors ✅"] --> EXP005
+    EXP003["EXP-003<br/>amplitude ✅"] --> EXP005
+    EXP004["EXP-004<br/>logit ✅"]
+    EXP005["EXP-005<br/>full training ✅"] --> EXP006
     EXP004 --> EXP006
-    EXP006["EXP-006<br/>richer node<br/>features"] --> EXP007
-    EXP007["EXP-007<br/>NACA aerofoil<br/>geometry"]
+    EXP006["EXP-006<br/>rich features ✅"] --> EXP010
+    EXP010["EXP-010<br/>pOnEllipse<br/>pipeline 🔜"] --> EXP011
+    EXP010 --> EXP012
+    EXP010 --> EXP013
+    EXP011["EXP-011<br/>Method A<br/>r(θ) 🔜"] --> EXP014
+    EXP012["EXP-012<br/>Method B<br/>Cartesian 🔜"] --> EXP014
+    EXP013["EXP-013<br/>Method E<br/>Fourier MLP 🔜"] --> EXP014
+    EXP014["EXP-014<br/>Method D<br/>(a,b) cond 🔜"] --> EXP015
+    EXP015["EXP-015<br/>Conditional<br/>global p 🔜"] --> EXP016
+    EXP016["EXP-016<br/>Conditional<br/>node p 🔜"]
 ```
 
 ---
 
-## Phase 1 — Circle ablations (EXP-002 to EXP-004)
+## Phase 1 — Circle ablations (EXP-002 to EXP-004) ✅ COMPLETE
 
-These experiments vary one hyperparameter at a time from the EXP-001 baseline
-to map the sensitivity landscape.
+See [[EXP-00x_series_summary]] for full results and conclusions.
 
-### EXP-002: k-neighbors ablation
+### EXP-002: k-neighbors ablation ✅
 
-| Field | Value |
-|-------|-------|
-| **Parent** | [[EXP-001_circle_radial_baseline]] |
-| **Question** | Does wider connectivity improve shape smoothness? |
-| **Variable** | `k_neighbors` ∈ {1, 2, 4, 6} |
-| **Fixed** | All other config identical to EXP-001 |
-| **Metrics** | Final loss, visual smoothness, inference time |
-| **Config** | `configs/EXP-002_circle_radial_k-neighbors.yaml` (4 runs) |
+Best result: k=6 (val_loss=0.0378, KS=0.0944). Adopted in EXP-005.
 
-### EXP-003: amplitude-scale ablation
+### EXP-003: amplitude-scale ablation ✅
 
-| Field | Value |
-|-------|-------|
-| **Parent** | [[EXP-001_circle_radial_baseline]] |
-| **Question** | How does perturbation magnitude affect learnability? |
-| **Variable** | `amplitude_scale` ∈ {0.05, 0.15, 0.30} |
-| **Fixed** | All other config identical to EXP-001 |
-| **Metrics** | Final loss, sample diversity, shape fidelity |
-| **Config** | `configs/EXP-003_circle_radial_amplitude.yaml` (3 runs) |
+Best result: amplitude=0.15 (KS=0.0653, meaningful challenge). Adopted in EXP-005.
 
-### EXP-004: logit-transform bounded diffusion
+### EXP-004: logit-transform bounded diffusion ✅
 
-| Field | Value |
-|-------|-------|
-| **Parent** | [[EXP-001_circle_radial_baseline]] |
-| **Question** | Can logit-transform replace post-hoc clamping for bounded generation? |
-| **Change** | Add `logit(r)` / `sigmoid` transforms in forward/reverse diffusion |
-| **Metrics** | Loss, boundary violation rate (% samples outside [0.5, 1.5]) |
-| **Config** | `configs/EXP-004_circle_radial_logit.yaml` |
-| **Code** | New `LogitTransform` class or modifications to `GraphDiffusionModel` |
+Result: BVR=0.0 (guaranteed), but KS=0.8929 — not adopted. Clamp heuristic preferred.
 
 ---
 
-## Phase 2 — Full training + feature enrichment (EXP-005, EXP-006)
+## Phase 2 — Full training + feature enrichment (EXP-005, EXP-006) ✅ COMPLETE
 
-### EXP-005: full 100-epoch training
+### EXP-005: full 100-epoch training ✅
 
-| Field | Value |
-|-------|-------|
-| **Parent** | Best of EXP-002 / EXP-003 |
-| **Question** | What is the converged loss with tuned hyperparameters? |
-| **Change** | 100 epochs, lr scheduling (cosine annealing), early stopping |
-| **Metrics** | Train/val loss curves, FID-like shape distribution metric |
-| **Config** | `configs/EXP-005_circle_radial_full.yaml` |
+Reference result: val_loss=0.0303, KS=0.1049, smoothness=0.0092, BVR=0.0.
 
-### EXP-006: richer node features
+### EXP-006: richer node features ✅
 
-| Field | Value |
-|-------|-------|
-| **Parent** | EXP-005 |
-| **Question** | Do curvature and arc-length features improve generation quality? |
-| **Change** | `input_dim=3` — node features `[r, κ, s/L]` (radius, curvature, normalised arc length) |
-| **Code** | Extend `UnitCircleDataset` to compute curvature + arc-length fraction |
-| **Config** | `configs/EXP-006_circle_radial_rich-features.yaml` |
+Result: marginal smoothness gain (−8%) but 3× higher loss and +24% KS vs EXP-005. Standard DDPM cannot enforce geometric coupling between r, κ, s/L. EXP-005 recipe (single r feature) is the recommended starting point for aerodynamic work.
 
 ---
 
-## Phase 3 — Geometry transfer (EXP-007+)
+## Phase 3 — Aerodynamic data pipeline (EXP-010) 🔜 ACTIVE
 
-### EXP-007: NACA aerofoil geometry
+### EXP-010: pOnEllipse dataset ingestion + pressure baseline
 
 | Field | Value |
 |-------|-------|
-| **Parent** | EXP-006 |
-| **Question** | Does the framework generalise to non-circular aerodynamic shapes? |
-| **Change** | New `NACADataset` — 2D aerofoil profiles (NACA 4-digit family) |
-| **Metrics** | Loss, shape validity (closed curve, no self-intersection), Cl/Cd proxy |
-| **Config** | `configs/EXP-007_naca_radial_baseline.yaml` |
+| **Parent** | EXP-005 recipe |
+| **Question** | What is the raw h5 structure? Can the DDPM generate realistic pressure fields on ellipse surfaces? |
+| **Config** | `configs/EXP-010_ellipse_data_pipeline.yaml` |
+| **Blocks** | EXP-011, 012, 013 until five blocking questions answered |
+
+---
+
+## Phase 4 — Shape representation ablation (EXP-011 to EXP-013) 🔜 PLANNED
+
+Three shape representation methods run in parallel once EXP-010 completes.
+
+### EXP-011: Method A — unit ellipse r(θ)
+
+| Field | Value |
+|-------|-------|
+| **Question** | Does the EXP-005 radial recipe transfer directly to real ellipses? |
+| **Config** | `configs/EXP-011_ellipse_shape_method_A.yaml` |
+
+### EXP-012: Method B — Cartesian (x, y) direct
+
+| Field | Value |
+|-------|-------|
+| **Question** | Does 2D coordinate diffusion outperform polar representation? |
+| **Risk** | Rotation ambiguity — verify canonical orientation in EXP-010 |
+| **Config** | `configs/EXP-012_ellipse_shape_method_B.yaml` |
+
+### EXP-013: Method E — Fourier coefficient MLP
+
+| Field | Value |
+|-------|-------|
+| **Question** | Is the GN graph architecture necessary, or does K=16 Fourier coefficient diffusion (MLP) match graph quality? |
+| **Config** | `configs/EXP-013_ellipse_shape_method_E.yaml` |
+
+---
+
+## Phase 5 — Conditional inverse design (EXP-014 to EXP-016) 🔜 PLANNED
+
+### EXP-014: Method D — aspect-ratio normalisation
+
+| Field | Value |
+|-------|-------|
+| **Question** | Does conditioning on (a, b) enable controlled aspect-ratio generation? |
+| **Config** | `configs/EXP-014_ellipse_shape_method_D.yaml` |
+
+### EXP-015: Global pressure conditioning
+
+| Field | Value |
+|-------|-------|
+| **Question** | Can a 4-scalar pressure summary [p_mean, p_std, p_max, p_min] drive shape generation? |
+| **Code** | `cond_dim` parameter in `ScoreNetwork`; `cond` passthrough in `GraphDiffusionModel` |
+| **Config** | `configs/EXP-015_ellipse_conditional_global.yaml` |
+
+### EXP-016: Node-level pressure conditioning
+
+| Field | Value |
+|-------|-------|
+| **Question** | Does spatial per-node pressure conditioning outperform global summary (EXP-015)? |
+| **Code** | `output_dim` in `ScoreNetwork`; `n_noise_channels` + `p_cond` concat in `GraphDiffusionModel` |
+| **Config** | `configs/EXP-016_ellipse_conditional_node.yaml` |
 
 ---
 
@@ -158,8 +185,6 @@ cd ~/Projects/DGN_Simple
 source .venv/bin/activate
 
 # ── Run experiment ──
-# Pass config and experiment-specific args via SLURM environment variables
-# or hardcode per experiment
 CONFIG="${CONFIG:-configs/circle_radial.yaml}"
 EPOCHS="${EPOCHS:-100}"
 DEVICE="${DEVICE:-cuda}"
@@ -181,60 +206,31 @@ echo "Job $SLURM_JOB_ID completed at $(date)"
 
 ```bash
 # Single experiment
-sbatch --job-name=EXP-001 \
-       --export=CONFIG=configs/circle_radial.yaml,EPOCHS=100,DEVICE=cuda \
+sbatch --job-name=EXP-010 \
+       --export=CONFIG=configs/EXP-010_ellipse_radial_baseline.yaml,EPOCHS=100,DEVICE=cuda \
        scripts/run_experiment.slurm
-
-# Ablation sweep (EXP-002: k-neighbors)
-for k in 1 2 4 6; do
-    sbatch --job-name=EXP-002-k${k} \
-           --export=CONFIG=configs/EXP-002_circle_radial_k-neighbors.yaml,EPOCHS=100,DEVICE=cuda \
-           scripts/run_experiment.slurm
-done
-
-# Ablation sweep (EXP-003: amplitude)
-for amp in 0.05 0.15 0.30; do
-    sbatch --job-name=EXP-003-a${amp} \
-           --export=CONFIG=configs/EXP-003_circle_radial_amplitude.yaml,EPOCHS=100,DEVICE=cuda \
-           scripts/run_experiment.slurm
-done
 ```
 
 ### Monitoring jobs
 
 ```bash
-# Check job status
 squeue -u $USER
-
-# Watch output in real time
 tail -f slurm-<job_id>.out
-
-# Cancel a job
 scancel <job_id>
-
-# Check GPU utilisation on a running job
 srun --jobid=<job_id> nvidia-smi
 ```
 
 ### Retrieving results
 
 ```bash
-# From your local machine — pull results back via scp
 scp -r <username>@<hpc-hostname>:~/Projects/DGN_Simple/outputs/ ./outputs/
-
-# Or use rsync for incremental sync
 rsync -avz <username>@<hpc-hostname>:~/Projects/DGN_Simple/outputs/ ./outputs/
 ```
 
 ### Tips for university HPC
 
 - **Storage:** Use `$HOME` for code, `$SCRATCH` for large datasets/outputs
-  if your cluster provides it — adjust paths in configs accordingly
-- **Modules:** Run `module avail python` and `module avail cuda` to see
-  available versions on your cluster
-- **Walltime:** Circle experiments are fast (~10 min for 100 epochs on GPU).
-  Request 2h to be safe; NACA experiments may need more
-- **Array jobs:** For systematic sweeps, consider SLURM array jobs
-  (`#SBATCH --array=0-3`) with a parameter lookup table
-- **Checkpointing:** For longer runs, add periodic `torch.save()` to
-  `train_circle.py` so jobs can resume after walltime limits
+- **Modules:** Run `module avail python` and `module avail cuda`
+- **Walltime:** Circle experiments ~10 min for 100 epochs on GPU; ellipse experiments may need more
+- **Array jobs:** For systematic sweeps, consider SLURM array jobs (`#SBATCH --array=0-3`)
+- **Checkpointing:** For longer runs, add periodic `torch.save()` to the training script

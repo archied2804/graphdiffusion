@@ -134,7 +134,7 @@ Experiments are tracked in `docs/experiments/` (Obsidian vault). Each experiment
 - Outputs in `outputs/<experiment-name>/` (checkpoint.pt, loss_log.json, evaluation_report.json, plots)
 - A log in `docs/experiments/EXP-NNN_*.md` (copy `docs/experiments/_template.md`)
 
-Current roadmap: circle ablations (EXP-002 k-neighbors, EXP-003 amplitude-scale) → full training (EXP-005) → richer features (EXP-006) → NACA aerofoil geometry (EXP-007).
+Current roadmap: EXP-00x circle ablation series complete (EXP-001 → EXP-006) → EXP-01x aerodynamic series (pOnEllipse dataset, HuggingFace `mariolinov/Ellipse`).
 
 SLURM job script: `scripts/run_experiment.slurm`. Submit via:
 ```bash
