@@ -16,7 +16,6 @@ from graph_diffusion.data import (
     BaseGraphDataset,
     GraphDataLoader,
     SyntheticGraphDataset,
-    UnitCircleDataset,
 )
 from graph_diffusion.model import GraphDiffusionModel, ScoreNetwork
 from graph_diffusion.postprocessing import (
@@ -27,7 +26,6 @@ from graph_diffusion.postprocessing import (
 __all__ = [
     "BaseGraphDataset",
     "SyntheticGraphDataset",
-    "UnitCircleDataset",
     "GraphDataLoader",
     "MLP",
     "GraphNetworkBlock",

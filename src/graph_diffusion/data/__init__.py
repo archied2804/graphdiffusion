@@ -5,7 +5,6 @@ graph_diffusion.data
 Data loading, dataset definitions, and graph transforms.
 """
 
-from graph_diffusion.data.circledataset import UnitCircleDataset
 from graph_diffusion.data.dataloader import GraphDataLoader
 from graph_diffusion.data.dataset import BaseGraphDataset, SyntheticGraphDataset
 from graph_diffusion.data.ellipsedataset import (
@@ -26,10 +25,9 @@ from graph_diffusion.data.transforms import (
 )
 
 __all__ = [
+    "GraphDataLoader",
     "BaseGraphDataset",
     "SyntheticGraphDataset",
-    "UnitCircleDataset",
-    "GraphDataLoader",
     "BaseTransform",
     "NormalizeNodeFeatures",
     "AddSelfLoops",
