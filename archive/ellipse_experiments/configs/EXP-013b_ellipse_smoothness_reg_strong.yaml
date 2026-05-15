@@ -1,0 +1,56 @@
+# EXP-013b: Smoothness regularisation — stronger weight
+# ======================================================
+# Repeats EXP-013 with smoothness_weight raised from 1e-4 → 1e-3 (10×).
+# SNR weighting (×ᾱ_t) retained for stability.
+# Everything else identical to EXP-013 / EXP-011.
+
+dataset_type: conditional
+
+ellipse_dataset:
+  root: data/ellipse
+  split: train
+  feature_mode: radial_norm
+  cond_type: global_summary
+  n_samples: null
+  k_neighbors: 6
+  global_dim: 8
+  time_index: -1
+
+data:
+  batch_size: 32
+  val_split: 0.1
+  num_workers: 0
+  shuffle: true
+
+noise_schedule:
+  T: 200
+  schedule_type: cosine
+  beta_start: 1.0e-4
+  beta_end: 0.02
+
+score_network:
+  node_dim: 32
+  edge_dim: 2
+  global_dim: 8
+  time_embed_dim: 64
+  n_layers: 4
+  hidden_dims: [64, 64]
+  input_dim: 3
+  output_dim: 1
+  cond_dim: 4
+
+mlp:
+  activation: silu
+  layer_norm: true
+  residual: true
+
+model:
+  n_noise_channels: 1
+  smoothness_weight: 1.0e-3  # 10× EXP-013; SNR-weighted (×ᾱ_t)
+
+clamp_range: [0.5, 2.0]
+
+training:
+  scheduler: cosine_annealing
+  eta_min: 1.0e-5
+  early_stopping_patience: 20

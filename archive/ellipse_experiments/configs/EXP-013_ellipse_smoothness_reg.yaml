@@ -1,0 +1,60 @@
+# EXP-013: Radial shape generation + smoothness regularisation
+# =============================================================
+# Extends EXP-011 (radial_norm + global pressure conditioning) with a
+# second-order finite difference smoothness penalty on the x̂₀ reconstruction.
+# Everything else is identical to EXP-011; the only change is:
+#   model.smoothness_weight: 1.0e-4
+#
+# Hypothesis: smoothness_weight=1e-4 reduces the 2nd-order diff metric
+# (currently 0.0061 in EXP-011) without degrading val_loss or circularity CV.
+
+dataset_type: conditional
+
+ellipse_dataset:
+  root: data/ellipse
+  split: train
+  feature_mode: radial_norm
+  cond_type: global_summary
+  n_samples: null
+  k_neighbors: 6
+  global_dim: 8
+  time_index: -1           # last (most converged) pressure timestep
+
+data:
+  batch_size: 32
+  val_split: 0.1
+  num_workers: 0
+  shuffle: true
+
+noise_schedule:
+  T: 200
+  schedule_type: cosine
+  beta_start: 1.0e-4
+  beta_end: 0.02
+
+score_network:
+  node_dim: 32
+  edge_dim: 2
+  global_dim: 8
+  time_embed_dim: 64
+  n_layers: 4
+  hidden_dims: [64, 64]
+  input_dim: 3             # [r/r̄, cos θ, sin θ]
+  output_dim: 1            # predict noise for r channel only
+  cond_dim: 4              # cond = [p_mean, p_std, p_max, p_min]
+
+mlp:
+  activation: silu
+  layer_norm: true
+  residual: true
+
+model:
+  n_noise_channels: 1      # only r/r̄ is noised; cos θ, sin θ are fixed conditioning
+  smoothness_weight: 1.0e-4  # SNR-weighted (×ᾱ_t), active mainly at low noise
+
+clamp_range: [0.5, 2.0]
+
+training:
+  scheduler: cosine_annealing
+  eta_min: 1.0e-5
+  early_stopping_patience: 20
