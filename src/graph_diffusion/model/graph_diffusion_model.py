@@ -41,6 +41,17 @@ class GraphDiffusionModel(nn.Module):
             after sampling.  When set, the model operates in the transformed
             (unbounded) space and ``clamp_range`` in :meth:`sample` is
             ignored.  Defaults to ``None``.
+        n_noise_channels (int | None): When set, only the first
+            ``n_noise_channels`` columns of ``batch.x`` are noised during
+            training and generated during sampling.  The remaining columns are
+            treated as fixed conditioning (e.g. pressure in EXP-016) and are
+            concatenated from ``batch.p_cond`` / ``graph_template.p_cond``.
+            Defaults to ``None`` (all channels noised).
+        smoothness_weight (float): Weight ``λ`` for the second-order finite
+            difference regularisation term added to the denoising loss.
+            At each training step the model's ``x̂₀`` reconstruction is
+            used to compute ``λ · mean(Δ²x̂₀)²`` over all nodes (periodic
+            ring boundary).  Set to ``0.0`` to disable.  Defaults to ``0.0``.
     """
 
     def __init__(
@@ -48,11 +59,59 @@ class GraphDiffusionModel(nn.Module):
         score_network: ScoreNetwork,
         noise_schedule: NoiseSchedule,
         feature_transform: FeatureTransform | None = None,
+        n_noise_channels: int | None = None,
+        smoothness_weight: float = 0.0,
     ) -> None:
         super().__init__()
         self.score_network = score_network
         self.noise_schedule = noise_schedule
         self.feature_transform = feature_transform
+        self.n_noise_channels = n_noise_channels
+        self.smoothness_weight = smoothness_weight
+
+    def _smoothness_loss(
+        self,
+        x0_hat: torch.Tensor,
+        batch_vec: torch.Tensor,
+        snr_weight: torch.Tensor,
+    ) -> torch.Tensor:
+        """SNR-weighted mean squared second finite difference of x̂₀.
+
+        Nodes within each graph are assumed to be ordered sequentially around
+        the boundary (as in ``UnitCircleDataset`` and ``EllipseShapeDataset``).
+        The periodic boundary condition wraps the last node back to the first.
+
+        The penalty is weighted by ``ᾱ_t`` per node so that it is suppressed at
+        high noise timesteps where the x̂₀ reconstruction is unreliable (large
+        ``1/√ᾱ_t`` amplification), and active at low noise timesteps where the
+        predicted clean signal should already be smooth.
+
+        Args:
+            x0_hat (torch.Tensor): Reconstructed clean features, shape
+                ``(N_total, F)``.
+            batch_vec (torch.Tensor): Batch assignment, shape ``(N_total,)``.
+            snr_weight (torch.Tensor): Per-node weight ``ᾱ_t``, shape
+                ``(N_total, 1)``.
+
+        Returns:
+            torch.Tensor: Scalar SNR-weighted mean squared curvature proxy.
+        """
+        n_total = x0_hat.size(0)
+        device = x0_hat.device
+
+        counts = torch.bincount(batch_vec)
+        ptr = torch.zeros(counts.size(0) + 1, dtype=torch.long, device=device)
+        ptr[1:] = torch.cumsum(counts, dim=0)
+
+        arange = torch.arange(n_total, device=device)
+        local_idx = arange - ptr[batch_vec]
+        n_g = counts[batch_vec]
+
+        next_idx = ptr[batch_vec] + (local_idx + 1) % n_g
+        prev_idx = ptr[batch_vec] + (local_idx - 1) % n_g
+
+        kappa = x0_hat[next_idx] - 2.0 * x0_hat + x0_hat[prev_idx]
+        return (snr_weight * kappa.pow(2)).mean()
 
     def forward_diffusion(
         self,
@@ -118,6 +177,12 @@ class GraphDiffusionModel(nn.Module):
             x_0 = self.feature_transform.forward(x_0)
         batch_vec = batch.batch
 
+        # Split into noised channels and fixed conditioning channels (EXP-016)
+        if self.n_noise_channels is not None:
+            x_0_noise = x_0[:, : self.n_noise_channels]
+        else:
+            x_0_noise = x_0
+
         # Number of graphs in the batch
         n_graphs = int(batch_vec.max().item()) + 1
 
@@ -128,17 +193,45 @@ class GraphDiffusionModel(nn.Module):
         t = torch.randint(1, self.noise_schedule.T + 1, (n_graphs,), device=x_0.device)
         t_idx = t - 1  # 0-indexed for buffer access
 
-        # Forward diffusion
-        x_t, epsilon = self.forward_diffusion(x_0, t_idx, batch_vec)
+        # Forward diffusion on the noised channels only
+        x_t, epsilon = self.forward_diffusion(x_0_noise, t_idx, batch_vec)
 
         # Build noisy Data object — clone structure, replace x
         noisy_data = batch.clone()
-        noisy_data.x = x_t
+        if self.n_noise_channels is not None:
+            # Concatenate noised shape channels with clean pressure conditioning
+            p_cond = batch.p_cond  # (N_total, n_cond_channels)
+            noisy_data.x = torch.cat([x_t, p_cond], dim=-1)
+        else:
+            noisy_data.x = x_t
+
+        # Extract optional global conditioning vector (EXP-015)
+        cond = getattr(batch, "cond", None)
 
         # Predict noise
-        eps_pred = self.score_network(noisy_data, t_idx)
+        eps_pred = self.score_network(noisy_data, t_idx, cond=cond)
 
-        return F.mse_loss(eps_pred, epsilon)
+        mse = F.mse_loss(eps_pred, epsilon)
+
+        if self.smoothness_weight > 0.0:
+            # Reconstruct x̂₀ from the predicted noise via DDPM Eq. (15)
+            sqrt_alpha_bar_t = self.noise_schedule.get_t(
+                t_idx, "sqrt_alphas_cumprod"
+            )[batch_vec]
+            sqrt_one_minus_alpha_bar_t = self.noise_schedule.get_t(
+                t_idx, "sqrt_one_minus_alphas_cumprod"
+            )[batch_vec]
+            x0_hat = (
+                (x_t - sqrt_one_minus_alpha_bar_t * eps_pred)
+                / sqrt_alpha_bar_t.clamp(min=1e-8)
+            )
+            # ᾱ_t = (√ᾱ_t)² — weight suppresses penalty at high noise levels
+            snr_weight = sqrt_alpha_bar_t.pow(2)
+            mse = mse + self.smoothness_weight * self._smoothness_loss(
+                x0_hat, batch_vec, snr_weight
+            )
+
+        return mse
 
     @torch.no_grad()
     def sample(
@@ -185,25 +278,33 @@ class GraphDiffusionModel(nn.Module):
 
         result = copy.copy(graph_template)
 
-        # Determine node feature dim from the template
+        # Determine node count and noise dimensionality
         if graph_template.pos is not None:
             n_nodes = graph_template.pos.size(0)
         else:
             n_nodes = graph_template.x.size(0)
 
-        if graph_template.x is not None:
-            node_dim = graph_template.x.size(1)
+        # When n_noise_channels is set we only generate the noised channels;
+        # the remaining channels come from graph_template.p_cond at each step.
+        if self.n_noise_channels is not None:
+            noise_dim = self.n_noise_channels
+        elif graph_template.x is not None:
+            noise_dim = graph_template.x.size(1)
         else:
-            node_dim = graph_template.u.size(1)
+            noise_dim = graph_template.u.size(1)
 
         # Start from pure noise x_T ~ N(0, I)
-        x_t = torch.randn(n_nodes, node_dim, device=graph_template.edge_index.device)
+        x_t = torch.randn(n_nodes, noise_dim, device=graph_template.edge_index.device)
 
         batch_vec = graph_template.batch
         if batch_vec is None:
             batch_vec = torch.zeros(n_nodes, dtype=torch.long, device=x_t.device)
 
         n_graphs = int(batch_vec.max().item()) + 1
+
+        # Optional conditioning tensors propagated via graph_template shallow copy
+        cond = getattr(graph_template, "cond", None)
+        p_cond = getattr(graph_template, "p_cond", None)
 
         # DDPM reverse process: iterate from t = T down to t = 1
         for step in range(steps, 0, -1):
@@ -213,10 +314,13 @@ class GraphDiffusionModel(nn.Module):
 
             # Build Data for score network
             noisy_data = copy.copy(graph_template)
-            noisy_data.x = x_t
+            if self.n_noise_channels is not None and p_cond is not None:
+                noisy_data.x = torch.cat([x_t, p_cond], dim=-1)
+            else:
+                noisy_data.x = x_t
             noisy_data.batch = batch_vec
 
-            eps_pred = self.score_network(noisy_data, t_idx)
+            eps_pred = self.score_network(noisy_data, t_idx, cond=cond)
 
             # DDPM reverse step coefficients
             beta_t = self.noise_schedule.get_t(t_idx, "betas")[batch_vec]
@@ -294,12 +398,14 @@ class GraphDiffusionModel(nn.Module):
         else:
             n_nodes = graph_template.x.size(0)
 
-        if graph_template.x is not None:
-            node_dim = graph_template.x.size(1)
+        if self.n_noise_channels is not None:
+            noise_dim = self.n_noise_channels
+        elif graph_template.x is not None:
+            noise_dim = graph_template.x.size(1)
         else:
-            node_dim = graph_template.u.size(1)
+            noise_dim = graph_template.u.size(1)
 
-        x_t = torch.randn(n_nodes, node_dim, device=graph_template.edge_index.device)
+        x_t = torch.randn(n_nodes, noise_dim, device=graph_template.edge_index.device)
 
         batch_vec = graph_template.batch
         if batch_vec is None:
@@ -307,15 +413,16 @@ class GraphDiffusionModel(nn.Module):
 
         n_graphs = int(batch_vec.max().item()) + 1
 
+        cond = getattr(graph_template, "cond", None)
+        p_cond = getattr(graph_template, "p_cond", None)
+
         # Determine which timesteps to snapshot
         snapshot_steps = set()
         for i in range(n_snapshots):
-            # Evenly-spaced from steps (noise) down to 1
             s = steps - int(i * steps / n_snapshots)
             snapshot_steps.add(s)
 
         trajectory: list[tuple[int, torch.Tensor]] = []
-        # Capture the initial noise (t = T)
         trajectory.append((steps, x_t.clone().cpu()))
 
         for step in range(steps, 0, -1):
@@ -324,10 +431,13 @@ class GraphDiffusionModel(nn.Module):
             )
 
             noisy_data = copy.copy(graph_template)
-            noisy_data.x = x_t
+            if self.n_noise_channels is not None and p_cond is not None:
+                noisy_data.x = torch.cat([x_t, p_cond], dim=-1)
+            else:
+                noisy_data.x = x_t
             noisy_data.batch = batch_vec
 
-            eps_pred = self.score_network(noisy_data, t_idx)
+            eps_pred = self.score_network(noisy_data, t_idx, cond=cond)
 
             beta_t = self.noise_schedule.get_t(t_idx, "betas")[batch_vec]
             alpha_t = self.noise_schedule.get_t(t_idx, "alphas")[batch_vec]
