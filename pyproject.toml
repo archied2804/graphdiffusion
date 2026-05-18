@@ -47,6 +47,7 @@ ignore = []
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["ANN", "N806"]    # relaxed annotations + uppercase tensor dim vars in tests
+"src/graph_diffusion/data/pOnEllipse.py" = ["N999", "N801", "N806"]  # dataset name follows paper convention
 
 # ─── Black ──────────────────────────────────────────────────────────────────
 [tool.black]
