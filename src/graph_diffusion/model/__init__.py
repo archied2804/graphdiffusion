@@ -2,7 +2,7 @@
 graph_diffusion.model
 ======================
 
-Top-level model components: score network and diffusion model.
+Score network and diffusion model for aerodynamic boundary mesh generation.
 """
 
 from graph_diffusion.model.graph_diffusion_model import GraphDiffusionModel

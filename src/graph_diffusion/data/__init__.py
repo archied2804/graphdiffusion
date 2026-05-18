@@ -2,17 +2,16 @@
 graph_diffusion.data
 ====================
 
-Data loading, dataset definitions, and graph transforms.
+Data loading, dataset definitions, and graph transforms for aerodynamic
+boundary mesh generation.
 """
 
+from graph_diffusion.data.base_dataset import BaseGraphDataset
 from graph_diffusion.data.dataloader import GraphDataLoader
-from graph_diffusion.data.dataset import BaseGraphDataset, SyntheticGraphDataset
-from graph_diffusion.data.ellipsedataset import (
+from graph_diffusion.data.pOnEllipse import (
     DatasetDownloader,
     DatasetUrl,
-    EllipseConditionalDataset,
-    EllipseDataset,
-    EllipseShapeDataset,
+    pOnEllipseDataset,
 )
 from graph_diffusion.data.transforms import (
     AddSelfLoops,
@@ -25,9 +24,11 @@ from graph_diffusion.data.transforms import (
 )
 
 __all__ = [
-    "GraphDataLoader",
     "BaseGraphDataset",
-    "SyntheticGraphDataset",
+    "GraphDataLoader",
+    "DatasetUrl",
+    "DatasetDownloader",
+    "pOnEllipseDataset",
     "BaseTransform",
     "NormalizeNodeFeatures",
     "AddSelfLoops",
@@ -35,9 +36,4 @@ __all__ = [
     "Compose",
     "ComputeAngularEdgeFeatures",
     "ComputeArcLengthEdgeFeatures",
-    "DatasetUrl",
-    "DatasetDownloader",
-    "EllipseDataset",
-    "EllipseShapeDataset",
-    "EllipseConditionalDataset",
 ]
