@@ -11,6 +11,6 @@ wheels/
 .github
 
 # Runtime outputs
-data/
+/data/
 outputs/
 generated_shapes.png
