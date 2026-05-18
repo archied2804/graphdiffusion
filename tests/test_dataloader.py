@@ -7,9 +7,29 @@ Unit tests for GraphDataLoader.
 
 import torch
 from context import graph_diffusion  # noqa: F401
+from torch_geometric.data import Data
 
+from graph_diffusion.data.base_dataset import BaseGraphDataset
 from graph_diffusion.data.dataloader import GraphDataLoader
-from graph_diffusion.data.dataset import SyntheticGraphDataset
+
+
+class _FixedGraphDataset(BaseGraphDataset):
+    """Minimal dataset of identical graphs for loader testing."""
+
+    def __init__(self, root: str, n_graphs: int = 50) -> None:
+        self.n_graphs = n_graphs
+        super().__init__(root)
+
+    def _build_graphs(self) -> list[Data]:
+        return [
+            Data(
+                x=torch.randn(8, 4),
+                edge_index=torch.zeros(2, 0, dtype=torch.long),
+                u=torch.zeros(1, 8),
+            )
+            for _ in range(self.n_graphs)
+        ]
+
 
 # ---------------------------------------------------------------------------
 # Helper: small dataset fixture
@@ -17,14 +37,8 @@ from graph_diffusion.data.dataset import SyntheticGraphDataset
 
 
 def _make_dataset(tmp_path, n_graphs=50):
-    """Create a small SyntheticGraphDataset for testing."""
-    return SyntheticGraphDataset(
-        root=str(tmp_path / "syn"),
-        n_graphs=n_graphs,
-        n_nodes_range=(5, 10),
-        node_feature_dim=4,
-        k=3,
-    )
+    """Create a small dataset for testing."""
+    return _FixedGraphDataset(root=str(tmp_path / "fixed"), n_graphs=n_graphs)
 
 
 # ---------------------------------------------------------------------------

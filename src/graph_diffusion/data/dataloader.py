@@ -13,7 +13,7 @@ import torch_geometric.loader
 from torch.utils.data import Subset, random_split
 from torch.utils.data.distributed import DistributedSampler
 
-from graph_diffusion.data.dataset import BaseGraphDataset
+from graph_diffusion.data.base_dataset import BaseGraphDataset
 
 __all__ = [
     "GraphDataLoader",
