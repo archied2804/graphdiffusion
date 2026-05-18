@@ -34,11 +34,11 @@ black src/ tests/ && ruff check --fix src/ tests/
 # Type check (strict)
 mypy src/graph_diffusion
 
-# Train circle experiment
-python train_circle.py --config configs/circle_radial.yaml --epochs 100 --device cuda --output outputs/run/generated_shapes.png
+# Train aerodynamic shape generation
+python train.py --config configs/EXP-010_ellipse_data_pipeline.yaml --epochs 200 --device cuda --output outputs/EXP-010/generated_shapes.png
 
 # Post-process / evaluate a checkpoint
-python scripts/postprocess_circle.py --checkpoint outputs/<run>/checkpoint.pt --config configs/circle_radial.yaml
+python scripts/postprocess_ellipse.py --checkpoint outputs/<run>/checkpoint.pt --config configs/EXP-010_ellipse_data_pipeline.yaml
 
 # Multi-GPU training
 torchrun --standalone --nproc_per_node=4 train_ddp.py --config configs/default.yaml --epochs 100 --amp
@@ -72,15 +72,15 @@ model/         ← imports from building_blocks/ ONLY, never from data/
 - **`GraphDiffusionModel`** — top-level DDPM: owns `forward_diffusion()` (samples `x_t`), `compute_loss()` (MSE on noise prediction), and `sample()` (reverse diffusion from `x_T ~ N(0,I)`). The `sampler` argument is the extension point for DDIM/SDE.
 
 ### `data/`
-- **`BaseGraphDataset`** (`InMemoryDataset`) — abstract base; subclasses implement `_build_graphs() -> list[Data]`.
-- **`UnitCircleDataset`** — the primary benchmark: `n_nodes` points uniformly on `[0, 2π)`, radii `r(θ) = 1 + Σ Fourier modes`, bidirectional ring edges to `k_neighbors` nearest neighbours. Node feature `x = [r]`. Global feature vector `u` of dimension `global_dim`.
-- **`SyntheticGraphDataset`** — random k-NN graphs with Gaussian node features; used for generic demos.
+- **`BaseGraphDataset`** (`InMemoryDataset`, `base_dataset.py`) — abstract base; subclasses implement `_build_graphs() -> list[Data]`.
+- **`pOnEllipseDataset`** (`pOnEllipse.py`) — the canonical aerodynamic dataset: loads the pOnEllipse HDF5 (HuggingFace `mariolinov/Ellipse`), builds surface boundary node graphs with bidirectional ring edges, and supports four coordinate representations via `feature_mode` (`"radial"` | `"radial_norm"` | `"cartesian"` | `"normalised"`). Node feature `x` is the quantity the diffusion model denoises; `pos` drives the edge-feature transforms.
+- **`DatasetDownloader`** — streams HuggingFace files with a progress bar, caches locally.
 - **`GraphDataLoader`** — wraps PyG `DataLoader`; provides `train_loader()` / `val_loader()` with reproducible `random_split`.
-- **Transforms** — `ComputeAngularEdgeFeatures`, `NormalizeNodeFeatures`, `AddSelfLoops`, `KNNGraph`, `Compose`. Applied as `pre_transform` in dataset construction.
+- **Transforms** — `ComputeAngularEdgeFeatures`, `ComputeArcLengthEdgeFeatures`, `NormalizeNodeFeatures`, `AddSelfLoops`, `KNNGraph`, `Compose`. Applied as `pre_transform` in dataset construction.
 
-### Data flow (circle experiment)
+### Data flow (aerodynamic experiment)
 ```
-UnitCircleDataset → ComputeAngularEdgeFeatures (pre_transform)
+pOnEllipseDataset → ComputeAngularEdgeFeatures | ComputeArcLengthEdgeFeatures (pre_transform)
   → GraphDataLoader (batched PyG Data with batch vector)
   → GraphDiffusionModel.compute_loss(batch)
       ├─ sample t ~ Uniform(1…T) per graph
@@ -134,7 +134,7 @@ Experiments are tracked in `docs/experiments/` (Obsidian vault). Each experiment
 - Outputs in `outputs/<experiment-name>/` (checkpoint.pt, loss_log.json, evaluation_report.json, plots)
 - A log in `docs/experiments/EXP-NNN_*.md` (copy `docs/experiments/_template.md`)
 
-Current roadmap: EXP-00x circle ablation series complete (EXP-001 → EXP-006) → EXP-01x aerodynamic series (pOnEllipse dataset, HuggingFace `mariolinov/Ellipse`).
+Current roadmap: EXP-01x aerodynamic shape generation series active. EXP-00x circle ablation series complete and archived under `archive/circle/`.
 
 SLURM job script: `scripts/run_experiment.slurm`. Submit via:
 ```bash
