@@ -61,6 +61,12 @@ class ScoreNetwork(nn.Module):
             input).  When ``None``, falls back to ``input_dim`` for backward
             compatibility.  Defaults to ``None``.
 
+    Note:
+        ``cond_dim`` and ``output_dim`` are future-work parameters for
+        conditional inverse design (EXP-015: global pressure conditioning,
+        EXP-016: node-level pressure conditioning). Leave as ``None`` for
+        the unconditional shape-generation baseline.
+
     Raises:
         ValueError: If ``n_layers < 1``.
     """

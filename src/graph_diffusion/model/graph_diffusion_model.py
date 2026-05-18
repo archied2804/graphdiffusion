@@ -52,6 +52,13 @@ class GraphDiffusionModel(nn.Module):
             At each training step the model's ``x̂₀`` reconstruction is
             used to compute ``λ · mean(Δ²x̂₀)²`` over all nodes (periodic
             ring boundary).  Set to ``0.0`` to disable.  Defaults to ``0.0``.
+
+    Note:
+        ``feature_transform``, ``n_noise_channels``, and
+        ``smoothness_weight`` are future-work parameters for bounded
+        diffusion and conditional/regularised training (EXP-013+,
+        EXP-015+). Leave at their defaults (``None``, ``None``, ``0.0``)
+        for the unconditional shape-generation baseline.
     """
 
     def __init__(
