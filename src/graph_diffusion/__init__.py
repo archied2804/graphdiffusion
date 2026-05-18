@@ -14,8 +14,10 @@ from graph_diffusion.building_blocks import (
 )
 from graph_diffusion.data import (
     BaseGraphDataset,
+    DatasetDownloader,
+    DatasetUrl,
     GraphDataLoader,
-    SyntheticGraphDataset,
+    pOnEllipseDataset,
 )
 from graph_diffusion.model import GraphDiffusionModel, ScoreNetwork
 from graph_diffusion.postprocessing import (
@@ -25,7 +27,9 @@ from graph_diffusion.postprocessing import (
 
 __all__ = [
     "BaseGraphDataset",
-    "SyntheticGraphDataset",
+    "DatasetUrl",
+    "DatasetDownloader",
+    "pOnEllipseDataset",
     "GraphDataLoader",
     "MLP",
     "GraphNetworkBlock",
