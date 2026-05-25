@@ -141,12 +141,15 @@ class DatasetDownloader:
         resp.raise_for_status()
 
         total = int(resp.headers.get("content-length", 0))
-        with open(local, "wb") as fh, tqdm(
-            total=total or None,
-            unit="B",
-            unit_scale=True,
-            desc=local.name,
-        ) as pbar:
+        with (
+            open(local, "wb") as fh,
+            tqdm(
+                total=total or None,
+                unit="B",
+                unit_scale=True,
+                desc=local.name,
+            ) as pbar,
+        ):
             for chunk in resp.iter_content(chunk_size=65536):
                 fh.write(chunk)
                 pbar.update(len(chunk))
@@ -340,7 +343,11 @@ class pOnEllipseDataset(BaseGraphDataset):
                     yc = raw[i, :N, _H5_COL_Y]
                     xc -= xc.mean()
                     yc -= yc.mean()
-                    max_abs = max(max_abs, float(np.abs(xc).max()), float(np.abs(yc).max()))
+                    max_abs = max(
+                        max_abs,
+                        float(np.abs(xc).max()),
+                        float(np.abs(yc).max()),
+                    )
                 scale = max_abs + 1e-10
             print(f"[pOnEllipseDataset] Cartesian coord_scale={scale:.6f}")
 
@@ -373,18 +380,14 @@ class pOnEllipseDataset(BaseGraphDataset):
             elif self.feature_mode == "radial_norm":
                 r = np.sqrt(xc**2 + yc**2)
                 r_scale_val = float(r.mean())
-                x_feat = torch.tensor(
-                    (r / r_scale_val)[:, None], dtype=torch.float32
-                )
+                x_feat = torch.tensor((r / r_scale_val)[:, None], dtype=torch.float32)
                 pos = torch.tensor(unit_pos, dtype=torch.float32)
                 u = torch.zeros(1, self.global_dim)
 
             elif self.feature_mode == "cartesian":
                 xn = xc / scale
                 yn = yc / scale
-                x_feat = torch.tensor(
-                    np.stack([xn, yn], axis=1), dtype=torch.float32
-                )
+                x_feat = torch.tensor(np.stack([xn, yn], axis=1), dtype=torch.float32)
                 pos = x_feat.clone()
                 u = torch.zeros(1, self.global_dim)
 
