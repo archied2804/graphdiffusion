@@ -15,6 +15,7 @@ from torch_geometric.data import Data
 
 from graph_diffusion.building_blocks.feature_transforms import FeatureTransform
 from graph_diffusion.building_blocks.noise_schedule import NoiseSchedule
+from graph_diffusion.model.pressure_head import PressurePredictionHead
 from graph_diffusion.model.score_network import ScoreNetwork
 
 __all__ = [
@@ -52,12 +53,21 @@ class GraphDiffusionModel(nn.Module):
             At each training step the model's ``x̂₀`` reconstruction is
             used to compute ``λ · mean(Δ²x̂₀)²`` over all nodes (periodic
             ring boundary).  Set to ``0.0`` to disable.  Defaults to ``0.0``.
+        pressure_head (PressurePredictionHead | None): Optional auxiliary
+            module that maps ``(x̂₀, pos)`` → pressure descriptor.  Trained
+            jointly so that the diffusion model learns a forward shape →
+            pressure mapping (and therefore generalises beyond simple
+            lookup of training pairs).  Defaults to ``None``.
+        lambda_pressure (float): Weight ``λ_p`` on the pressure-head MSE
+            loss term.  Only active at low-noise timesteps (``t ≤ T/2``)
+            where ``x̂₀`` is reliable enough to evaluate the head on.
+            Defaults to ``0.0`` (no head loss).
 
     Note:
-        ``feature_transform``, ``n_noise_channels``, and
-        ``smoothness_weight`` are future-work parameters for bounded
-        diffusion and conditional/regularised training (EXP-013+,
-        EXP-015+). Leave at their defaults (``None``, ``None``, ``0.0``)
+        ``feature_transform``, ``n_noise_channels``, ``smoothness_weight``,
+        ``pressure_head``, and ``lambda_pressure`` are future-work
+        parameters for bounded diffusion and conditional/regularised
+        training (EXP-013+, EXP-015+, EXP-020). Leave at their defaults
         for the unconditional shape-generation baseline.
     """
 
@@ -68,6 +78,8 @@ class GraphDiffusionModel(nn.Module):
         feature_transform: FeatureTransform | None = None,
         n_noise_channels: int | None = None,
         smoothness_weight: float = 0.0,
+        pressure_head: PressurePredictionHead | None = None,
+        lambda_pressure: float = 0.0,
     ) -> None:
         super().__init__()
         self.score_network = score_network
@@ -75,6 +87,8 @@ class GraphDiffusionModel(nn.Module):
         self.feature_transform = feature_transform
         self.n_noise_channels = n_noise_channels
         self.smoothness_weight = smoothness_weight
+        self.pressure_head = pressure_head
+        self.lambda_pressure = lambda_pressure
 
     def _smoothness_loss(
         self,
@@ -85,7 +99,7 @@ class GraphDiffusionModel(nn.Module):
         """SNR-weighted mean squared second finite difference of x̂₀.
 
         Nodes within each graph are assumed to be ordered sequentially around
-        the boundary (as in ``UnitCircleDataset`` and ``EllipseShapeDataset``).
+        the boundary (as in ``pOnEllipseDataset``).
         The periodic boundary condition wraps the last node back to the first.
 
         The penalty is weighted by ``ᾱ_t`` per node so that it is suppressed at
@@ -220,33 +234,62 @@ class GraphDiffusionModel(nn.Module):
 
         mse = F.mse_loss(eps_pred, epsilon)
 
-        if self.smoothness_weight > 0.0:
-            # Reconstruct x̂₀ from the predicted noise via DDPM Eq. (15)
-            sqrt_alpha_bar_t = self.noise_schedule.get_t(
-                t_idx, "sqrt_alphas_cumprod"
-            )[batch_vec]
+        # Pre-compute x̂₀ once if either auxiliary loss term needs it.
+        needs_x0_hat = self.smoothness_weight > 0.0 or (
+            self.pressure_head is not None and self.lambda_pressure > 0.0
+        )
+        x0_hat: torch.Tensor | None = None
+        sqrt_alpha_bar_t: torch.Tensor | None = None
+        if needs_x0_hat:
+            sqrt_alpha_bar_t = self.noise_schedule.get_t(t_idx, "sqrt_alphas_cumprod")[
+                batch_vec
+            ]
             sqrt_one_minus_alpha_bar_t = self.noise_schedule.get_t(
                 t_idx, "sqrt_one_minus_alphas_cumprod"
             )[batch_vec]
             x0_hat = (
-                (x_t - sqrt_one_minus_alpha_bar_t * eps_pred)
-                / sqrt_alpha_bar_t.clamp(min=1e-8)
-            )
+                x_t - sqrt_one_minus_alpha_bar_t * eps_pred
+            ) / sqrt_alpha_bar_t.clamp(min=1e-8)
+
+        if self.smoothness_weight > 0.0:
+            assert x0_hat is not None and sqrt_alpha_bar_t is not None
             # ᾱ_t = (√ᾱ_t)² — weight suppresses penalty at high noise levels
             snr_weight = sqrt_alpha_bar_t.pow(2)
             mse = mse + self.smoothness_weight * self._smoothness_loss(
                 x0_hat, batch_vec, snr_weight
             )
 
+        # Joint pressure-head loss — only meaningful when x̂₀ is reliable,
+        # i.e. at lower-noise timesteps (t ≤ T/2). Above this we treat the
+        # head loss as zero to avoid noisy gradients dominating training.
+        if (
+            self.pressure_head is not None
+            and self.lambda_pressure > 0.0
+            and x0_hat is not None
+        ):
+            cond_target = getattr(batch, "cond", None)
+            pos = getattr(batch, "pos", None)
+            if cond_target is not None and pos is not None:
+                half_t = self.noise_schedule.T // 2
+                active = (t_idx <= half_t).float()  # (n_graphs,)
+                if active.sum() > 0:
+                    # Head receives the denoised feature(s) and pos directly;
+                    # it concatenates them internally.
+                    pred_cond = self.pressure_head(x0_hat, pos, batch_vec)
+                    per_graph_sq = (pred_cond - cond_target).pow(2).mean(dim=-1)
+                    head_loss = (active * per_graph_sq).sum() / active.sum()
+                    mse = mse + self.lambda_pressure * head_loss
+
         return mse
 
-    @torch.no_grad()
     def sample(
         self,
         graph_template: Data,
         n_steps: int | None = None,
         sampler: str = "ddpm",
         clamp_range: tuple[float, float] | None = None,
+        guidance_scale: float = 1.0,
+        dps_guidance_weight: float = 0.0,
     ) -> Data:
         """Reverse diffusion: generate new node features for a given graph.
 
@@ -263,6 +306,15 @@ class GraphDiffusionModel(nn.Module):
                 node features to ``(min, max)`` after each reverse step.
                 Useful for bounded diffusion (e.g. radial coordinates).
                 Defaults to ``None`` (no clamping).
+            guidance_scale (float): Classifier-free-guidance scale ``w``.
+                When ``> 1.0`` and the score network has a ``null_cond``,
+                each step runs a conditional and unconditional pass and
+                combines them as ``ε = (1+w)·ε_cond − w·ε_null``.
+                Defaults to ``1.0`` (single conditional pass).
+            dps_guidance_weight (float): When ``> 0`` and a
+                ``pressure_head`` is attached, applies a normalised
+                Diffusion-Posterior-Sampling correction to ``x̂₀`` per
+                step using ``∇‖h(x̂₀,pos) − cond‖²``. Defaults to ``0.0``.
 
         Returns:
             Data: A new ``Data`` object with the same topology as
@@ -312,6 +364,19 @@ class GraphDiffusionModel(nn.Module):
         # Optional conditioning tensors propagated via graph_template shallow copy
         cond = getattr(graph_template, "cond", None)
         p_cond = getattr(graph_template, "p_cond", None)
+        pos = getattr(graph_template, "pos", None)
+
+        use_cfg = (
+            guidance_scale != 1.0
+            and cond is not None
+            and getattr(self.score_network, "null_cond", None) is not None
+        )
+        use_dps = (
+            dps_guidance_weight > 0.0
+            and self.pressure_head is not None
+            and cond is not None
+            and pos is not None
+        )
 
         # DDPM reverse process: iterate from t = T down to t = 1
         for step in range(steps, 0, -1):
@@ -327,29 +392,65 @@ class GraphDiffusionModel(nn.Module):
                 noisy_data.x = x_t
             noisy_data.batch = batch_vec
 
-            eps_pred = self.score_network(noisy_data, t_idx, cond=cond)
+            with torch.no_grad():
+                eps_pred = self.score_network(noisy_data, t_idx, cond=cond)
+                if use_cfg:
+                    eps_null = self.score_network(
+                        noisy_data, t_idx, cond=cond, force_uncond=True
+                    )
+                    eps_pred = (1.0 + guidance_scale) * eps_pred - (
+                        guidance_scale * eps_null
+                    )
 
             # DDPM reverse step coefficients
             beta_t = self.noise_schedule.get_t(t_idx, "betas")[batch_vec]
             alpha_t = self.noise_schedule.get_t(t_idx, "alphas")[batch_vec]
+            sqrt_alpha_bar_t = self.noise_schedule.get_t(t_idx, "sqrt_alphas_cumprod")[
+                batch_vec
+            ]
             sqrt_one_minus_alpha_bar_t = self.noise_schedule.get_t(
                 t_idx, "sqrt_one_minus_alphas_cumprod"
             )[batch_vec]
 
-            # x_{t-1} = (1/sqrt(alpha_t)) * (x_t - beta_t/sqrt(1-alpha_bar_t) * eps)
-            x_t = (1.0 / torch.sqrt(alpha_t)) * (
-                x_t - (beta_t / sqrt_one_minus_alpha_bar_t) * eps_pred
-            )
+            # Optional DPS gradient correction on x̂₀ via the pressure head.
+            if use_cfg or use_dps:
+                # eps_pred may already be CFG-combined.
+                pass
+            if use_dps:
+                assert self.pressure_head is not None
+                assert pos is not None
+                assert cond is not None
+                with torch.enable_grad():  # type: ignore[no-untyped-call]
+                    x0_hat = (
+                        x_t - sqrt_one_minus_alpha_bar_t * eps_pred
+                    ) / sqrt_alpha_bar_t.clamp(min=1e-8)
+                    x0_hat = x0_hat.detach().requires_grad_(True)
+                    pred_cond = self.pressure_head(x0_hat, pos, batch_vec)
+                    loss = (pred_cond - cond).pow(2).mean()
+                    grad = torch.autograd.grad(loss, x0_hat)[0]
+                grad_norm = grad.norm() + 1e-8
+                x0_corr = x0_hat.detach() - dps_guidance_weight * grad / grad_norm
+                # Rewrite eps_pred from the corrected x̂₀ so the standard
+                # DDPM update below carries the guidance signal.
+                eps_pred = (
+                    x_t - sqrt_alpha_bar_t * x0_corr
+                ) / sqrt_one_minus_alpha_bar_t.clamp(min=1e-8)
 
-            # Add noise for all steps except the last (t=1)
-            if step > 1:
-                z = torch.randn_like(x_t)
-                x_t = x_t + torch.sqrt(beta_t) * z
+            with torch.no_grad():
+                # x_{t-1} = (1/√α_t)(x_t − β_t/√(1−ᾱ_t) ε)
+                x_t = (1.0 / torch.sqrt(alpha_t)) * (
+                    x_t - (beta_t / sqrt_one_minus_alpha_bar_t) * eps_pred
+                )
 
-            # Clamp to bounded range if specified
-            # (skipped when feature_transform is set)
-            if clamp_range is not None and self.feature_transform is None:
-                x_t = x_t.clamp(min=clamp_range[0], max=clamp_range[1])
+                # Add noise for all steps except the last (t=1)
+                if step > 1:
+                    z = torch.randn_like(x_t)
+                    x_t = x_t + torch.sqrt(beta_t) * z
+
+                # Clamp to bounded range if specified
+                # (skipped when feature_transform is set)
+                if clamp_range is not None and self.feature_transform is None:
+                    x_t = x_t.clamp(min=clamp_range[0], max=clamp_range[1])
 
         # Invert feature transform to recover bounded domain
         if self.feature_transform is not None:
