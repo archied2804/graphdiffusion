@@ -1,0 +1,70 @@
+# EXP-020: Fourier-DCT pressure-conditioned shape generation
+# ============================================================
+# Conditional DDPM driven by a target Cp(x/c) curve encoded as K=8 DCT modes.
+# Adds a PressurePredictionHead trained jointly so the model learns the
+# forward shape → pressure map and can generalise beyond training ellipses.
+# Inference uses classifier-free guidance (w=3.0); optional DPS gradient
+# guidance available via dps_guidance_weight.
+
+dataset_type: shape_conditional
+
+ellipse_dataset:
+  root: data/ellipse
+  split: train
+  feature_mode: radial_norm
+  cond_mode: fourier        # "fourier" (K DCT modes) or "nodal"
+  k_modes: 8
+  n_samples: null
+  k_neighbors: 6
+  global_dim: 8
+
+data:
+  batch_size: 32
+  val_split: 0.1
+  num_workers: 0
+  shuffle: true
+
+noise_schedule:
+  T: 200
+  schedule_type: cosine
+  beta_start: 1.0e-4
+  beta_end: 0.02
+
+score_network:
+  node_dim: 32
+  edge_dim: 2
+  global_dim: 8
+  time_embed_dim: 64
+  n_layers: 4
+  hidden_dims: [64, 64]
+  input_dim: 3              # [r/r̄, cos θ, sin θ]
+  output_dim: 1             # noise prediction for r channel only
+  cond_dim: 8               # K Fourier DCT modes of ⟨Cp⟩(x/c)
+  p_uncond: 0.15            # CFG dropout probability during training
+
+pressure_head:
+  in_dim: 3                 # [r/r̄] + pos [cos θ, sin θ]
+  out_dim: 8                # K Fourier modes (must match cond_dim)
+  node_hidden: [64, 64]
+  global_hidden: [64, 64]
+  node_embed_dim: 64
+
+mlp:
+  activation: silu
+  layer_norm: true
+  residual: true
+
+model:
+  n_noise_channels: 1
+  lambda_pressure: 0.1      # weight on pressure-head MSE (active for t ≤ T/2)
+
+clamp_range: [0.5, 2.0]
+
+sampling:
+  guidance_scale: 3.0       # classifier-free guidance scale w
+  dps_guidance_weight: 0.0  # set > 0 (e.g. 0.5) for aerofoil-style OOD targets
+
+training:
+  scheduler: cosine_annealing
+  eta_min: 1.0e-5
+  early_stopping_patience: 20

@@ -45,11 +45,13 @@ from graph_diffusion.building_blocks.feature_transforms import (
 from graph_diffusion.building_blocks.noise_schedule import NoiseSchedule
 from graph_diffusion.data.dataloader import GraphDataLoader
 from graph_diffusion.data.pOnEllipse import pOnEllipseDataset
+from graph_diffusion.data.pOnEllipseConditional import pOnEllipseConditionalDataset
 from graph_diffusion.data.transforms import (
     ComputeAngularEdgeFeatures,
     ComputeArcLengthEdgeFeatures,
 )
 from graph_diffusion.model.graph_diffusion_model import GraphDiffusionModel
+from graph_diffusion.model.pressure_head import PressurePredictionHead
 from graph_diffusion.model.score_network import ScoreNetwork
 
 
@@ -60,7 +62,7 @@ def load_config(path: str) -> dict:  # type: ignore[type-arg]
 
 
 def _build_dataset(config: dict) -> pOnEllipseDataset:  # type: ignore[type-arg]
-    """Instantiate pOnEllipseDataset from config."""
+    """Instantiate pOnEllipseDataset (or its conditional variant) from config."""
     ds_cfg = config.get("ellipse_dataset", {})
     feature_mode = ds_cfg.get("feature_mode", "radial")
     pre_transform = (
@@ -68,15 +70,22 @@ def _build_dataset(config: dict) -> pOnEllipseDataset:  # type: ignore[type-arg]
         if feature_mode == "cartesian"
         else ComputeAngularEdgeFeatures()
     )
-    return pOnEllipseDataset(
-        root=ds_cfg.get("root", "data/ellipse"),
-        feature_mode=feature_mode,
-        split=ds_cfg.get("split", "train"),
-        n_samples=ds_cfg.get("n_samples", None),
-        k_neighbors=ds_cfg.get("k_neighbors", 2),
-        global_dim=ds_cfg.get("global_dim", 8),
-        pre_transform=pre_transform,
-    )
+    common = {
+        "root": ds_cfg.get("root", "data/ellipse"),
+        "feature_mode": feature_mode,
+        "split": ds_cfg.get("split", "train"),
+        "n_samples": ds_cfg.get("n_samples", None),
+        "k_neighbors": ds_cfg.get("k_neighbors", 2),
+        "global_dim": ds_cfg.get("global_dim", 8),
+        "pre_transform": pre_transform,
+    }
+    if "cond_mode" in ds_cfg:
+        return pOnEllipseConditionalDataset(
+            cond_mode=ds_cfg.get("cond_mode", "fourier"),
+            k_modes=ds_cfg.get("k_modes", 8),
+            **common,
+        )
+    return pOnEllipseDataset(**common)
 
 
 def main() -> None:
@@ -164,8 +173,23 @@ def main() -> None:
         residual=mlp_cfg.get("residual", True),
         input_dim=sn_cfg.get("input_dim", None),
         cond_dim=sn_cfg.get("cond_dim", None),
+        p_uncond=float(sn_cfg.get("p_uncond", 0.0)),
         output_dim=sn_cfg.get("output_dim", None),
     )
+
+    # --- Pressure prediction head (EXP-020) ---
+    pressure_head: PressurePredictionHead | None = None
+    ph_cfg = config.get("pressure_head")
+    if ph_cfg is not None:
+        pressure_head = PressurePredictionHead(
+            in_dim=ph_cfg["in_dim"],
+            out_dim=ph_cfg["out_dim"],
+            node_hidden=ph_cfg.get("node_hidden", [64, 64]),
+            global_hidden=ph_cfg.get("global_hidden", [64, 64]),
+            node_embed_dim=ph_cfg.get("node_embed_dim", 64),
+            activation=mlp_cfg.get("activation", "silu"),
+            layer_norm=mlp_cfg.get("layer_norm", True),
+        )
 
     # --- Diffusion model ---
     model_cfg = config.get("model", {})
@@ -175,6 +199,8 @@ def main() -> None:
         feature_transform=feature_transform,
         n_noise_channels=model_cfg.get("n_noise_channels", None),
         smoothness_weight=float(model_cfg.get("smoothness_weight", 0.0)),
+        pressure_head=pressure_head,
+        lambda_pressure=float(model_cfg.get("lambda_pressure", 0.0)),
     ).to(device)
 
     n_params = sum(p.numel() for p in model.parameters())
@@ -315,9 +341,18 @@ def main() -> None:
     if args.n_samples == 1:
         axes = [axes]
 
+    sampling_cfg = config.get("sampling", {})
+    guidance_scale = float(sampling_cfg.get("guidance_scale", 1.0))
+    dps_guidance_weight = float(sampling_cfg.get("dps_guidance_weight", 0.0))
+
     for i, ax in enumerate(axes):
         torch.manual_seed(i)
-        result = model.sample(template, clamp_range=clamp_range)
+        result = model.sample(
+            template,
+            clamp_range=clamp_range,
+            guidance_scale=guidance_scale,
+            dps_guidance_weight=dps_guidance_weight,
+        )
 
         if feature_mode in ("radial", "radial_norm", "normalised"):
             r_raw = result.x[:, 0].cpu().numpy()
