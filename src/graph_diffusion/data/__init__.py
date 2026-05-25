@@ -13,6 +13,7 @@ from graph_diffusion.data.pOnEllipse import (
     DatasetUrl,
     pOnEllipseDataset,
 )
+from graph_diffusion.data.pOnEllipseConditional import pOnEllipseConditionalDataset
 from graph_diffusion.data.transforms import (
     AddSelfLoops,
     BaseTransform,
@@ -29,6 +30,7 @@ __all__ = [
     "DatasetUrl",
     "DatasetDownloader",
     "pOnEllipseDataset",
+    "pOnEllipseConditionalDataset",
     "BaseTransform",
     "NormalizeNodeFeatures",
     "AddSelfLoops",
