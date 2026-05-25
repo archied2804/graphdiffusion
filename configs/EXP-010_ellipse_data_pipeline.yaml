@@ -1,0 +1,52 @@
+# EXP-010: Ellipse radial shape generation (node movement baseline)
+# ==================================================================
+# Analogue of EXP-005 circle recipe applied to the pOnEllipse dataset.
+# Node feature x = [r], pos = [cos θ, sin θ] on unit-circle reference.
+# ComputeAngularEdgeFeatures pre-transform; k=6 ring connectivity.
+
+dataset_type: shape
+
+ellipse_dataset:
+  root: data/ellipse
+  split: train
+  feature_mode: radial_norm
+  n_samples: null          # use all 5701 simulations
+  k_neighbors: 6
+  global_dim: 8
+
+data:
+  batch_size: 32
+  val_split: 0.1
+  num_workers: 0
+  shuffle: true
+
+noise_schedule:
+  T: 200
+  schedule_type: cosine
+  beta_start: 1.0e-4
+  beta_end: 0.02
+
+score_network:
+  node_dim: 32
+  edge_dim: 2
+  global_dim: 8
+  time_embed_dim: 64
+  n_layers: 4
+  hidden_dims: [64, 64]
+  input_dim: 3             # [r/r̄, cos θ, sin θ] — r is noised, position is fixed context
+  output_dim: 1            # predict noise for r channel only
+
+mlp:
+  activation: silu
+  layer_norm: true
+  residual: true
+
+model:
+  n_noise_channels: 1      # only the r/r̄ channel is noised; cos θ, sin θ are conditioning
+
+clamp_range: [0.5, 2.0]   # normalised radii: data range [0.68, 1.37], generous margin
+
+training:
+  scheduler: cosine_annealing
+  eta_min: 1.0e-5
+  early_stopping_patience: 20
