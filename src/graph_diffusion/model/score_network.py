@@ -53,7 +53,13 @@ class ScoreNetwork(nn.Module):
             conditioning vector (e.g. global pressure summary in EXP-015).
             When set, a ``cond_proj: Linear(cond_dim, global_dim)`` is added
             and its output is summed into ``u`` alongside the time embedding.
+            A learnable ``null_cond`` parameter of shape ``(cond_dim,)`` is
+            also created for classifier-free guidance.
             Defaults to ``None``.
+        p_uncond (float): Probability of dropping the conditioning signal
+            during training (per graph) and replacing it with ``null_cond``.
+            Only active when ``cond_dim`` is set. Defaults to ``0.0``
+            (no dropout — disables CFG).
         output_dim (int | None): Override the output dimensionality of
             ``output_decode``.  Useful when the score network predicts noise
             for a subset of input channels (e.g. EXP-016 where only the
@@ -64,11 +70,13 @@ class ScoreNetwork(nn.Module):
     Note:
         ``cond_dim`` and ``output_dim`` are future-work parameters for
         conditional inverse design (EXP-015: global pressure conditioning,
-        EXP-016: node-level pressure conditioning). Leave as ``None`` for
-        the unconditional shape-generation baseline.
+        EXP-016: node-level pressure conditioning, EXP-020: DCT-Fourier
+        pressure conditioning with CFG). Leave as ``None`` for the
+        unconditional shape-generation baseline.
 
     Raises:
         ValueError: If ``n_layers < 1``.
+        ValueError: If ``p_uncond`` is not in ``[0, 1]``.
     """
 
     def __init__(
@@ -84,12 +92,17 @@ class ScoreNetwork(nn.Module):
         residual: bool = True,
         input_dim: int | None = None,
         cond_dim: int | None = None,
+        p_uncond: float = 0.0,
         output_dim: int | None = None,
     ) -> None:
         super().__init__()
 
         if n_layers < 1:
             raise ValueError(f"n_layers must be >= 1, got {n_layers}")
+        if not 0.0 <= p_uncond <= 1.0:
+            raise ValueError(f"p_uncond must be in [0, 1], got {p_uncond}")
+
+        self.p_uncond = p_uncond
 
         # Optional input projection when raw feature dim != node_dim
         self.input_proj: nn.Linear | None = None
@@ -103,10 +116,14 @@ class ScoreNetwork(nn.Module):
         if effective_out is not None and effective_out != node_dim:
             self.output_decode = nn.Linear(node_dim, effective_out)
 
-        # Optional conditioning projection (EXP-015 global pressure summary)
+        # Optional conditioning projection (EXP-015 global pressure summary,
+        # EXP-020 DCT-Fourier pressure conditioning).
         self.cond_proj: nn.Linear | None = None
+        self.null_cond: nn.Parameter | None = None
         if cond_dim is not None:
             self.cond_proj = nn.Linear(cond_dim, global_dim)
+            # Learnable null token for classifier-free guidance.
+            self.null_cond = nn.Parameter(torch.zeros(cond_dim))
 
         self.time_embedding = SinusoidalTimeEmbedding(time_embed_dim)
         self.time_proj = nn.Linear(time_embed_dim, global_dim)
@@ -140,6 +157,7 @@ class ScoreNetwork(nn.Module):
         data: Data,
         t: torch.Tensor,
         cond: torch.Tensor | None = None,
+        force_uncond: bool = False,
     ) -> torch.Tensor:
         """Predict noise from a noisy graph, timestep, and optional conditioning.
 
@@ -151,6 +169,10 @@ class ScoreNetwork(nn.Module):
             cond (torch.Tensor | None): Optional per-graph conditioning vector,
                 shape ``(B, cond_dim)``.  Ignored when ``cond_proj`` is
                 ``None``.  Defaults to ``None``.
+            force_uncond (bool): If ``True``, override ``cond`` with the
+                learnable ``null_cond`` token (the unconditional pass of
+                classifier-free guidance). Has no effect when ``cond_proj``
+                is ``None``. Defaults to ``False``.
 
         Returns:
             torch.Tensor: Predicted noise ``eps_pred``, shape
@@ -171,9 +193,24 @@ class ScoreNetwork(nn.Module):
         t_emb = self.time_embedding(t)  # (B, time_embed_dim)
         u = u + self.time_proj(t_emb)  # (B, global_dim)
 
-        # Inject optional conditioning into global attribute (EXP-015)
-        if self.cond_proj is not None and cond is not None:
-            u = u + self.cond_proj(cond)
+        # Inject optional conditioning into global attribute (EXP-015 / EXP-020)
+        if self.cond_proj is not None and self.null_cond is not None:
+            n_graphs = u.size(0)
+            if force_uncond or cond is None:
+                cond_input = self.null_cond.unsqueeze(0).expand(n_graphs, -1)
+            elif self.training and self.p_uncond > 0.0:
+                # Per-graph CFG dropout: swap a Bernoulli(p_uncond) subset
+                # of conditions for the learned null token.
+                mask = (
+                    torch.rand(n_graphs, device=cond.device) < self.p_uncond
+                ).unsqueeze(
+                    -1
+                )  # (B, 1) boolean
+                null_broadcast = self.null_cond.unsqueeze(0).expand_as(cond)
+                cond_input = torch.where(mask, null_broadcast, cond)
+            else:
+                cond_input = cond
+            u = u + self.cond_proj(cond_input)
 
         # Pass through stacked GN layers
         for gn_layer in self.gn_layers:
