@@ -65,6 +65,7 @@ def collect_reverse(
     snapshot_steps: list[int],
     guidance_scale: float = 1.0,
     seed: int = 0,
+    clamp_range: tuple[float, float] | None = None,
 ) -> list[torch.Tensor]:
     """Run reverse diffusion and snapshot ``x_t`` at the requested steps.
 
@@ -155,6 +156,9 @@ def collect_reverse(
             if step > 1:
                 z = torch.randn(x_t.shape, generator=generator, device=device)
                 x_t = x_t + torch.sqrt(beta_t) * z
+
+            if clamp_range is not None and model.feature_transform is None:
+                x_t = x_t.clamp(min=clamp_range[0], max=clamp_range[1])
 
             new_t = step - 1
             if new_t in requested:
