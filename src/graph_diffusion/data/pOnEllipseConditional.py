@@ -36,6 +36,7 @@ from torch_geometric.data import Data
 from graph_diffusion.data.pOnEllipse import (
     _H5_COL_P_START,
     _H5_COL_X,
+    _H5_COL_Y,
     _H5_N_TIMESTEPS,
     _load_h5_raw,
     _node_count,
@@ -45,10 +46,13 @@ from graph_diffusion.data.pOnEllipse import (
 __all__ = [
     "pOnEllipseConditionalDataset",
     "dct_ii",
+    "dct_ii_inverse",
+    "N_CP_GRID_DEFAULT",
 ]
 
 
-_VALID_COND_MODES = ("fourier", "nodal")
+_VALID_COND_MODES = ("fourier", "nodal", "fourier_dual")
+N_CP_GRID_DEFAULT = 64  # interpolation grid for fourier_dual upper/lower halves
 
 
 def dct_ii(x: np.ndarray, k_modes: int) -> np.ndarray:
@@ -79,6 +83,32 @@ def dct_ii(x: np.ndarray, k_modes: int) -> np.ndarray:
     norm = np.full(k_modes, np.sqrt(2.0 / n_samples), dtype=np.float32)
     norm[0] = np.sqrt(1.0 / n_samples)
     return (coeffs * norm).astype(np.float32)  # type: ignore[no-any-return]
+
+
+def dct_ii_inverse(coeffs: np.ndarray, n_samples: int) -> np.ndarray:
+    """Inverse of :func:`dct_ii`: reconstruct a signal from K DCT-II modes.
+
+    Uses the same orthonormalised type-II basis as :func:`dct_ii`, so that
+    for any K-band-limited signal ``s`` of length ``N``::
+
+        dct_ii(dct_ii_inverse(c, N), K) ≈ c     (round-trip up to float)
+
+    Args:
+        coeffs (np.ndarray): The first ``K`` DCT-II coefficients, shape
+            ``(K,)``.
+        n_samples (int): Length ``N`` of the reconstructed signal.
+
+    Returns:
+        np.ndarray: Reconstructed signal of length ``n_samples``, dtype
+            ``float32``.
+    """
+    k_modes = coeffs.shape[0]
+    n_idx = np.arange(n_samples, dtype=np.float32)
+    k_idx = np.arange(k_modes, dtype=np.float32)[:, None]
+    basis = np.cos(np.pi * (2.0 * n_idx + 1.0) * k_idx / (2.0 * n_samples))
+    norm = np.full(k_modes, np.sqrt(2.0 / n_samples), dtype=np.float32)
+    norm[0] = np.sqrt(1.0 / n_samples)
+    return ((coeffs.astype(np.float32) * norm) @ basis).astype(np.float32)  # type: ignore[no-any-return]
 
 
 class pOnEllipseConditionalDataset(pOnEllipseDataset):
@@ -123,6 +153,7 @@ class pOnEllipseConditionalDataset(pOnEllipseDataset):
         k_neighbors: int = 2,
         global_dim: int = 8,
         coord_scale: float | None = None,
+        variant: str = "default",
         transform: Callable[[Data], Data] | None = None,
         pre_transform: Callable[[Data], Data] | None = None,
     ) -> None:
@@ -144,15 +175,19 @@ class pOnEllipseConditionalDataset(pOnEllipseDataset):
             k_neighbors=k_neighbors,
             global_dim=global_dim,
             coord_scale=coord_scale,
+            variant=variant,
             transform=transform,
             pre_transform=pre_transform,
         )
 
     @property
     def processed_file_names(self) -> list[str]:
+        # Include `variant` so the default (AoA=0) and aoa10 caches never
+        # collide — they share every other field but hold different data.
+        suffix = f"_{self.variant}" if self.variant != "default" else ""
         return [
             f"data_cond_{self.cond_mode}_K{self.k_modes}"
-            f"_{self.feature_mode}_{self.split}_k{self.k_neighbors}.pt"
+            f"_{self.feature_mode}_{self.split}_k{self.k_neighbors}{suffix}.pt"
         ]
 
     def _build_graphs(self) -> list[Data]:
@@ -186,13 +221,58 @@ class pOnEllipseConditionalDataset(pOnEllipseDataset):
             chord = max(x_max - x_min, 1e-10)
             x_over_c = (xc - x_min) / chord
 
-            order = np.argsort(x_over_c)
-            cp_ordered = cp_mean[order]
-
-            modes = dct_ii(cp_ordered, self.k_modes)  # (K,)
+            if self.cond_mode == "fourier_dual":
+                yc = (
+                    data[:, _H5_COL_Y].astype(np.float32)
+                    - data[:, _H5_COL_Y].astype(np.float32).mean()
+                )
+                modes = self._fourier_dual_modes(x_over_c, yc, cp_mean)
+            else:
+                order = np.argsort(x_over_c)
+                cp_ordered = cp_mean[order]
+                modes = dct_ii(cp_ordered, self.k_modes)  # (K,)
             graph.cond = torch.tensor(modes[None, :], dtype=torch.float32)
 
             if self.cond_mode == "nodal":
                 graph.cp_nodal = torch.tensor(cp_mean[:, None], dtype=torch.float32)
 
         return graphs
+
+    def _fourier_dual_modes(
+        self,
+        x_over_c: np.ndarray,
+        y_centred: np.ndarray,
+        cp_per_node: np.ndarray,
+    ) -> np.ndarray:
+        """Interpolate upper/lower halves onto a shared grid then DCT each.
+
+        Args:
+            x_over_c: Per-node chord-fraction ``∈ [0, 1]``, shape ``(N,)``.
+            y_centred: Per-node y - y.mean(), shape ``(N,)``. Sign determines
+                upper (≥ 0) vs lower (< 0) surface.
+            cp_per_node: Per-node steady-state Cp, shape ``(N,)``.
+
+        Returns:
+            Concatenated ``[upper_modes (K), lower_modes (K)]`` array of
+            length ``2 * self.k_modes``, dtype float32.
+        """
+        upper_mask = y_centred >= 0.0
+        lower_mask = ~upper_mask
+        grid = np.linspace(0.0, 1.0, N_CP_GRID_DEFAULT, dtype=np.float32)
+
+        def _half_modes(mask: np.ndarray) -> np.ndarray:
+            if mask.sum() < 2:
+                # Degenerate: not enough nodes on this side. Return zeros so
+                # downstream code still produces a 2K vector.
+                return np.zeros(self.k_modes, dtype=np.float32)
+            xc_half = x_over_c[mask]
+            cp_half = cp_per_node[mask]
+            order = np.argsort(xc_half)
+            xc_sorted = xc_half[order]
+            cp_sorted = cp_half[order]
+            cp_interp = np.interp(grid, xc_sorted, cp_sorted).astype(np.float32)
+            return dct_ii(cp_interp, self.k_modes)
+
+        upper = _half_modes(upper_mask)
+        lower = _half_modes(lower_mask)
+        return np.concatenate([upper, lower], axis=0).astype(np.float32)
