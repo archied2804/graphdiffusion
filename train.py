@@ -50,6 +50,7 @@ from graph_diffusion.data.transforms import (
     ComputeAngularEdgeFeatures,
     ComputeArcLengthEdgeFeatures,
 )
+from graph_diffusion.model.ema import build_ema, save_ema_state_dict
 from graph_diffusion.model.graph_diffusion_model import GraphDiffusionModel
 from graph_diffusion.model.pressure_head import PressurePredictionHead
 from graph_diffusion.model.score_network import ScoreNetwork
@@ -77,6 +78,7 @@ def _build_dataset(config: dict) -> pOnEllipseDataset:  # type: ignore[type-arg]
         "n_samples": ds_cfg.get("n_samples", None),
         "k_neighbors": ds_cfg.get("k_neighbors", 2),
         "global_dim": ds_cfg.get("global_dim", 8),
+        "variant": ds_cfg.get("variant", "default"),
         "pre_transform": pre_transform,
     }
     if "cond_mode" in ds_cfg:
@@ -193,6 +195,7 @@ def main() -> None:
 
     # --- Diffusion model ---
     model_cfg = config.get("model", {})
+    min_snr_gamma_cfg = model_cfg.get("min_snr_gamma", None)
     model = GraphDiffusionModel(
         score_network=score_network,
         noise_schedule=noise_schedule,
@@ -201,6 +204,10 @@ def main() -> None:
         smoothness_weight=float(model_cfg.get("smoothness_weight", 0.0)),
         pressure_head=pressure_head,
         lambda_pressure=float(model_cfg.get("lambda_pressure", 0.0)),
+        min_snr_gamma=(
+            float(min_snr_gamma_cfg) if min_snr_gamma_cfg is not None else None
+        ),
+        prediction_type=str(model_cfg.get("prediction_type", "epsilon")),
     ).to(device)
 
     n_params = sum(p.numel() for p in model.parameters())
@@ -230,6 +237,14 @@ def main() -> None:
         )
 
     early_stopping_patience: int | None = training_cfg.get("early_stopping_patience")
+    ema_decay_cfg = training_cfg.get("ema_decay")
+    ema_model = (
+        build_ema(model, decay=float(ema_decay_cfg))
+        if ema_decay_cfg is not None
+        else None
+    )
+    if ema_model is not None:
+        print(f"EMA enabled with decay={float(ema_decay_cfg)}")
     best_val_loss = float("inf")
     best_epoch = 0
     patience_counter = 0
@@ -250,6 +265,8 @@ def main() -> None:
             loss = model.compute_loss(batch)
             loss.backward()
             optimizer.step()
+            if ema_model is not None:
+                ema_model.update_parameters(model)
             epoch_loss += loss.item()
             n_batches += 1
             pbar.set_postfix(loss=f"{loss.item():.4f}")
@@ -294,6 +311,16 @@ def main() -> None:
                     },
                     output_dir / "checkpoint_best.pt",
                 )
+                if ema_model is not None:
+                    save_ema_state_dict(
+                        ema_model,
+                        str(output_dir / "checkpoint_ema.pt"),
+                        extra={
+                            "config": config,
+                            "epoch": epoch,
+                            "lr": args.lr,
+                        },
+                    )
             else:
                 patience_counter += 1
                 if patience_counter >= early_stopping_patience:
@@ -313,6 +340,7 @@ def main() -> None:
         and (output_dir / "checkpoint_best.pt").exists()
     ):
         import shutil
+
         shutil.copy(output_dir / "checkpoint_best.pt", checkpoint_path)
         print(f"Saved best checkpoint (epoch {best_epoch}) to {checkpoint_path}")
     else:
@@ -362,9 +390,7 @@ def main() -> None:
             )
             order = np.argsort(theta)
             theta_s = theta[order]
-            r_scale = (
-                template.r_scale.item() if hasattr(template, "r_scale") else 1.0
-            )
+            r_scale = template.r_scale.item() if hasattr(template, "r_scale") else 1.0
             r_s = r_raw[order] * r_scale
             xc = np.append(r_s * np.cos(theta_s), r_s[0] * np.cos(theta_s[0]))
             yc = np.append(r_s * np.sin(theta_s), r_s[0] * np.sin(theta_s[0]))
