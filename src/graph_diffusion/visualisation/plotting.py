@@ -32,21 +32,32 @@ def plot_conditioning_grid(
     head_pred_stds: list[np.ndarray],
     row_labels: list[str],
     figsize: tuple[float, float] = (16, 10),
+    target_cps_lower: list[np.ndarray] | None = None,
+    head_pred_cps_lower: list[np.ndarray] | None = None,
+    head_pred_stds_lower: list[np.ndarray] | None = None,
 ) -> matplotlib.figure.Figure:
     """Render the Figure A 4×(2+S) conditioning grid.
 
     Args:
-        target_cps: One Cp curve per row, shape ``(N_cp_grid,)``.
+        target_cps: One Cp curve per row, shape ``(N_cp_grid,)``. When the
+            cond mode is ``fourier_dual`` this is the upper-surface curve;
+            ``target_cps_lower`` carries the matching lower-surface curve.
         sample_shapes: Per-row list of generated boundary shapes, each
             shape ``(N_nodes, 2)`` in (x, y).
         head_pred_cps: Per-row mean head-predicted Cp, shape ``(N_cp_grid,)``.
+            Upper surface when dual; same as ``target_cps`` otherwise.
         head_pred_stds: Per-row std across samples, shape ``(N_cp_grid,)``.
         row_labels: Per-row labels (left ylabel of column 0).
         figsize: Figure size in inches.
+        target_cps_lower: Optional lower-surface target Cp per row. When
+            set, the dual-surface layout is used.
+        head_pred_cps_lower: Optional lower-surface head prediction per row.
+        head_pred_stds_lower: Optional lower-surface std per row.
 
     Returns:
         The created figure. Caller is responsible for ``fig.savefig(...)``.
     """
+    dual = target_cps_lower is not None
     n_targets = len(target_cps)
     n_samples = len(sample_shapes[0])
     ncols = 2 + n_samples
@@ -55,7 +66,13 @@ def plot_conditioning_grid(
 
     for r in range(n_targets):
         ax = axes[r, 0]
-        ax.plot(x_grid, target_cps[r], color="C0", lw=2)
+        upper_label = "upper" if dual else None
+        ax.plot(x_grid, target_cps[r], color="C0", lw=2, label=upper_label)
+        if dual:
+            assert target_cps_lower is not None
+            ax.plot(x_grid, target_cps_lower[r], color="C3", lw=2, label="lower")
+            if r == 0:
+                ax.legend(fontsize=8, loc="best")
         ax.set_ylabel(row_labels[r], fontsize=10)
         if r == 0:
             ax.set_title("target Cp(x/c)", fontsize=10)
@@ -64,12 +81,43 @@ def plot_conditioning_grid(
         ax = axes[r, 1]
         mean = head_pred_cps[r]
         std = head_pred_stds[r]
-        ax.plot(x_grid, mean, color="C1", lw=2, label="head pred")
+        ax.plot(
+            x_grid,
+            mean,
+            color="C1",
+            lw=2,
+            label="head pred (upper)" if dual else "head pred",
+        )
         ax.fill_between(x_grid, mean - std, mean + std, alpha=0.3, color="C1")
-        ax.plot(x_grid, target_cps[r], color="C0", lw=1, ls="--", label="target")
+        ax.plot(
+            x_grid,
+            target_cps[r],
+            color="C0",
+            lw=1,
+            ls="--",
+            label="target (upper)" if dual else "target",
+        )
+        if dual:
+            assert head_pred_cps_lower is not None
+            assert head_pred_stds_lower is not None
+            mean_l = head_pred_cps_lower[r]
+            std_l = head_pred_stds_lower[r]
+            ax.plot(x_grid, mean_l, color="C4", lw=2, label="head pred (lower)")
+            ax.fill_between(
+                x_grid, mean_l - std_l, mean_l + std_l, alpha=0.3, color="C4"
+            )
+            assert target_cps_lower is not None
+            ax.plot(
+                x_grid,
+                target_cps_lower[r],
+                color="C3",
+                lw=1,
+                ls="--",
+                label="target (lower)",
+            )
         if r == 0:
             ax.set_title("predicted Cp ±σ", fontsize=10)
-            ax.legend(fontsize=8, loc="best")
+            ax.legend(fontsize=7, loc="best")
         ax.grid(alpha=0.3)
 
         for s in range(n_samples):
