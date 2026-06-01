@@ -1,0 +1,72 @@
+# EXP-022: Finer diffusion schedule (T=1000)
+# ===========================================
+# Same architecture and dataset as EXP-021; only the noise schedule
+# changes. EXP-020 used T=200 — unusually coarse for DDPM (Ho et al.
+# used T=1000). The hypothesis is that the final ~20 reverse steps
+# that clean high-freq noise are under-resolved in *count* at T=200,
+# producing the boundary wobble seen in row 1 of figure_a.
+#
+# Sampling cost ≈ 5× EXP-020; training cost per step is unchanged.
+
+dataset_type: shape_conditional
+
+ellipse_dataset:
+  root: data/ellipse
+  split: train
+  feature_mode: radial_norm
+  cond_mode: fourier
+  k_modes: 8
+  n_samples: null
+  k_neighbors: 6
+  global_dim: 8
+
+data:
+  batch_size: 32
+  val_split: 0.1
+  num_workers: 0
+  shuffle: true
+
+noise_schedule:
+  T: 1000
+  schedule_type: cosine
+  beta_start: 1.0e-4
+  beta_end: 0.02
+
+score_network:
+  node_dim: 32
+  edge_dim: 2
+  global_dim: 8
+  time_embed_dim: 64
+  n_layers: 4
+  hidden_dims: [64, 64]
+  input_dim: 3
+  output_dim: 1
+  cond_dim: 8
+  p_uncond: 0.15
+
+pressure_head:
+  in_dim: 3
+  out_dim: 8
+  node_hidden: [64, 64]
+  global_hidden: [64, 64]
+  node_embed_dim: 64
+
+mlp:
+  activation: silu
+  layer_norm: true
+  residual: true
+
+model:
+  n_noise_channels: 1
+  lambda_pressure: 0.1
+
+clamp_range: [0.5, 2.0]
+
+sampling:
+  guidance_scale: 3.0
+  dps_guidance_weight: 0.0
+
+training:
+  scheduler: cosine_annealing
+  eta_min: 1.0e-5
+  early_stopping_patience: 100
