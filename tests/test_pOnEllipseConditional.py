@@ -16,6 +16,7 @@ from context import graph_diffusion  # noqa: F401
 from graph_diffusion.data.pOnEllipse import _H5_N_TIMESTEPS
 from graph_diffusion.data.pOnEllipseConditional import (
     dct_ii,
+    dct_ii_inverse,
     pOnEllipseConditionalDataset,
 )
 from graph_diffusion.data.transforms import ComputeAngularEdgeFeatures
@@ -101,6 +102,39 @@ def test_dct_ii_basis_orthogonality() -> None:
     mask = np.ones(8, dtype=bool)
     mask[k_target] = False
     assert np.max(np.abs(out[mask])) < 1e-4
+
+
+# ---------------------------------------------------------------------------
+# dct_ii_inverse
+# ---------------------------------------------------------------------------
+
+
+def test_dct_ii_inverse_output_shape() -> None:
+    coeffs = np.zeros(8, dtype=np.float32)
+    out = dct_ii_inverse(coeffs, n_samples=64)
+    assert out.shape == (64,)
+    assert out.dtype == np.float32
+
+
+def test_dct_ii_inverse_constant_recovery() -> None:
+    # k=0 coefficient = sqrt(N)*mean for our normalisation; inverse with only
+    # the DC mode should reproduce a constant signal of that mean.
+    n = 32
+    mean_val = 0.5
+    coeffs = np.zeros(8, dtype=np.float32)
+    coeffs[0] = np.sqrt(n) * mean_val
+    out = dct_ii_inverse(coeffs, n_samples=n)
+    assert np.allclose(out, mean_val, atol=1e-5)
+
+
+def test_dct_ii_round_trip_on_band_limited_signal() -> None:
+    # Signal that is exactly representable in K=8 DCT modes should round-trip.
+    n = 64
+    k = 8
+    coeffs_in = np.array([1.0, 0.3, -0.4, 0.05, 0.0, 0.0, 0.0, 0.0], dtype=np.float32)
+    signal = dct_ii_inverse(coeffs_in, n_samples=n)
+    coeffs_out = dct_ii(signal, k_modes=k)
+    assert np.allclose(coeffs_in, coeffs_out, atol=1e-5)
 
 
 # ---------------------------------------------------------------------------
