@@ -1,0 +1,77 @@
+# EXP-030: dual upper/lower Cp conditioning on the default (AoA=0) dataset
+# ========================================================================
+# Inspection revealed the existing `pOnEllipseTrain.h5` is at AoA=0
+# (the "AoA" column in earlier code was actually domain height H), and
+# the `pOnEllipseAoA10.h5` file has only 24 sims at AoA=10° — too sparse
+# to train on. This experiment therefore tests the dual-Cp architecture
+# on the 5701-sim AoA=0 dataset where upper/lower Cp curves are nearly
+# symmetric by physics. Even with the redundancy, the dual split lets
+# the model see the two surfaces separately and serves as the wiring
+# baseline for any future asymmetric-AoA dataset.
+#
+# Otherwise mirrors the EXP-021 winning recipe: T=200 cosine schedule,
+# patience=100, 1000-epoch budget, CFG=3.0.
+
+dataset_type: shape_conditional
+
+ellipse_dataset:
+  root: data/ellipse
+  split: train
+  variant: default          # AoA=0 training set (5701 sims)
+  feature_mode: radial_norm
+  cond_mode: fourier_dual   # [upper modes, lower modes], length 2K=16
+  k_modes: 8
+  n_samples: null
+  k_neighbors: 6
+  global_dim: 8
+
+data:
+  batch_size: 32
+  val_split: 0.1
+  num_workers: 0
+  shuffle: true
+
+noise_schedule:
+  T: 200
+  schedule_type: cosine
+  beta_start: 1.0e-4
+  beta_end: 0.02
+
+score_network:
+  node_dim: 32
+  edge_dim: 2
+  global_dim: 8
+  time_embed_dim: 64
+  n_layers: 4
+  hidden_dims: [64, 64]
+  input_dim: 3
+  output_dim: 1
+  cond_dim: 16              # 2 * k_modes
+  p_uncond: 0.15
+
+pressure_head:
+  in_dim: 3
+  out_dim: 16               # 2 * k_modes
+  node_hidden: [64, 64]
+  global_hidden: [64, 64]
+  node_embed_dim: 64
+
+mlp:
+  activation: silu
+  layer_norm: true
+  residual: true
+
+model:
+  n_noise_channels: 1
+  lambda_pressure: 0.1
+
+clamp_range: [0.5, 2.0]
+
+sampling:
+  guidance_scale: 3.0
+  dps_guidance_weight: 0.0
+
+training:
+  scheduler: cosine_annealing
+  eta_min: 1.0e-5
+  early_stopping_patience: 100
