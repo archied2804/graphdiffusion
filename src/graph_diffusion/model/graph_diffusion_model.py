@@ -80,6 +80,8 @@ class GraphDiffusionModel(nn.Module):
         smoothness_weight: float = 0.0,
         pressure_head: PressurePredictionHead | None = None,
         lambda_pressure: float = 0.0,
+        min_snr_gamma: float | None = None,
+        prediction_type: str = "epsilon",
     ) -> None:
         super().__init__()
         self.score_network = score_network
@@ -89,6 +91,16 @@ class GraphDiffusionModel(nn.Module):
         self.smoothness_weight = smoothness_weight
         self.pressure_head = pressure_head
         self.lambda_pressure = lambda_pressure
+        if min_snr_gamma is not None and min_snr_gamma <= 0.0:
+            raise ValueError(
+                f"min_snr_gamma must be positive when set; got {min_snr_gamma}"
+            )
+        self.min_snr_gamma = min_snr_gamma
+        if prediction_type not in ("epsilon", "v"):
+            raise ValueError(
+                f"prediction_type must be 'epsilon' or 'v'; got {prediction_type!r}"
+            )
+        self.prediction_type = prediction_type
 
     def _smoothness_loss(
         self,
@@ -229,10 +241,48 @@ class GraphDiffusionModel(nn.Module):
         # Extract optional global conditioning vector (EXP-015)
         cond = getattr(batch, "cond", None)
 
-        # Predict noise
-        eps_pred = self.score_network(noisy_data, t_idx, cond=cond)
+        # Predict noise (or v under v-parameterisation).
+        pred = self.score_network(noisy_data, t_idx, cond=cond)
 
-        mse = F.mse_loss(eps_pred, epsilon)
+        # Build the per-node training target depending on parameterisation.
+        if self.prediction_type == "v":
+            sqrt_alpha_bar_loss = self.noise_schedule.get_t(
+                t_idx, "sqrt_alphas_cumprod"
+            )[batch_vec]
+            sqrt_one_minus_alpha_bar_loss = self.noise_schedule.get_t(
+                t_idx, "sqrt_one_minus_alphas_cumprod"
+            )[batch_vec]
+            target = (
+                sqrt_alpha_bar_loss * epsilon
+                - sqrt_one_minus_alpha_bar_loss * x_0_noise
+            )
+        else:
+            target = epsilon
+
+        # ε for the auxiliary loss helpers below (Tweedie reconstruction
+        # uses ε, not v). When in v-mode we back out ε from the v-pred.
+        if self.prediction_type == "v":
+            sqrt_alpha_bar_loss = self.noise_schedule.get_t(
+                t_idx, "sqrt_alphas_cumprod"
+            )[batch_vec]
+            sqrt_one_minus_alpha_bar_loss = self.noise_schedule.get_t(
+                t_idx, "sqrt_one_minus_alphas_cumprod"
+            )[batch_vec]
+            eps_pred = sqrt_one_minus_alpha_bar_loss * x_t + sqrt_alpha_bar_loss * pred
+        else:
+            eps_pred = pred
+
+        # Vanilla DDPM loss or Min-SNR-γ weighted loss (Hang et al. 2023).
+        if self.min_snr_gamma is None:
+            mse = F.mse_loss(pred, target)
+        else:
+            # SNR_t = ᾱ_t / (1 − ᾱ_t); weight = min(SNR_t, γ) / SNR_t.
+            alpha_bar = self.noise_schedule.get_t(t_idx, "alphas_cumprod").squeeze(-1)
+            snr = alpha_bar / (1.0 - alpha_bar).clamp(min=1e-8)
+            min_snr_clamped = torch.clamp(snr, max=self.min_snr_gamma)
+            weight_per_graph = min_snr_clamped / snr.clamp(min=1e-8)
+            weight_per_node = weight_per_graph[batch_vec].unsqueeze(-1)
+            mse = (weight_per_node * (pred - target).pow(2)).mean()
 
         # Pre-compute x̂₀ once if either auxiliary loss term needs it.
         needs_x0_hat = self.smoothness_weight > 0.0 or (
@@ -393,14 +443,12 @@ class GraphDiffusionModel(nn.Module):
             noisy_data.batch = batch_vec
 
             with torch.no_grad():
-                eps_pred = self.score_network(noisy_data, t_idx, cond=cond)
+                pred = self.score_network(noisy_data, t_idx, cond=cond)
                 if use_cfg:
-                    eps_null = self.score_network(
+                    pred_null = self.score_network(
                         noisy_data, t_idx, cond=cond, force_uncond=True
                     )
-                    eps_pred = (1.0 + guidance_scale) * eps_pred - (
-                        guidance_scale * eps_null
-                    )
+                    pred = (1.0 + guidance_scale) * pred - guidance_scale * pred_null
 
             # DDPM reverse step coefficients
             beta_t = self.noise_schedule.get_t(t_idx, "betas")[batch_vec]
@@ -411,6 +459,13 @@ class GraphDiffusionModel(nn.Module):
             sqrt_one_minus_alpha_bar_t = self.noise_schedule.get_t(
                 t_idx, "sqrt_one_minus_alphas_cumprod"
             )[batch_vec]
+
+            # Under v-parameterisation, recover ε from v_pred so the rest of
+            # the reverse step is identical to ε-prediction.
+            if self.prediction_type == "v":
+                eps_pred = sqrt_one_minus_alpha_bar_t * x_t + sqrt_alpha_bar_t * pred
+            else:
+                eps_pred = pred
 
             # Optional DPS gradient correction on x̂₀ via the pressure head.
             if use_cfg or use_dps:
