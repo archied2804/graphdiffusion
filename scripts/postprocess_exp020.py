@@ -24,27 +24,32 @@ from __future__ import annotations
 
 import argparse
 import copy
+import json
 from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import yaml
 from torch_geometric.data import Data
 
-from graph_diffusion.building_blocks.noise_schedule import NoiseSchedule
 from graph_diffusion.data.pOnEllipseConditional import (
     dct_ii,
+    dct_ii_inverse,
     pOnEllipseConditionalDataset,
 )
-from graph_diffusion.data.transforms import (
-    ComputeAngularEdgeFeatures,
-    ComputeArcLengthEdgeFeatures,
-)
 from graph_diffusion.model.graph_diffusion_model import GraphDiffusionModel
-from graph_diffusion.model.pressure_head import PressurePredictionHead
-from graph_diffusion.model.score_network import ScoreNetwork
+from graph_diffusion.postprocessing.inference import (
+    radial_to_xy,
+    sample_shapes_from_cond,
+    template_thetas,
+)
+from graph_diffusion.postprocessing.loaders import (
+    build_dataset,
+    build_model,
+    load_config,
+)
+from graph_diffusion.postprocessing.metrics import compute_boundary_roughness
 from graph_diffusion.visualisation.plotting import (
     plot_conditioning_grid,
     plot_trajectory_filmstrip,
@@ -56,11 +61,6 @@ from graph_diffusion.visualisation.trajectory import (
 )
 
 N_CP_GRID = 128
-
-
-def load_config(path: str) -> dict[str, Any]:
-    with open(path) as f:  # noqa: PTH123
-        return yaml.safe_load(f)  # type: ignore[no-any-return]
 
 
 def parse_args() -> argparse.Namespace:
@@ -82,72 +82,6 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-def build_dataset(config: dict[str, Any]) -> pOnEllipseConditionalDataset:
-    ds_cfg = config["ellipse_dataset"]
-    feature_mode = ds_cfg.get("feature_mode", "radial_norm")
-    pre_transform = (
-        ComputeArcLengthEdgeFeatures()
-        if feature_mode == "cartesian"
-        else ComputeAngularEdgeFeatures()
-    )
-    return pOnEllipseConditionalDataset(
-        root=ds_cfg.get("root", "data/ellipse"),
-        cond_mode=ds_cfg.get("cond_mode", "fourier"),
-        k_modes=ds_cfg.get("k_modes", 8),
-        feature_mode=feature_mode,
-        split=ds_cfg.get("split", "train"),
-        n_samples=ds_cfg.get("n_samples", None),
-        k_neighbors=ds_cfg.get("k_neighbors", 6),
-        global_dim=ds_cfg.get("global_dim", 8),
-        pre_transform=pre_transform,
-    )
-
-
-def build_model(config: dict[str, Any], device: str) -> GraphDiffusionModel:
-    ns_cfg = config["noise_schedule"]
-    schedule = NoiseSchedule(
-        T=ns_cfg["T"],
-        schedule_type=ns_cfg.get("schedule_type", "cosine"),
-        beta_start=ns_cfg.get("beta_start", 1.0e-4),
-        beta_end=ns_cfg.get("beta_end", 0.02),
-    )
-    sn_cfg = config["score_network"]
-    mlp_cfg = config["mlp"]
-    sn = ScoreNetwork(
-        node_dim=sn_cfg["node_dim"],
-        edge_dim=sn_cfg["edge_dim"],
-        global_dim=sn_cfg["global_dim"],
-        time_embed_dim=sn_cfg["time_embed_dim"],
-        n_layers=sn_cfg["n_layers"],
-        hidden_dims=sn_cfg.get("hidden_dims", [64, 64]),
-        activation=mlp_cfg.get("activation", "silu"),
-        layer_norm=mlp_cfg.get("layer_norm", True),
-        residual=mlp_cfg.get("residual", True),
-        input_dim=sn_cfg.get("input_dim", None),
-        cond_dim=sn_cfg.get("cond_dim", None),
-        p_uncond=float(sn_cfg.get("p_uncond", 0.0)),
-        output_dim=sn_cfg.get("output_dim", None),
-    )
-    ph_cfg = config["pressure_head"]
-    head = PressurePredictionHead(
-        in_dim=ph_cfg["in_dim"],
-        out_dim=ph_cfg["out_dim"],
-        node_hidden=ph_cfg.get("node_hidden", [64, 64]),
-        global_hidden=ph_cfg.get("global_hidden", [64, 64]),
-        node_embed_dim=ph_cfg.get("node_embed_dim", 64),
-        activation=mlp_cfg.get("activation", "silu"),
-        layer_norm=mlp_cfg.get("layer_norm", True),
-    )
-    model_cfg = config.get("model", {})
-    return GraphDiffusionModel(
-        score_network=sn,
-        noise_schedule=schedule,
-        n_noise_channels=model_cfg.get("n_noise_channels", None),
-        pressure_head=head,
-        lambda_pressure=float(model_cfg.get("lambda_pressure", 0.0)),
-    ).to(device)
-
-
 def pick_targets_farthest_first(
     dataset: pOnEllipseConditionalDataset,
     n_targets: int,
@@ -167,26 +101,35 @@ def pick_targets_farthest_first(
     return picked
 
 
-def _inverse_dct(modes: np.ndarray, n_grid: int) -> np.ndarray:
-    """Inverse type-II DCT of K modes onto an n_grid sample grid."""
-    k_modes = modes.shape[0]
-    n_idx = np.arange(n_grid, dtype=np.float32)
-    k_idx = np.arange(k_modes, dtype=np.float32)[:, None]
-    basis = np.cos(np.pi * (2.0 * n_idx + 1.0) * k_idx / (2.0 * n_grid))
-    norm = np.full(k_modes, np.sqrt(2.0 / n_grid), dtype=np.float32)
-    norm[0] = np.sqrt(1.0 / n_grid)
-    return (modes * norm) @ basis  # type: ignore[no-any-return]
-
-
 def make_synthetic_target(
     dataset: pOnEllipseConditionalDataset, k_modes: int
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Build an asymmetric synthetic Cp curve and DCT-encode it."""
+    """Build an asymmetric synthetic Cp curve and DCT-encode it.
+
+    For ``cond_mode="fourier_dual"`` returns a dense ``(2 * N_CP_GRID,)``
+    curve (upper concatenated with lower) and a ``(2K,)`` cond vector.
+    Otherwise returns ``(N_CP_GRID,)`` dense and ``(K,)`` cond.
+    """
     x_over_c = np.linspace(0.0, 1.0, N_CP_GRID)
     mean_cond = (
         torch.stack([g.cond.squeeze(0) for g in dataset], dim=0).mean(dim=0).numpy()
     )
-    cp_mean_dense = _inverse_dct(mean_cond, N_CP_GRID)
+    if dataset.cond_mode == "fourier_dual":
+        upper_mean = dct_ii_inverse(mean_cond[:k_modes], N_CP_GRID)
+        lower_mean = dct_ii_inverse(mean_cond[k_modes:], N_CP_GRID)
+        # Lift-producing perturbation: stronger suction on the upper surface,
+        # weaker pressure recovery on the lower surface.
+        upper_synth = upper_mean + 0.5 * np.sin(np.pi * x_over_c)
+        lower_synth = lower_mean - 0.2 * np.sin(np.pi * x_over_c)
+        upper_modes = dct_ii(upper_synth.astype(np.float32), k_modes)
+        lower_modes = dct_ii(lower_synth.astype(np.float32), k_modes)
+        target_cond = np.concatenate([upper_modes, lower_modes]).astype(np.float32)
+        cp_dense = np.concatenate(
+            [upper_synth.astype(np.float32), lower_synth.astype(np.float32)]
+        )
+        return cp_dense, target_cond
+
+    cp_mean_dense = dct_ii_inverse(mean_cond, N_CP_GRID)
     cp_synth = cp_mean_dense + 0.3 * np.sin(np.pi * x_over_c)
     target_cond = dct_ii(cp_synth.astype(np.float32), k_modes)
     return cp_synth.astype(np.float32), target_cond
@@ -199,26 +142,6 @@ def shape_template_from_dataset(
     return copy.copy(dataset[0]).to(device)
 
 
-def radial_to_xy(r: np.ndarray, theta: np.ndarray) -> np.ndarray:
-    """(N,) r and (N,) theta -> (N, 2) Cartesian, sorted by theta.
-
-    Sorting by theta gives a proper boundary ordering for plt.plot to
-    draw a closed curve; the raw dataset order is not chordwise.
-    """
-    order = np.argsort(theta)
-    r_sorted = r[order]
-    theta_sorted = theta[order]
-    return np.stack(
-        [r_sorted * np.cos(theta_sorted), r_sorted * np.sin(theta_sorted)], axis=1
-    )
-
-
-def template_thetas(dataset: pOnEllipseConditionalDataset) -> np.ndarray:
-    """Recover the (N,) theta vector from dataset[0].pos = (cos t, sin t)."""
-    pos = dataset[0].pos.numpy()
-    return np.arctan2(pos[:, 1], pos[:, 0])
-
-
 def sample_shapes_for_target(
     model: GraphDiffusionModel,
     template: Data,
@@ -227,36 +150,40 @@ def sample_shapes_for_target(
     guidance_scale: float,
     device: str,
     clamp_range: tuple[float, float],
+    k_modes: int | None = None,
 ) -> tuple[list[np.ndarray], list[np.ndarray]]:
-    """Generate n_samples shapes for a target cond.
+    """Generate ``n_samples`` shapes for a target cond.
 
-    Returns:
-        shapes: list of (N, 2) Cartesian arrays.
-        head_pred_cps_dense: list of (N_cp_grid,) head-predicted Cp curves.
+    Thin adapter around :func:`sample_shapes_from_cond` that returns
+    legacy list-of-arrays types (Cartesian boundaries and dense
+    head-predicted Cp curves on the ``N_CP_GRID``). When ``k_modes`` is
+    set and the cond vector has length ``2 * k_modes`` (fourier_dual
+    mode), the head-predicted modes are split into upper/lower halves
+    and each is inverse-DCT'd separately; the returned dense curves are
+    the concatenation ``[upper (N_CP_GRID), lower (N_CP_GRID)]``.
     """
-    template_with_cond = copy.copy(template)
-    template_with_cond.cond = cond_vec.unsqueeze(0).to(device)
-
-    shapes: list[np.ndarray] = []
+    radii, head_modes = sample_shapes_from_cond(
+        model=model,
+        template=template,
+        cond_vec=cond_vec,
+        n_samples=n_samples,
+        guidance_scale=guidance_scale,
+        device=device,
+        clamp_range=clamp_range,
+        seed=0,
+    )
+    theta = template_thetas(template)
+    shapes = [radial_to_xy(radii[i], theta) for i in range(n_samples)]
+    is_dual = k_modes is not None and head_modes.shape[1] == 2 * k_modes
     head_preds_dense: list[np.ndarray] = []
-    pos = template.pos
-    theta = np.arctan2(pos[:, 1].cpu().numpy(), pos[:, 0].cpu().numpy())
-
     for i in range(n_samples):
-        torch.manual_seed(i)
-        out = model.sample(
-            template_with_cond,
-            clamp_range=clamp_range,
-            guidance_scale=guidance_scale,
-        )
-        r = out.x[:, 0].detach().cpu().numpy()
-        shapes.append(radial_to_xy(r, theta))
-
-        assert model.pressure_head is not None
-        batch_vec = torch.zeros(pos.size(0), dtype=torch.long, device=device)
-        with torch.no_grad():
-            pred = model.pressure_head(out.x, pos, batch_vec)
-        head_preds_dense.append(_inverse_dct(pred[0].cpu().numpy(), N_CP_GRID))
+        if is_dual:
+            assert k_modes is not None
+            upper = dct_ii_inverse(head_modes[i, :k_modes], N_CP_GRID)
+            lower = dct_ii_inverse(head_modes[i, k_modes:], N_CP_GRID)
+            head_preds_dense.append(np.concatenate([upper, lower]))
+        else:
+            head_preds_dense.append(dct_ii_inverse(head_modes[i], N_CP_GRID))
     return shapes, head_preds_dense
 
 
@@ -288,11 +215,17 @@ def _figure_a(
     synth_cp_dense: np.ndarray,
     synth_cond_np: np.ndarray,
     clamp_range: tuple[float, float],
-) -> torch.Tensor:
-    """Build Figure A and return the synthetic-cond tensor for downstream re-use."""
+) -> tuple[torch.Tensor, list[list[np.ndarray]], list[str]]:
+    """Build Figure A and return the synthetic-cond tensor and per-target shapes.
+
+    The shapes are returned so callers can compute summary metrics (e.g.
+    boundary roughness) without re-running the reverse diffusion.
+    """
     sampling_cfg = config.get("sampling", {})
     guidance_scale = float(sampling_cfg.get("guidance_scale", 1.0))
     device = args.device
+    k_modes = int(config["ellipse_dataset"].get("k_modes", 8))
+    is_dual = config["ellipse_dataset"].get("cond_mode", "fourier") == "fourier_dual"
 
     target_cps_dense: list[np.ndarray] = []
     head_pred_cps: list[np.ndarray] = []
@@ -300,9 +233,21 @@ def _figure_a(
     sample_shapes: list[list[np.ndarray]] = []
     row_labels: list[str] = []
 
+    def _decode_cond(cond_np: np.ndarray) -> np.ndarray:
+        """Decode a (K,) or (2K,) cond vector to a dense Cp array.
+
+        Returns ``(N_CP_GRID,)`` for single mode or ``(2*N_CP_GRID,)``
+        (upper concatenated with lower) for dual mode.
+        """
+        if is_dual:
+            upper = dct_ii_inverse(cond_np[:k_modes], N_CP_GRID)
+            lower = dct_ii_inverse(cond_np[k_modes:], N_CP_GRID)
+            return np.concatenate([upper, lower])
+        return dct_ii_inverse(cond_np, N_CP_GRID)
+
     for rank, idx in enumerate(train_target_indices):
         cond_vec = dataset[idx].cond.squeeze(0)
-        target_cps_dense.append(_inverse_dct(cond_vec.numpy(), N_CP_GRID))
+        target_cps_dense.append(_decode_cond(cond_vec.numpy()))
         shapes, head_preds = sample_shapes_for_target(
             model,
             template,
@@ -311,6 +256,7 @@ def _figure_a(
             guidance_scale,
             device,
             clamp_range,
+            k_modes=k_modes,
         )
         sample_shapes.append(shapes)
         stacked = np.stack(head_preds, axis=0)
@@ -328,6 +274,7 @@ def _figure_a(
         guidance_scale,
         device,
         clamp_range,
+        k_modes=k_modes,
     )
     sample_shapes.append(shapes)
     stacked = np.stack(head_preds, axis=0)
@@ -335,28 +282,44 @@ def _figure_a(
     head_pred_stds.append(stacked.std(axis=0))
     row_labels.append("synth asym.")
 
+    # Split arrays for dual-mode plotting.
+    target_cps_lower = head_pred_cps_lower = head_pred_stds_lower = None
+    if is_dual:
+        target_cps_lower = [c[N_CP_GRID:] for c in target_cps_dense]
+        target_cps_dense = [c[:N_CP_GRID] for c in target_cps_dense]
+        head_pred_cps_lower = [c[N_CP_GRID:] for c in head_pred_cps]
+        head_pred_cps = [c[:N_CP_GRID] for c in head_pred_cps]
+        head_pred_stds_lower = [c[N_CP_GRID:] for c in head_pred_stds]
+        head_pred_stds = [c[:N_CP_GRID] for c in head_pred_stds]
+
     fig_a = plot_conditioning_grid(
         target_cps=target_cps_dense,
         sample_shapes=sample_shapes,
         head_pred_cps=head_pred_cps,
         head_pred_stds=head_pred_stds,
         row_labels=row_labels,
+        target_cps_lower=target_cps_lower,
+        head_pred_cps_lower=head_pred_cps_lower,
+        head_pred_stds_lower=head_pred_stds_lower,
     )
     fig_a_path = args.experiment_dir / "figure_a_conditioning_grid.png"
     fig_a.savefig(fig_a_path, dpi=140, bbox_inches="tight")
     plt.close(fig_a)
     print(f"Saved Figure A to {fig_a_path}")
-    return synth_cond_t
+    return synth_cond_t, sample_shapes, row_labels
 
 
 def _figure_c(
     args: argparse.Namespace,
+    config: dict[str, Any],
     model: GraphDiffusionModel,
     template: Data,
     synth_cond_t: torch.Tensor,
     synth_cp_dense: np.ndarray,
     clamp_range: tuple[float, float],
 ) -> None:
+    k_modes = int(config["ellipse_dataset"].get("k_modes", 8))
+    is_dual = config["ellipse_dataset"].get("cond_mode", "fourier") == "fourier_dual"
     cfg_w_values = [1.0, 3.0, 7.0]
     cfg_shapes: list[np.ndarray] = []
     cfg_head_preds: list[np.ndarray] = []
@@ -369,6 +332,7 @@ def _figure_c(
             guidance_scale=w,
             device=args.device,
             clamp_range=clamp_range,
+            k_modes=k_modes,
         )
         cfg_shapes.append(shapes_w[0])
         cfg_head_preds.append(head_preds_w[0])
@@ -386,11 +350,25 @@ def _figure_c(
         ax.set_title(f"w = {w}", fontsize=10)
 
         ax = axes[1, col]
-        ax.plot(x_grid, cfg_head_preds[col], color="C1", lw=2, label="head pred")
-        ax.plot(x_grid, synth_cp_dense, color="C0", lw=1, ls="--", label="target")
+        if is_dual:
+            head_upper = cfg_head_preds[col][:N_CP_GRID]
+            head_lower = cfg_head_preds[col][N_CP_GRID:]
+            target_upper = synth_cp_dense[:N_CP_GRID]
+            target_lower = synth_cp_dense[N_CP_GRID:]
+            ax.plot(x_grid, head_upper, color="C1", lw=2, label="head pred (upper)")
+            ax.plot(x_grid, head_lower, color="C4", lw=2, label="head pred (lower)")
+            ax.plot(
+                x_grid, target_upper, color="C0", lw=1, ls="--", label="target (upper)"
+            )
+            ax.plot(
+                x_grid, target_lower, color="C3", lw=1, ls="--", label="target (lower)"
+            )
+        else:
+            ax.plot(x_grid, cfg_head_preds[col], color="C1", lw=2, label="head pred")
+            ax.plot(x_grid, synth_cp_dense, color="C0", lw=1, ls="--", label="target")
         ax.grid(alpha=0.3)
         if col == 0:
-            ax.legend(fontsize=8)
+            ax.legend(fontsize=7)
     fig_c.tight_layout()
     fig_c_path = args.experiment_dir / "figure_c_cfg_sweep.png"
     fig_c.savefig(fig_c_path, dpi=140, bbox_inches="tight")
@@ -407,6 +385,14 @@ def _figure_b(
     synth_cond_t: torch.Tensor,
     synth_cp_dense: np.ndarray,
 ) -> None:
+    # In dual mode synth_cp_dense is the (2*N_CP_GRID,) [upper, lower]
+    # concatenation; plot_trajectory_filmstrip expects a single curve,
+    # so we display the upper half only here.
+    if (
+        config["ellipse_dataset"].get("cond_mode", "fourier") == "fourier_dual"
+        and synth_cp_dense.shape[0] == 2 * N_CP_GRID
+    ):
+        synth_cp_dense = synth_cp_dense[:N_CP_GRID]
     device = args.device
     sampling_cfg = config.get("sampling", {})
     guidance_scale = float(sampling_cfg.get("guidance_scale", 1.0))
@@ -440,7 +426,7 @@ def _figure_b(
         clamp_range=clamp_range,
     )
 
-    theta = template_thetas(dataset)
+    theta = template_thetas(dataset[0])
     forward_xy = [radial_to_xy(s[:, 0].numpy(), theta) for s in forward_snaps_t]
     reverse_xy = [radial_to_xy(s[:, 0].numpy(), theta) for s in reverse_snaps_t]
 
@@ -518,7 +504,7 @@ def main() -> None:
     template = shape_template_from_dataset(dataset, device)
     clamp_range = _resolve_clamp_range(config)
 
-    synth_cond_t = _figure_a(
+    synth_cond_t, sample_shapes_per_target, row_labels = _figure_a(
         args,
         config,
         model,
@@ -529,7 +515,30 @@ def main() -> None:
         synth_cond_np,
         clamp_range,
     )
-    _figure_c(args, model, template, synth_cond_t, synth_cp_dense, clamp_range)
+
+    # Per-target + overall boundary-roughness for EXP-021..025 comparison.
+    per_target_roughness: dict[str, float] = {}
+    for label, shapes in zip(row_labels, sample_shapes_per_target, strict=False):
+        per_target_roughness[label] = compute_boundary_roughness(
+            np.stack(shapes, axis=0)
+        )
+    overall_roughness = float(np.mean(list(per_target_roughness.values())))
+    roughness_path = args.experiment_dir / "roughness_report.json"
+    with open(roughness_path, "w") as fh:  # noqa: PTH123
+        json.dump(
+            {
+                "per_target": per_target_roughness,
+                "overall_mean": overall_roughness,
+            },
+            fh,
+            indent=2,
+        )
+    print(
+        f"Saved roughness report to {roughness_path} "
+        f"(overall={overall_roughness:.5f})"
+    )
+
+    _figure_c(args, config, model, template, synth_cond_t, synth_cp_dense, clamp_range)
     _figure_b(
         args,
         config,
