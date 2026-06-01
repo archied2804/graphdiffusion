@@ -52,12 +52,20 @@ __all__ = [
 
 # ---------------------------------------------------------------------------
 # HDF5 layout constants
+#
+# Column convention per Mariolinov's NsEllipse paper (TABLE III):
+#   [x, y, Re, H, p_1, p_2, ..., p_101]
+# where H is the domain height (5–6 in the training set), NOT angle of
+# attack. AoA is implicit per file: AoA = 0° for the default training
+# file, AoA = 10° for the AoA10 file. A legacy alias `_H5_COL_AOA = 3`
+# is kept for callers that pre-date this rename.
 # ---------------------------------------------------------------------------
 _H5_DATA_KEY = "data"
 _H5_COL_X = 0
 _H5_COL_Y = 1
 _H5_COL_RE = 2
-_H5_COL_AOA = 3
+_H5_COL_H = 3
+_H5_COL_AOA = _H5_COL_H  # legacy alias; the column is H (domain height)
 _H5_COL_P_START = 4
 _H5_N_TIMESTEPS = 101
 
@@ -76,6 +84,10 @@ class DatasetUrl(enum.Enum):
     TIME_TRAIN_NPY = (
         "https://huggingface.co/datasets/mariolinov/Ellipse"
         "/resolve/main/TimeEllipseTrain.npy"
+    )
+    AOA10_H5 = (
+        "https://huggingface.co/datasets/mariolinov/Ellipse"
+        "/resolve/main/pOnEllipseAoA10.h5"
     )
 
 
@@ -216,6 +228,7 @@ def _node_count(sample: np.ndarray) -> int:
 # ---------------------------------------------------------------------------
 
 _VALID_FEATURE_MODES = ("radial", "radial_norm", "cartesian", "normalised")
+_VALID_VARIANTS = ("default", "aoa10")
 
 
 class pOnEllipseDataset(BaseGraphDataset):
@@ -273,6 +286,7 @@ class pOnEllipseDataset(BaseGraphDataset):
         k_neighbors: int = 2,
         global_dim: int = 8,
         coord_scale: float | None = None,
+        variant: str = "default",
         transform: Callable[[Data], Data] | None = None,
         pre_transform: Callable[[Data], Data] | None = None,
     ) -> None:
@@ -283,6 +297,15 @@ class pOnEllipseDataset(BaseGraphDataset):
             )
         if split not in ("train", "test"):
             raise ValueError(f"split must be 'train' or 'test', got '{split}'")
+        if variant not in _VALID_VARIANTS:
+            raise ValueError(
+                f"variant must be one of {_VALID_VARIANTS}, got '{variant}'"
+            )
+        if variant == "aoa10" and split == "test":
+            raise ValueError(
+                "variant='aoa10' currently only has a train split; "
+                "no pOnEllipseAoA10Test.h5 is published."
+            )
         if k_neighbors < 1:
             raise ValueError(f"k_neighbors must be >= 1, got {k_neighbors}")
         if global_dim < 1:
@@ -295,6 +318,7 @@ class pOnEllipseDataset(BaseGraphDataset):
 
         self.feature_mode = feature_mode
         self.split = split
+        self.variant = variant
         self.n_samples = n_samples
         self.k_neighbors = k_neighbors
         self.global_dim = global_dim
@@ -302,19 +326,25 @@ class pOnEllipseDataset(BaseGraphDataset):
 
         super().__init__(root, transform=transform, pre_transform=pre_transform)
 
+    def _url(self) -> DatasetUrl:
+        if self.variant == "aoa10":
+            return DatasetUrl.AOA10_H5
+        return DatasetUrl.TRAIN_H5 if self.split == "train" else DatasetUrl.TEST_H5
+
     @property
     def raw_file_names(self) -> list[str]:
-        url = DatasetUrl.TRAIN_H5 if self.split == "train" else DatasetUrl.TEST_H5
-        return [url.value.rsplit("/", 1)[-1]]
+        return [self._url().value.rsplit("/", 1)[-1]]
 
     @property
     def processed_file_names(self) -> list[str]:
-        return [f"data_shape_{self.feature_mode}_{self.split}_k{self.k_neighbors}.pt"]
+        suffix = f"_{self.variant}" if self.variant != "default" else ""
+        return [
+            f"data_shape_{self.feature_mode}_{self.split}_k{self.k_neighbors}{suffix}.pt"
+        ]
 
     def download(self) -> None:
         """Download the pOnEllipse HDF5 file from HuggingFace if not cached."""
-        url = DatasetUrl.TRAIN_H5 if self.split == "train" else DatasetUrl.TEST_H5
-        DatasetDownloader(root=self.raw_dir).download(url)
+        DatasetDownloader(root=self.raw_dir).download(self._url())
 
     def _build_graphs(self) -> list[Data]:
         """Load and convert ellipse boundary coordinates to graph Data objects.
