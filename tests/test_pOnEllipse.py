@@ -88,6 +88,91 @@ def test_dataset_url_filenames() -> None:
     assert DatasetUrl.TRAIN_H5.value.endswith("pOnEllipseTrain.h5")
     assert DatasetUrl.TEST_H5.value.endswith("pOnEllipseTest.h5")
     assert DatasetUrl.TIME_TRAIN_NPY.value.endswith("TimeEllipseTrain.npy")
+    assert DatasetUrl.AOA10_H5.value.endswith("pOnEllipseAoA10.h5")
+
+
+# ---------------------------------------------------------------------------
+# pOnEllipseDataset.variant
+# ---------------------------------------------------------------------------
+
+
+def test_dataset_variant_default_picks_train_h5() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root, _ = _make_dataset_root(tmpdir)
+        ds = pOnEllipseDataset(
+            root=str(root),
+            feature_mode="radial",
+            split="train",
+            n_samples=2,
+            k_neighbors=2,
+            pre_transform=ComputeAngularEdgeFeatures(),
+        )
+        assert ds.variant == "default"
+        assert ds.raw_file_names == ["pOnEllipseTrain.h5"]
+
+
+def test_dataset_variant_aoa10_picks_aoa_h5() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir) / "dataset"
+        raw_dir = root / "raw"
+        raw_dir.mkdir(parents=True)
+        _write_fake_h5(raw_dir / "pOnEllipseAoA10.h5")
+        ds = pOnEllipseDataset(
+            root=str(root),
+            feature_mode="radial",
+            split="train",
+            variant="aoa10",
+            n_samples=2,
+            k_neighbors=2,
+            pre_transform=ComputeAngularEdgeFeatures(),
+        )
+        assert ds.variant == "aoa10"
+        assert ds.raw_file_names == ["pOnEllipseAoA10.h5"]
+
+
+def test_dataset_invalid_variant_raises() -> None:
+    with (
+        tempfile.TemporaryDirectory() as tmpdir,
+        pytest.raises(ValueError, match="variant"),
+    ):
+        pOnEllipseDataset(
+            root=tmpdir,
+            feature_mode="radial",
+            split="train",
+            variant="aoa20",
+        )
+
+
+def test_dataset_aoa10_processed_cache_differs_from_default() -> None:
+    # If the processed cache file name doesn't reflect the variant, switching
+    # variants would silently return the wrong cached graphs.
+    with (
+        tempfile.TemporaryDirectory() as tmpdir_a,
+        tempfile.TemporaryDirectory() as tmpdir_b,
+    ):
+        root_a, _ = _make_dataset_root(tmpdir_a)
+        root_b = Path(tmpdir_b) / "dataset"
+        raw_b = root_b / "raw"
+        raw_b.mkdir(parents=True)
+        _write_fake_h5(raw_b / "pOnEllipseAoA10.h5")
+        ds_default = pOnEllipseDataset(
+            root=str(root_a),
+            feature_mode="radial",
+            split="train",
+            n_samples=1,
+            k_neighbors=2,
+            pre_transform=ComputeAngularEdgeFeatures(),
+        )
+        ds_aoa = pOnEllipseDataset(
+            root=str(root_b),
+            feature_mode="radial",
+            split="train",
+            variant="aoa10",
+            n_samples=1,
+            k_neighbors=2,
+            pre_transform=ComputeAngularEdgeFeatures(),
+        )
+        assert ds_default.processed_file_names != ds_aoa.processed_file_names
 
 
 # ---------------------------------------------------------------------------
