@@ -14,3 +14,8 @@ wheels/
 /data/
 outputs/
 generated_shapes.png
+
+# AI
+.claude/
+notebooks/data/
+**/.ipynb_checkpoints/
