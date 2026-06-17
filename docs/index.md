@@ -34,6 +34,9 @@ Welcome to the Obsidian documentation vault for the `graph_diffusion` project.
 - [[experiments/EXP-015_ellipse_conditional_global|EXP-015]] — Conditional inverse design: global pressure summary 🔜
 - [[experiments/EXP-016_ellipse_conditional_node|EXP-016]] — Conditional inverse design: node-level pressure 🔜
 
+### Experiment logs — EXP-04x physical-validation series (CFD)
+- [[experiments/EXP-040_openlb_cp_baseline|EXP-040]] — OpenLB 2D Cp validation, known-ellipse baseline gate (ρ=0.998) ✅
+
 ### Reference
 - [[experiments/changelog|Feature Changelog]] — code changes linked to experiments
 
