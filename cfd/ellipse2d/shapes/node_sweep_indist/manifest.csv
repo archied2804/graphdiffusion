@@ -1,0 +1,4 @@
+tag,n_nodes,kind,modes
+orig,60,raw,
+raw_n240,240,raw_spline,
+smooth_n240,240,smooth_spline,6
