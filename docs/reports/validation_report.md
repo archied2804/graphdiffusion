@@ -230,9 +230,11 @@ Near-term:
 - The **DPS sweep** has settled the OOD question: posterior guidance *degrades* true fidelity
   (it overfits the model's own pressure head), so Phase 2 will use plain CFG for sampling and put
   the optimisation pressure on CFD-in-the-loop rather than the surrogate head.
-- Investigating **`Cp` magnitude creep** — even at `dps = 0` the generated OOD shape over-produces
-  pressure by ~2× the in-distribution `a ≈ 1.78`. A roughness- and node-density-controlled study
-  will separate genuine OOD shape error from surface-discretisation artefacts.
+- The **`Cp` magnitude creep** has been traced to the model: a roughness-, node-density- and
+  resolution-controlled study ([[EXP-042_ood_fidelity_magnitude_creep]]) shows the affine slope
+  `a` is unmoved by any CFD/discretisation lever and is already ~2.8–3.0 *in-distribution* (vs the
+  solver's validated 1.78). It is a generative amplitude bias (pressure-head calibration), not a
+  solver artefact — so it will be addressed model-side, with the solver trusted as ground truth.
 - Pinning the `a ≈ 1.78` normalisation analytically from the dataset card.
 
 ---

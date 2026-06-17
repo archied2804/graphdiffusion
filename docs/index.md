@@ -40,6 +40,7 @@ Welcome to the Obsidian documentation vault for the `graph_diffusion` project.
 ### Experiment logs — EXP-04x physical-validation series (CFD)
 - [[experiments/EXP-040_openlb_cp_baseline|EXP-040]] — OpenLB 2D Cp validation, known-ellipse baseline gate (ρ=0.998) ✅
 - [[experiments/EXP-041_openlb_generated_inverse_design|EXP-041]] — Inverse-design validation: generated shapes vs target Cp via OpenLB (in-dist ρ≈0.95) ✅
+- [[experiments/EXP-042_ood_fidelity_magnitude_creep|EXP-042]] — OOD fidelity & Cp-magnitude creep: DPS degrades OOD, creep is model-side (CFD ruled out) ✅
 
 ### Reference
 - [[experiments/changelog|Feature Changelog]] — code changes linked to experiments
