@@ -7,6 +7,29 @@ tags: [changelog, features]
 Tracks code-level additions and modifications that support experiments.
 Each entry links to the experiment that motivated it.
 
+## 2026-06-17 — Generated-shape export for OpenLB inverse-design validation (EXP-041)
+
+Motivated by: [[EXP-041_openlb_generated_inverse_design]]
+
+Drives the first independent check of the inverse-design claim: sample the conditional
+generator for target `Cp` curves and run the resulting shapes through the EXP-040 OpenLB
+loop. No `src/` and no `cfd/ellipse2d/` solver code changed — the validated EXP-040 build
+is reused as-is, and `scripts/compare_cp_baseline.py` (from EXP-040) does the target-vs-measured comparison.
+
+### New files
+
+| File | Purpose |
+|------|---------|
+| `scripts/export_generated_for_openlb.py` | Sample the EXP-022 checkpoint for given target `Cp` curves; reconstruct each boundary polygon; export it as an `x y` `.dat` in **raw** and **Fourier-smoothed** (low-pass `r(θ)`, 6 modes) variants; also write the decoded target `Cp(x/c)` and a manifest (per-shape Re / H) |
+
+### Reused
+
+- `scripts/compare_cp_baseline.py` — OpenLB-measured vs target `Cp` correlation + affine fit.
+- `cfd/ellipse2d/` — the EXP-040 GPU OpenLB case, unchanged.
+- Generator: `outputs/EXP-022_T1000/checkpoint_best.pt` (K=8 DCT single-`Cp` conditioning, T=1000, CFG=3.0).
+
+---
+
 ## 2026-06-17 — OpenLB 2D Cp validation loop (EXP-040)
 
 Motivated by: [[EXP-040_openlb_cp_baseline]]

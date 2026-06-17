@@ -32,7 +32,7 @@ graph LR
     EXP016["EXP-016<br/>Conditional<br/>node p 🔜"]
     EXP030["EXP-030<br/>dual-Cp<br/>conditioning ✅"] --> EXP040
     EXP040["EXP-040<br/>OpenLB Cp<br/>baseline gate ✅"] --> EXP041
-    EXP041["EXP-041<br/>OpenLB on<br/>generated shapes 🔜"]
+    EXP041["EXP-041<br/>OpenLB on<br/>generated shapes ✅"]
 ```
 
 ---
@@ -153,12 +153,16 @@ principles, and validates it before trusting it on generated shapes.
 
 See [[EXP-040_openlb_cp_baseline]] for the full debugging narrative (acoustic-resonance fix, Re-scaled resolution, GPU port).
 
-### EXP-041: OpenLB on diffusion-generated shapes 🔜 PLANNED
+### EXP-041: OpenLB on diffusion-generated shapes ✅ COMPLETE
 
 | Field | Value |
 |-------|-------|
+| **Parent** | [[EXP-040_openlb_cp_baseline]] |
 | **Question** | Do diffusion-generated shapes (raw + Fourier-smoothed) actually carry the target `Cp` they were conditioned on, when measured by an independent solver? |
-| **Method** | Run [[EXP-030_dual_cp]] generated shapes through the validated `cfd/ellipse2d` loop; compare measured `Cp` vs conditioned-target `Cp`. |
+| **Method** | Sample the [[EXP-022_T1000]] generator for 2 in-distribution + 1 synthetic OOD target; export raw + Fourier-smoothed `.dat` via `scripts/export_generated_for_openlb.py`; run through the validated `cfd/ellipse2d` loop; compare measured `Cp` vs conditioned target. |
+| **Result** | **Inverse design validated in-distribution** — measured vs target `Cp` corr ≈ 0.95 (independent solver). Degrades OOD (synthetic ≈ 0.85). Boundary roughness cosmetic: raw vs smoothed give Δcorr ~0.01, `Cd` within ~5%. Affine scale (2.2–3.6) exceeds the dataset factor (~1.78) — morphology, not amplitude. |
+
+See [[EXP-041_openlb_generated_inverse_design]] for the full result and reasoning.
 
 ---
 
