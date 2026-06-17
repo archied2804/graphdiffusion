@@ -1,0 +1,7 @@
+# build artifacts
+ellipse2d
+*.o
+*.d
+# run outputs / scratch (per-sim dirs hold large VTK under tmp/, plus logs)
+tmp/
+runs/
