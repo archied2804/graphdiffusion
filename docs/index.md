@@ -8,6 +8,9 @@ Welcome to the Obsidian documentation vault for the `graph_diffusion` project.
 
 ## Navigation
 
+### Reports
+- [[reports/validation_report|Validation Report]] — diffusion inverse design validated against an independent OpenLB solver (presentation report)
+
 ### Architecture
 - [[architecture|Architecture Overview]] — package dependency graph, full class diagram, data flow
 
