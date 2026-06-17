@@ -30,6 +30,9 @@ graph LR
     EXP014["EXP-014<br/>Method D<br/>(a,b) cond 🔜"] --> EXP015
     EXP015["EXP-015<br/>Conditional<br/>global p 🔜"] --> EXP016
     EXP016["EXP-016<br/>Conditional<br/>node p 🔜"]
+    EXP030["EXP-030<br/>dual-Cp<br/>conditioning ✅"] --> EXP040
+    EXP040["EXP-040<br/>OpenLB Cp<br/>baseline gate ✅"] --> EXP041
+    EXP041["EXP-041<br/>OpenLB on<br/>generated shapes ✅"]
 ```
 
 ---
@@ -129,6 +132,37 @@ Three shape representation methods run in parallel once EXP-010 completes.
 | **Question** | Does spatial per-node pressure conditioning outperform global summary (EXP-015)? |
 | **Code** | `output_dim` in `ScoreNetwork`; `n_noise_channels` + `p_cond` concat in `GraphDiffusionModel` |
 | **Config** | `configs/EXP-016_ellipse_conditional_node.yaml` |
+
+---
+
+## Phase 6 — Physical validation with an independent CFD solver (EXP-04x) 🔜 ACTIVE
+
+Every inverse-design result so far is graded by the model's own jointly-trained
+pressure head — the head grades itself. This phase introduces an **independent
+2D OpenLB (lattice-Boltzmann)** solver to measure surface `Cp(x/c)` from first
+principles, and validates it before trusting it on generated shapes.
+
+### EXP-040: OpenLB Cp baseline gate ✅ COMPLETE
+
+| Field | Value |
+|-------|-------|
+| **Parent** | [[EXP-030_dual_cp]] (pressure-conditioning generator) |
+| **Question** | Does an independent LBM solver reproduce the dataset `Cp` on *known* ellipses, as a prerequisite to validating generated shapes? |
+| **Code** | `cfd/ellipse2d/`, `scripts/export_ellipse_for_openlb.py`, `scripts/compare_cp_baseline.py` |
+| **Result** | **Gate passed** — corr 0.998 (Re=500), 0.93 / 0.92 at Re=754 / 1000, up to a single normalisation slope `a ≈ 1.78` (≈ the paper's "u × 1.8"), offset `b ≈ 0`. |
+
+See [[EXP-040_openlb_cp_baseline]] for the full debugging narrative (acoustic-resonance fix, Re-scaled resolution, GPU port).
+
+### EXP-041: OpenLB on diffusion-generated shapes ✅ COMPLETE
+
+| Field | Value |
+|-------|-------|
+| **Parent** | [[EXP-040_openlb_cp_baseline]] |
+| **Question** | Do diffusion-generated shapes (raw + Fourier-smoothed) actually carry the target `Cp` they were conditioned on, when measured by an independent solver? |
+| **Method** | Sample the [[EXP-022_T1000]] generator for 2 in-distribution + 1 synthetic OOD target; export raw + Fourier-smoothed `.dat` via `scripts/export_generated_for_openlb.py`; run through the validated `cfd/ellipse2d` loop; compare measured `Cp` vs conditioned target. |
+| **Result** | **Inverse design validated in-distribution** — measured vs target `Cp` corr ≈ 0.95 (independent solver). Degrades OOD (synthetic ≈ 0.85). Boundary roughness cosmetic: raw vs smoothed give Δcorr ~0.01, `Cd` within ~5%. Affine scale (2.2–3.6) exceeds the dataset factor (~1.78) — morphology, not amplitude. |
+
+See [[EXP-041_openlb_generated_inverse_design]] for the full result and reasoning.
 
 ---
 

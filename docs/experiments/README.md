@@ -63,6 +63,8 @@ configs inherit from them or copy + modify.
 | 014 | [[EXP-014_ellipse_shape_method_D]] | 🔜 planned | Shape Method D — aspect-ratio normalisation + (a,b) conditioning |
 | 015 | [[EXP-015_ellipse_conditional_global]] | 🔜 planned | Conditional inverse design — global pressure summary → u |
 | 016 | [[EXP-016_ellipse_conditional_node]] | 🔜 planned | Conditional inverse design — node-level pressure concatenation |
+| 040 | [[EXP-040_openlb_cp_baseline]] | ✅ complete | OpenLB 2D Cp validation — known-ellipse baseline gate passed (ρ=0.998) |
+| 041 | [[EXP-041_openlb_generated_inverse_design]] | ✅ complete | Inverse design validated — generated shapes hit target Cp in-dist (ρ≈0.95), degrade OOD (≈0.85); roughness cosmetic |
 
 ## Obsidian integration
 
