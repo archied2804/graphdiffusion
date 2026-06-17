@@ -205,15 +205,25 @@ classifier-free guidance (`dps = 0`) is the correct OOD configuration**; posteri
 wrong knob. This rules out a cheap surrogate-only fix and motivates true CFD-in-the-loop
 optimisation for Phase 2.
 
-### Flow-field visualisation (ParaView — to be added)
+### Flow-field visualisation (ParaView)
 
-<!-- TODO: drop ParaView images here — see shot list below. Suggested names:
-     assets/report_paraview_velocity_wake.png, assets/report_paraview_pressure.png -->
+Instantaneous OpenLB flow fields around a generated in-distribution shape, rendered in ParaView,
+give the qualitative picture behind the validation numbers.
 
-*Placeholder.* This section will show instantaneous OpenLB flow fields rendered in ParaView —
-velocity magnitude with the von Kármán vortex street, and the pressure field whose surface trace is
-the measured `Cp` — to give a qualitative picture of the physics behind the validation numbers.
-Images to be supplied.
+![[assets/report_paraview_velocity_wake.png]]
+
+**Velocity magnitude.** The laminar boundary layer separates off the elliptical body and rolls up
+into a regular **von Kármán vortex street** — the alternating wake that defines the Re 500–1000
+shedding regime the dataset was built in. The accelerated flow over the shoulders (yellow) and the
+low-momentum wake (dark) are the signature of the steady-mean pressure distribution the model is
+conditioned on.
+
+![[assets/report_paraview_pressure.png]]
+
+**Pressure field.** The same instant, coloured by pressure: a high-pressure stagnation region on the
+upstream nose (red) and a train of discrete low-pressure vortex cores shed into the wake (blue). The
+surface trace of exactly this field *is* the `Cp(x/c)` curve that the inverse-design loop grades —
+making concrete what the correlation numbers above are measuring.
 
 ---
 

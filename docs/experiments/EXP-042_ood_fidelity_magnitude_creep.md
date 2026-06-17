@@ -90,6 +90,11 @@ Every metric degrades monotonically with guidance strength: correlation falls, t
 
 Two findings. **(i)** You cannot stably under-resolve at this Re: below RES≈100 the lattice Mach number blows up and the solve goes NaN — under-resolution manifests as numerical destruction, not as benign smoothing. **(ii)** Across the entire *stable* window the raw-minus-smooth `Cd` gap is < 2% and well inside the ±0.16–0.32 shedding noise — statistically zero — and at the **finest, lowest-noise resolution (RES 240) the gap is ≈ 0**. Higher fidelity makes rough and smooth *converge*, the opposite of revealing a masked roughness effect. Physically, at Re 500–1000 the laminar boundary layer is thick relative to the sub-boundary-layer surface wobble, so the flow never "feels" it.
 
+The vorticity wake makes this visual — the rough (raw) and Fourier-smoothed bodies shed an essentially identical von Kármán street at the same width and spacing:
+
+![[assets/EXP-042_vorticity_raw.png]]
+![[assets/EXP-042_vorticity_smooth.png]]
+
 ### D. The creep is present in-distribution
 
 | in-dist run (gen_4849) | nodes | RES | `Cd` | corr | `a` |
