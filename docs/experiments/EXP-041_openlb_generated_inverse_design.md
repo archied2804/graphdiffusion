@@ -69,9 +69,23 @@ The OpenLB-measured `Cp` is compared to the conditioned target `Cp` via correlat
 
 | Target | Type | Re | `Cp` corr (raw) | `Cp` corr (smoothed) | Δcorr |
 |---|---|---|---|---|---|
-| #4849 | in-distribution | 960 | **0.956** | 0.944 | −0.012 |
-| #4066 | in-distribution | 884 | **0.955** | 0.948 | −0.007 |
-| synthetic | out-of-distribution | 754 | **0.869** | 0.822 | −0.047 |
+| #4849 | in-distribution | 960 | **0.964** | 0.952 | −0.012 |
+| #4066 | in-distribution | 884 | **0.966** | 0.963 | −0.003 |
+| synthetic | out-of-distribution | 754 | **0.860** | 0.876 | +0.016 |
+
+![[assets/EXP-041_correlation_bars.png]]
+
+> [!NOTE]
+> **Metric (updated).** These correlations use the *robust* convention — the
+> monotonic target `Cp` is interpolated onto the OpenLB-measured surface nodes,
+> not the reverse. The OpenLB surface `Cp` is non-monotonic in `x/c` (it traces
+> the full body boundary, folding over the top and bottom surfaces), so the
+> earlier "measured-onto-reference" interpolation in `compare_cp_baseline.py`
+> was the buggy direction; this is the convention standardised in EXP-042 / the
+> DPS sweep. The headline is unchanged (in-dist ≈ 0.96, OOD ≈ 0.86), but the
+> smooth-OOD value moves from 0.822 to 0.876 — see conclusion 3. The
+> `EXP-041_cp_inverse_design.png` overlay panel titles below predate this fix
+> and show the legacy values.
 
 ### Drag — raw vs smoothed agree
 
@@ -101,7 +115,7 @@ Per-run OpenLB outputs (force CSV, `Cp` CSV, VTK fields) live under `cfd/ellipse
 
 2. **Fidelity degrades out-of-distribution.** The synthetic, asymmetric target drops to corr ≈ 0.85: beyond the training manifold the model extrapolates the shape→`Cp` map less faithfully. This is precisely the limitation the independent loop was built to surface, and it now has a number.
 
-3. **Boundary roughness is cosmetic, not physical.** Raw and Fourier-smoothed variants give near-identical `Cp` (Δcorr ~0.01 in-distribution) and `Cd` (~5%). The wobble does not corrupt the physics, so post-hoc smoothing is unnecessary — and slightly *counterproductive*, since low-passing nudges the shape off-target (the smoothed correlations are marginally lower across the board, most for the OOD case). This resolves the long-running EXP-013 / EXP-02x smoothness thread from the **physics** side: the roughness was never an aerodynamic problem.
+3. **Boundary roughness is cosmetic, not physical.** Raw and Fourier-smoothed variants give near-identical `Cp` (|Δcorr| ≤ 0.016) and `Cd` (~5%). The wobble does not corrupt the physics, so post-hoc smoothing is essentially **neutral** — marginally lower correlation in-distribution (Δcorr −0.012, −0.003) and marginally *higher* out-of-distribution (+0.016), all within the run-to-run shedding noise. (The original log read these the other way — "slightly counterproductive" — but that was an artefact of the legacy interpolation direction; under the robust metric smoothing is a wash.) This resolves the long-running EXP-013 / EXP-02x smoothness thread from the **physics** side: the roughness was never an aerodynamic problem. EXP-042 confirms this from the resolution angle.
 
 > [!WARNING]
 > **Amplitude caveat.** The affine scale `a` (2.2–3.6) exceeds EXP-040's dataset-normalisation factor (~1.78). The model captures `Cp` *shape*, not absolute *magnitude* — a known result from [[EXP-020_fourier_pressure_conditioning]]. Treat correlation as the inverse-design verdict; do not read absolute `Cp` amplitude off these runs.
