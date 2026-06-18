@@ -148,6 +148,18 @@ raw versus Fourier-smoothed variants differ by only Δcorr ~0.01 in `Cp` and ~5%
 characteristic wobble does not corrupt the physics. Full detail:
 [[EXP-041_openlb_generated_inverse_design]].
 
+To check that the out-of-distribution behaviour is general rather than a quirk of one target, we
+ran a spread of five synthetic OOD targets (perturbing the dataset-mean `Cp` in amplitude, sign,
+frequency, and tilt) and plotted fidelity against each target's distance from the training set:
+
+![[assets/EXP-041_ood_spread.png]]
+
+Correlation declines with OOD distance (0.70–0.93, versus ≈ 0.96 in-distribution), while the
+magnitude slope `a` stays elevated (2.3–3.4) for *every* OOD target — the amplitude creep is a
+general model property, not specific to one curve. The per-target measured-vs-target overlays:
+
+![[assets/EXP-041_ood_cp_overlays.png]]
+
 > [!WARNING]
 > Treat **correlation** (morphology) as the inverse-design verdict. The model captures `Cp` shape,
 > not absolute amplitude — the affine slope on generated targets (2.2–3.6) exceeds the dataset
