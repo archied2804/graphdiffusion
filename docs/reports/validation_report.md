@@ -139,9 +139,11 @@ the target each was conditioned on.
 | #4066 | in-distribution | 884 | **0.966** | 0.963 |
 | synthetic | out-of-distribution | 754 | **0.860** | 0.876 |
 
-Generated shapes hit their target `Cp` at correlation **≈ 0.95 in-distribution** and **≈ 0.85
-out-of-distribution**, verified by the independent solver — not the model's own head. This is the
-first independent confirmation of the inverse-design claim. The OOD drop is exactly the extrapolation failure the loop was built to surface. Boundary roughness turns out to be cosmetic:
+Generated shapes hit their target `Cp` at correlation **≈ 0.95 in-distribution** and, across a
+five-target out-of-distribution spread, **0.70–0.93 (declining with OOD distance)** — verified by
+the independent solver, not the model's own head. This is the first independent confirmation of the
+inverse-design claim. The OOD drop is exactly the extrapolation failure the loop was built to
+surface. Boundary roughness turns out to be cosmetic:
 raw versus Fourier-smoothed variants differ by only Δcorr ~0.01 in `Cp` and ~5% in `Cd`, so the
 characteristic wobble does not corrupt the physics. Full detail:
 [[EXP-041_openlb_generated_inverse_design]].

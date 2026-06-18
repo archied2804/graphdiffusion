@@ -101,6 +101,27 @@ Raw and Fourier-smoothed variants give `Cd` within ~5% for every target.
 
 The affine slope `a` from the target-vs-measured fit lands in the range **2.2–3.6**, *larger* than the dataset-normalisation factor `a ≈ 1.78` that EXP-040 pinned on known ellipses. This is consistent with [[EXP-020_fourier_pressure_conditioning]]'s known finding that the model reproduces `Cp` *morphology* but not absolute *amplitude* — so the generated targets sit at a different magnitude, inflating the slope. Correlation (morphology) is therefore the meaningful inverse-design metric here, not the slope or RMS.
 
+### Out-of-distribution spread — beyond a single point
+
+The result above tested only *one* OOD target, so it could not say whether the ≈ 0.85 correlation and inflated slope are general or a quirk of that curve. We therefore generated a **family of five synthetic OOD targets** — distinct perturbations of the dataset-mean `Cp` spanning amplitude, sign, frequency, and chordwise tilt (`scripts/export_ood_sweep.py`) — quantified each target's **OOD distance** (min L2 to the training cond cloud), sampled a shape for each with plain CFG (DPS is known to hurt OOD, see [[EXP-042_ood_fidelity_magnitude_creep]]), and ran all five at fixed conditions (Re 754, H 5.5, RES 160) so the target morphology is the only variable.
+
+| target | OOD dist | `Cp` corr ρ | affine `a` | `Cd` |
+|---|---|---|---|---|
+| `tilt_p4` | 0.92 | 0.869 | 2.88 | 1.29 |
+| `sin_m3` | 1.69 | 0.932 | 2.30 | 1.54 |
+| `sin_p3` (original) | 1.75 | 0.857 | 3.44 | 1.59 |
+| `sin2_p3` | 2.07 | 0.827 | 2.62 | 2.03 |
+| `sin_p5` | 3.25 | **0.698** | 3.19 | 1.69 |
+
+![[assets/EXP-041_ood_spread.png]]
+
+![[assets/EXP-041_ood_cp_overlays.png]]
+
+Two general findings emerge:
+
+- **Fidelity declines with OOD distance.** Correlation falls from ≈ 0.87–0.93 at modest OOD distance to **0.70** at the furthest target — noisier than monotonic (the inverted-bump `sin_m3` sits high at 0.93), but the worst case is well below the in-distribution ≈ 0.96. The original single point (`sin_p3`, 0.857) was middling, not the floor; the true OOD picture is a **0.70–0.93 spread that degrades as targets move out of distribution**.
+- **The magnitude creep is universal.** The affine slope `a` is elevated for *every* OOD target (2.3–3.4), all far above the validated 1.78 and overlapping the in-distribution band — confirming the over-amplitude is a model-wide property, not specific to one target. (See the cross-series ladder in [[EXP-042_ood_fidelity_magnitude_creep]].)
+
 ### Figures
 
 Target (conditioned) vs OpenLB-measured `Cp(x/c)`, rescaled to target units, raw and smoothed overlaid per target:
@@ -113,7 +134,7 @@ Per-run OpenLB outputs (force CSV, `Cp` CSV, VTK fields) live under `cfd/ellipse
 
 1. **Inverse design is validated in-distribution.** Both in-distribution targets reproduce at corr ≈ 0.95, measured by an *independent* solver — not the self-trained pressure head that graded every prior `Cp` result. The generator's central claim — condition on a target `Cp`, get a shape that produces it — holds where the model has data.
 
-2. **Fidelity degrades out-of-distribution.** The synthetic, asymmetric target drops to corr ≈ 0.85: beyond the training manifold the model extrapolates the shape→`Cp` map less faithfully. This is precisely the limitation the independent loop was built to surface, and it now has a number.
+2. **Fidelity degrades out-of-distribution — and with OOD distance.** Across a five-target OOD spread, correlation falls from ≈ 0.93 at modest OOD distance to 0.70 at the furthest target (mean ≈ 0.84): beyond the training manifold the model extrapolates the shape→`Cp` map less faithfully, and progressively worse the further out the target sits. This is precisely the limitation the independent loop was built to surface, now mapped rather than sampled once.
 
 3. **Boundary roughness is cosmetic, not physical.** Raw and Fourier-smoothed variants give near-identical `Cp` (|Δcorr| ≤ 0.016) and `Cd` (~5%). The wobble does not corrupt the physics, so post-hoc smoothing is essentially **neutral** — marginally lower correlation in-distribution (Δcorr −0.012, −0.003) and marginally *higher* out-of-distribution (+0.016), all within the run-to-run shedding noise. (The original log read these the other way — "slightly counterproductive" — but that was an artefact of the legacy interpolation direction; under the robust metric smoothing is a wash.) This resolves the long-running EXP-013 / EXP-02x smoothness thread from the **physics** side: the roughness was never an aerodynamic problem. EXP-042 confirms this from the resolution angle.
 
