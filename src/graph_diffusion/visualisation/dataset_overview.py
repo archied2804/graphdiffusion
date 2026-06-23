@@ -13,6 +13,11 @@ from __future__ import annotations
 
 from typing import Any
 
+import matplotlib
+import matplotlib.cm
+import matplotlib.colors
+import matplotlib.figure
+import matplotlib.pyplot as plt
 import numpy as np
 
 from graph_diffusion.data.pOnEllipse import (
@@ -25,7 +30,13 @@ from graph_diffusion.data.pOnEllipse import (
     _node_count,
 )
 
-__all__ = ["pressure_drag_coefficient", "sim_summary"]
+__all__ = [
+    "pressure_drag_coefficient",
+    "sim_summary",
+    "plot_design_space_drag",
+    "plot_cp_envelope",
+    "plot_design_space_coverage",
+]
 
 
 def pressure_drag_coefficient(polygon_xy: np.ndarray, cp: np.ndarray) -> float:
@@ -107,3 +118,133 @@ def sim_summary(raw: np.ndarray, idx: int) -> dict[str, Any]:
         "cp_curve": cp_mean[order_xc],
         "cd_p": cd_p,
     }
+
+
+def _summaries(raw: np.ndarray, indices: list[int]) -> list[dict[str, Any]]:
+    return [sim_summary(raw, i) for i in indices]
+
+
+def plot_design_space_drag(
+    raw: np.ndarray,
+    indices: list[int],
+    figsize: tuple[float, float] = (7.0, 5.0),
+) -> matplotlib.figure.Figure:
+    """Hexbin of pressure-drag coefficient over the (Re, b) design space.
+
+    Args:
+        raw (np.ndarray): Full HDF5 array.
+        indices (list[int]): Sim indices to include.
+        figsize (tuple[float, float]): Figure size in inches.
+
+    Returns:
+        matplotlib.figure.Figure: The rendered figure. Colour encodes
+            pressure drag (Cd_p); the label states it is pressure-only.
+    """
+    s = _summaries(raw, indices)
+    re = np.array([d["re"] for d in s])
+    b = np.array([d["b"] for d in s])
+    cd = np.array([d["cd_p"] for d in s])
+    fig, ax = plt.subplots(figsize=figsize)
+    hb = ax.hexbin(re, b, C=cd, gridsize=25, cmap="viridis")
+    fig.colorbar(hb, ax=ax, label=r"pressure drag $C_{d,p}$ (no skin friction)")
+    ax.set_xlabel("Reynolds number $Re$")
+    ax.set_ylabel("semi-minor axis $b$")
+    ax.set_title("Design space coloured by pressure drag")
+    fig.tight_layout()
+    return fig
+
+
+def plot_cp_envelope(
+    raw: np.ndarray,
+    indices: list[int],
+    colour_by: str = "re",
+    figsize: tuple[float, float] = (7.0, 5.0),
+) -> matplotlib.figure.Figure:
+    """Overlay all surface Cp(x/c) curves coloured by Re or b, with a band.
+
+    Args:
+        raw (np.ndarray): Full HDF5 array.
+        indices (list[int]): Sim indices to include.
+        colour_by (str): ``"re"`` or ``"b"`` — the per-curve colour key.
+        figsize (tuple[float, float]): Figure size in inches.
+
+    Returns:
+        matplotlib.figure.Figure: The rendered figure with a mean +/- std
+            band over a common x/c grid.
+
+    Raises:
+        ValueError: If ``colour_by`` is not ``"re"`` or ``"b"``.
+    """
+    if colour_by not in ("re", "b"):
+        raise ValueError(f"colour_by must be 're' or 'b', got '{colour_by}'")
+    s = _summaries(raw, indices)
+    key = np.array([d[colour_by] for d in s])
+    norm = matplotlib.colors.Normalize(vmin=float(key.min()), vmax=float(key.max()))
+    cmap = matplotlib.colormaps["plasma"]
+    grid = np.linspace(0.0, 1.0, 100)
+    fig, ax = plt.subplots(figsize=figsize)
+    resampled = []
+    for d in s:
+        cp_g = np.interp(grid, d["x_over_c"], d["cp_curve"])
+        resampled.append(cp_g)
+        ax.plot(grid, cp_g, color=cmap(norm(d[colour_by])), alpha=0.3, linewidth=0.7)
+    stack = np.stack(resampled, axis=0)
+    mean = stack.mean(axis=0)
+    std = stack.std(axis=0)
+    ax.plot(grid, mean, color="black", linewidth=2.0, label="mean")
+    ax.fill_between(
+        grid, mean - std, mean + std, color="grey", alpha=0.3, label=r"$\pm\sigma$"
+    )
+    sm = matplotlib.cm.ScalarMappable(norm=norm, cmap=cmap)
+    cb_label: dict[str, str] = {"re": "Reynolds $Re$", "b": "semi-minor $b$"}
+    fig.colorbar(sm, ax=ax, label=cb_label[colour_by])
+    ax.set_xlabel("$x/c$")
+    ax.set_ylabel("$C_p$")
+    ax.set_title(f"Surface $C_p$ distribution (coloured by {colour_by})")
+    ax.legend()
+    fig.tight_layout()
+    return fig
+
+
+def plot_design_space_coverage(
+    raw: np.ndarray,
+    indices: list[int],
+    eval_indices: list[int] | None = None,
+    figsize: tuple[float, float] = (7.0, 5.0),
+) -> matplotlib.figure.Figure:
+    """Scatter of (Re, b) coloured by Cd_p, marking evaluation samples.
+
+    Args:
+        raw (np.ndarray): Full HDF5 array.
+        indices (list[int]): All sim indices (the background cloud).
+        eval_indices (list[int] | None): Indices to highlight as the
+            chosen evaluation samples.
+        figsize (tuple[float, float]): Figure size in inches.
+
+    Returns:
+        matplotlib.figure.Figure: The rendered figure.
+    """
+    s = _summaries(raw, indices)
+    re = np.array([d["re"] for d in s])
+    b = np.array([d["b"] for d in s])
+    cd = np.array([d["cd_p"] for d in s])
+    fig, ax = plt.subplots(figsize=figsize)
+    sc = ax.scatter(re, b, c=cd, cmap="viridis", s=12, alpha=0.7)
+    fig.colorbar(sc, ax=ax, label=r"pressure drag $C_{d,p}$")
+    if eval_indices:
+        es = _summaries(raw, eval_indices)
+        ax.scatter(
+            [d["re"] for d in es],
+            [d["b"] for d in es],
+            facecolors="none",
+            edgecolors="red",
+            s=90,
+            linewidths=1.5,
+            label="evaluation samples",
+        )
+        ax.legend()
+    ax.set_xlabel("Reynolds number $Re$")
+    ax.set_ylabel("semi-minor axis $b$")
+    ax.set_title("Design-space coverage")
+    fig.tight_layout()
+    return fig
