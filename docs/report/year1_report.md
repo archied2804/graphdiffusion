@@ -97,6 +97,13 @@ an MSE between the true and predicted noise, with `c` the conditioning context. 
 registered as module buffers, so they move with the device and are saved inside checkpoints,
 guaranteeing that training and sampling share an identical schedule.
 
+![[assets/report_diffusion_process.png]]
+
+*Forward and reverse diffusion on the radial field `r(θ)` of a real generated boundary. The forward
+process `q(x_t | x_0)` progressively corrupts a clean shape (left) toward isotropic noise (right)
+along the cosine schedule; the learned reverse process denoises back. Surface detail is recovered in
+the final low-noise steps.*
+
 ### 3.4 Graph-network score model
 
 The score network `ε_θ` stacks `N` Battaglia-style graph-network blocks `[@battaglia2018relational]`,
@@ -131,6 +138,20 @@ actually produce. Its prediction error supplies an auxiliary gradient that coupl
 geometry to its implied pressure, forcing the model to learn the forward shape→pressure map rather
 than memorise training shape–pressure pairs. The DeepSets form is chosen because it is permutation-
 invariant over the unordered set of surface nodes, matching the symmetry of the boundary.
+
+![[assets/report_dct_encoding.png]]
+
+*A real reference pressure sequence (grey) and its truncated DCT-II reconstruction. Eight modes
+(`K = 8`, orange) recover the pressure morphology closely, while three modes (blue dashed) are visibly
+too coarse — motivating `K = 8` as a compact, node-count-independent conditioning vector. Right: the
+eight coefficients that constitute the context vector `c`.*
+
+![[assets/report_conditioning_pipeline.png]]
+
+*The pressure-conditioning data flow. The target `Cp(x/c)` is DCT-encoded into the fixed-size context
+`c` that conditions the score model; the jointly-trained DeepSets head reads the generated shape and
+predicts its pressure spectrum `ĉ`, and the auxiliary loss `‖ĉ − c‖²` couples generated geometry back
+to pressure.*
 
 ### 3.6 Inference guidance
 
@@ -241,6 +262,13 @@ are a validated negative result: the lowest validation loss of the whole sweep (
 0.000028) yields *worse* roughness (0.02700) than simply training longer, and EMA actually pushes
 roughness above the baseline. Minimising the training MSE harder does not smooth boundaries, which
 is the central methodological finding carried into the validation work below.
+
+![[assets/report_roughness_metric.png]]
+
+*The surface-roughness diagnostic on a real raw versus Fourier-smoothed generated boundary. Left: the
+radial profiles `r(θ)` overlay closely, the raw curve carrying small high-frequency wobble on the
+smooth trend. Right: the per-node second difference `|Δ²r(θ)|` isolates that wobble — mean roughness
+falls from 0.0117 (raw) to 0.0046 (smoothed) — the quantity the surface-quality study minimises.*
 
 <!-- COMMIT 1 boundary: 4.1–4.3 committed together after the solver-gate subsection -->
 

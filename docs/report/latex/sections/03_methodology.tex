@@ -54,6 +54,16 @@ an MSE between the true and predicted noise, with $c$ the conditioning context. 
 \texttt{NoiseSchedule} module and registered as module buffers, so they move with the device and are
 saved inside checkpoints, guaranteeing that training and sampling share an identical schedule.
 
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.95\linewidth]{report_diffusion_process.png}
+  \caption{Forward and reverse diffusion on the radial field $r(\theta)$ of a real generated boundary.
+  The forward process $q(x_t \mid x_0)$ progressively corrupts a clean shape (left) toward isotropic
+  noise (right) along the cosine schedule; the learned reverse process denoises back, recovering
+  surface detail in the final low-noise steps.}
+  \label{fig:diffusion-process}
+\end{figure}
+
 \subsection{Graph-network score model}
 
 The score network $\varepsilon_\theta$ stacks $N$ Battaglia-style graph-network blocks
@@ -94,6 +104,26 @@ that couples the generated geometry to its implied pressure, forcing the model t
 shape$\to$pressure map rather than memorise training shape--pressure pairs. The DeepSets form is
 chosen because it is permutation-invariant over the unordered set of surface nodes, matching the
 symmetry of the boundary.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.85\linewidth]{report_dct_encoding.png}
+  \caption{A real reference pressure sequence (grey) and its truncated DCT-II reconstruction. Eight
+  modes ($K=8$, orange) recover the pressure morphology closely, while three modes (blue dashed) are
+  visibly too coarse, motivating $K=8$ as a compact, node-count-independent conditioning vector.
+  Right: the eight coefficients constituting the context vector $c$.}
+  \label{fig:dct-encoding}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.95\linewidth]{report_conditioning_pipeline.png}
+  \caption{The pressure-conditioning data flow. The target $C_p(x/c)$ is DCT-encoded into the
+  fixed-size context $c$ that conditions the score model; the jointly-trained DeepSets head reads the
+  generated shape and predicts its pressure spectrum $\hat{c}$, and the auxiliary loss
+  $\lVert \hat{c} - c \rVert^2$ couples generated geometry back to pressure.}
+  \label{fig:conditioning-pipeline}
+\end{figure}
 
 \subsection{Inference guidance}
 

@@ -59,6 +59,17 @@ are a validated negative result: the lowest validation loss of the whole sweep (
 pushes roughness above the baseline. Minimising the training MSE harder does not smooth boundaries,
 which is the central methodological finding carried into the validation work below.
 
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.95\linewidth]{report_roughness_metric.png}
+  \caption{The surface-roughness diagnostic on a real raw versus Fourier-smoothed generated boundary.
+  Left: the radial profiles $r(\theta)$ overlay closely, the raw curve carrying small high-frequency
+  wobble on the smooth trend. Right: the per-node second difference $|\Delta^2 r(\theta)|$ isolates
+  that wobble --- mean roughness falls from $0.0117$ (raw) to $0.0046$ (smoothed) --- the quantity the
+  surface-quality study minimises.}
+  \label{fig:roughness-metric}
+\end{figure}
+
 \subsection{CFD solver validation gate}
 
 Before trusting the loop on generated shapes, we gate it on \emph{known} dataset ellipses: the
