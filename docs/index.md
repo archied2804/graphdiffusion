@@ -9,6 +9,7 @@ Welcome to the Obsidian documentation vault for the `graph_diffusion` project.
 ## Navigation
 
 ### Reports
+- [[report/year1_report|First-Year Report]] — methodology & results, publication-style draft (Year-2 paper reusable; LaTeX mirror in `docs/report/latex/`)
 - [[reports/validation_report|Validation Report]] — diffusion inverse design validated against an independent OpenLB solver (presentation report)
 
 ### Architecture
