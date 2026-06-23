@@ -117,7 +117,10 @@ int main(int argc, char* argv[])
 
     // Geometry (createMesh derives the domain extent from body + chords, so
     // DOMAIN_EXTENT is intentionally NOT set for this case).
-    myCaseParameters.set<CHANNEL_HEIGHT>(8.0);
+    // Sentinel: a valid channel height MUST be supplied via --CHANNEL_HEIGHT
+    // (dataset range 5-6). A negative sentinel makes an omitted flag fail
+    // loudly below rather than silently simulating the wrong domain.
+    myCaseParameters.set<CHANNEL_HEIGHT>(-1.0);
     myCaseParameters.set<SEMI_MINOR_B>(0.3);
     myCaseParameters.set<UPSTREAM_CHORDS>(6.);
     myCaseParameters.set<DOWNSTREAM_CHORDS>(17.);
@@ -147,6 +150,15 @@ int main(int argc, char* argv[])
     myCaseParameters.set<AVG_WINDOW_CHORDS>(50.);
   }
   myCaseParameters.fromCLI(argc, argv);
+
+  // Guard: refuse to run with an unset/invalid channel height. The dataset
+  // domain height is 5-6; an omitted --CHANNEL_HEIGHT must not silently fall
+  // back to a wrong domain.
+  if (!(myCaseParameters.get<olb::parameters::CHANNEL_HEIGHT>() > MyCase::value_t{0})) {
+    std::cerr << "FATAL: --CHANNEL_HEIGHT must be supplied (dataset range 5-6). "
+                 "Refusing to run with an unset channel height.\n";
+    return 1;
+  }
 
   /// === Step 3: Create Mesh ===
   Mesh mesh = createMesh(myCaseParameters);
