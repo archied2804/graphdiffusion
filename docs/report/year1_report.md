@@ -205,6 +205,26 @@ scaling to higher-Reynolds or 3D flows.
 *An example pOnEllipse training sample: a closed elliptical boundary (left) and its corresponding
 steady-mean surface pressure curve `Cp(x/c)` (right), the quantity the model is conditioned on.*
 
+The dataset spans a two-parameter design space — Reynolds number `Re` and semi-minor axis `b` —
+sampled densely across the laminar regime, with the geometry varying smoothly with `b`.
+
+![[assets/report_design_space.png]]
+
+*Design-space coverage of the training set: each point is one simulation in the `(Re, b)` plane,
+coloured by its pressure drag. Sampling is dense and near-uniform across the regime; the circled
+points mark the cases later put through the CFD validation loop.*
+
+The conditioning targets the model sees — the steady-mean `Cp(x/c)` curves — form a structured family
+whose morphology is dominated by the minor axis `b` rather than by `Re`: thinner bodies (small `b`)
+develop a deeper suction trough, while `Re` mainly modulates the wake recovery.
+
+![[assets/report_cp_envelope.png]]
+
+*Surface-pressure target distribution across the whole training set, every curve coloured by its
+minor axis `b` (mean ± σ in black). The systematic ordering with `b` shows that `b` is the principal
+driver of pressure morphology — the low-frequency structure the DCT conditioning is designed to
+capture.*
+
 ### 3.9 Evaluation metrics
 
 The headline verdict for inverse design is the **Pearson correlation** between the solver-measured
@@ -348,6 +368,17 @@ from ≈ 0.96 in-distribution to 0.70–0.93 as targets move away from the train
 
 *Per-target measured-versus-target `Cp` overlays for the out-of-distribution spread, showing where
 morphology is preserved and where amplitude diverges.*
+
+The notion of "out-of-distribution distance" is made concrete by the structure of the target space
+itself. Projecting every training `Cp` curve onto its first two principal components reveals a
+low-dimensional manifold, ordered almost entirely by the minor axis `b`:
+
+![[assets/report_cp_manifold.png]]
+
+*Principal-component embedding of the training-set `Cp` curves, coloured by minor axis `b`. The
+targets occupy a thin, smoothly-ordered manifold. In-distribution evaluation targets lie inside this
+cloud; the synthetic out-of-distribution targets are constructed to sit progressively outside it,
+and fidelity declines with that distance — the trend quantified above.*
 
 > Correlation (morphology) is the inverse-design verdict. The model captures `Cp` *shape*, not
 > absolute amplitude: the affine slope on generated targets (2.2–3.6) exceeds the dataset factor

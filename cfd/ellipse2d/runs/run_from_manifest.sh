@@ -13,13 +13,22 @@
 # If a name column is present, the run subdir and .dat file use that name;
 # otherwise sim_<idx> is used. If <name>.dat does not exist, falls back to
 # sim_<idx>.dat.
+#
+# RESOLUTION: if omitted, it is auto-scaled PER ROW as RES = max(100, 0.2*Re)
+# rounded to the nearest integer. This follows the validated stability rule —
+# cells-per-chord must grow with Re or high-Re / thicker bodies exceed the Mach
+# limit and diverge (e.g. Re754->160, Re1000->200). Pass an explicit value to
+# override the auto-scaling and use one fixed resolution for every row.
 set -euo pipefail
 
 BIN="$(cd "$(dirname "$0")/.." && pwd)/ellipse2d"
 RUNDIR="$(cd "$(dirname "$0")" && pwd)"
 SHAPES_DIR="${1:?usage: run_from_manifest.sh <shapes_dir> [RES] [MAX_T]}"
-RES="${2:-100}"
+RES_OVERRIDE="${2:-}"   # empty => auto-scale RES per row from Re (see header)
 MAX_T="${3:-50}"
+
+# res_for_re <Re> -> echoes max(100, round(0.2*Re)); the stability rule.
+res_for_re() { awk -v r="$1" 'BEGIN { v = int(0.2 * r + 0.5); if (v < 100) v = 100; print v }'; }
 MANIFEST="$SHAPES_DIR/manifest.csv"
 
 [ -f "$MANIFEST" ] || { echo "ERROR: manifest not found: $MANIFEST"; exit 1; }
@@ -53,15 +62,22 @@ tail -n +2 "$MANIFEST" | while IFS=',' read -r -a f; do
   # Fallback: if the preferred .dat doesn't exist, try sim_<idx>.dat.
   [ -f "$dat" ] || dat="$SHAPES_DIR/sim_${idx}.dat"
 
+  # Resolution: explicit override if given, else auto-scale from Re.
+  if [ -n "$RES_OVERRIDE" ]; then
+    res="$RES_OVERRIDE"
+  else
+    res=$(res_for_re "$re")
+  fi
+
   d="$RUNDIR/$name"
   mkdir -p "$d"
   rm -rf "$d/tmp" "$d/run.log"
 
-  echo "launching $name: Re=$re H=$h RES=$RES"
+  echo "launching $name: Re=$re H=$h RES=$res"
   ( cd "$d" && "$BIN" "$dat" \
       --REYNOLDS "$re" \
       --CHANNEL_HEIGHT "$h" \
-      --RESOLUTION "$RES" \
+      --RESOLUTION "$res" \
       --MAX_PHYS_T "$MAX_T" \
       --AVG_WINDOW_CHORDS 25 \
       > run.log 2>&1 ) || echo "  WARN: $name exited non-zero"

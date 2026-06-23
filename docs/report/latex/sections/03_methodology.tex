@@ -188,6 +188,32 @@ controlled testbed for inverse design before scaling to higher-Reynolds or 3D fl
   \label{fig:dataset-example}
 \end{figure}
 
+The dataset spans a two-parameter design space --- Reynolds number $Re$ and semi-minor axis $b$ ---
+sampled densely across the laminar regime, with the geometry varying smoothly with $b$.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.7\linewidth]{report_design_space.png}
+  \caption{Design-space coverage of the training set: each point is one simulation in the $(Re, b)$
+  plane, coloured by its pressure drag. Sampling is dense and near-uniform across the regime; the
+  circled points mark the cases later put through the CFD validation loop.}
+  \label{fig:design-space}
+\end{figure}
+
+The conditioning targets the model sees --- the steady-mean $C_p(x/c)$ curves --- form a structured
+family whose morphology is dominated by the minor axis $b$ rather than by $Re$: thinner bodies
+(small $b$) develop a deeper suction trough, while $Re$ mainly modulates the wake recovery.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.7\linewidth]{report_cp_envelope.png}
+  \caption{Surface-pressure target distribution across the whole training set, every curve coloured
+  by its minor axis $b$ (mean $\pm\,\sigma$ in black). The systematic ordering with $b$ shows that
+  $b$ is the principal driver of pressure morphology --- the low-frequency structure the DCT
+  conditioning is designed to capture.}
+  \label{fig:cp-envelope}
+\end{figure}
+
 \subsection{Evaluation metrics}
 
 The headline verdict for inverse design is the \textbf{Pearson correlation} between the
