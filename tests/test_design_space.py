@@ -50,7 +50,7 @@ def test_sample_includes_corners():
     res = raw[idxs, 0, 2]
     hs = raw[idxs, 0, 3]
     pairs = set(
-        zip(np.round(res).astype(int), np.round(hs * 10).astype(int), strict=False)
+        zip(np.round(res).astype(int), np.round(hs * 10).astype(int), strict=True)
     )
     assert (500, 50) in pairs
     assert (1000, 60) in pairs

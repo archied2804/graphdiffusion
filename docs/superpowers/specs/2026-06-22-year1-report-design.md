@@ -24,7 +24,7 @@ writing plan.
 |---|---|
 | Output format | **Both** — Markdown master (Obsidian) + mirrored LaTeX skeleton |
 | Scope to draft now | **Methodology + Results in full**; Intro / Related Work / Discussion / Conclusions as guided stubs |
-| Scientific scope | **Core inverse-design + CFD-validation story**, with the foundational ablations (circle EXP-00x, shape-method EXP-01x, surface-quality EXP-02x) folded in *condensed* |
+| Scientific scope | **Core inverse-design + CFD-validation story**, with the foundational ablations (circle EXP-00x, shape-method EXP-01x, surface-quality EXP-02x) folded in *condensed and refer to in logical sense not by name EXP_xxx*|
 | Venue/style | **Applied ML-for-science** (e.g. JCP-ML, Nature Machine Intelligence, ICLR ML4Science) — method novelty balanced with independent physical validation as the headline |
 | Department template | Assumed: no rigid template / page limit. Structure is publication-style and trimmable. **Revisit if a fixed template emerges.** |
 

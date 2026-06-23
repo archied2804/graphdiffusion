@@ -269,8 +269,10 @@ Write ~160 words: `ScoreNetwork` stacks Battaglia GN blocks
 `[@battaglia2018relational]`, each `EdgeModel → NodeModel → GlobalModel`; messages along
 ring edges. Key point: sinusoidal time embedding and conditioning are injected **once**
 into the per-graph global attribute `u` (not per node), then propagate via
-`GlobalModel → NodeModel`. Reference the figure placeholder `![[assets/FIG_architecture.png]]`
-with a `<!-- figure pending: see plan Task 11 / spec figure 1 -->` comment.
+`GlobalModel → NodeModel`. Embed the architecture figure (now produced):
+`![[assets/report_architecture.png]]` with a caption describing the time/conditioning
+injection into `u` and the N× GN block stack. The auxiliary DeepSets pressure-head branch
+shown in the figure is described in §3.5.
 
 - [ ] **Step 5: Commit**
 
