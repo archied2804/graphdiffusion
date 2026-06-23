@@ -47,7 +47,77 @@ _To cover:_
 
 ## 3. Methodology
 
-<!-- DRAFTED IN A LATER TASK (3.1-3.9) -->
+### 3.1 Problem formulation
+
+We treat aerodynamic shape design as an *inverse* problem: given a target surface-pressure
+distribution `Cp(x/c)`, produce a closed 2D boundary shape that realises it. The boundary is
+represented as a radial field `r(θ)` sampled at the surface nodes, and the design target is summarised
+by a conditioning context `c` derived from `Cp(x/c)`. The map from target pressure to shape is
+*one-to-many*: distinct boundaries can carry near-identical pressure curves, so there is no single
+correct output to regress towards. A deterministic regressor, forced to average over this fibre,
+would collapse the valid set to a blurred mean shape. A generative model instead learns the
+conditional distribution `p(r(θ) | c)`, sampling individual valid shapes for a given target — which
+is why we adopt a conditional generative formulation rather than direct regression.
+
+### 3.2 Shape representation
+
+We diffuse the boundary as a radial field `r(θ)` sampled at the surface nodes, organising those nodes
+into a boundary graph with bidirectional ring edges so each node exchanges messages with its two
+ring neighbours. We selected this representation deliberately. An earlier representation study
+compared a radial field against a direct-Cartesian `(x, y)` node parameterisation and a
+Fourier-coefficient parameterisation of the boundary, and found the radial field the most stable
+diffusion target.
+<!-- source: shape-method studies EXP-011/012/013 -->
+The direct-Cartesian parameterisation couples two correlated channels per node and offers no scalar
+target for a curvature penalty, leaving generated boundaries prone to high-frequency wobble; richer
+per-node conditioning on top of it raised that roughness without lowering denoising loss. The
+Fourier-coefficient route trades node-locality for a global spectral basis, which frustrates the
+local message-passing inductive bias of the graph network and made a stabilising smoothness penalty
+ineffective. The single-channel radial field, by contrast, denoises cleanly, exposes `r(θ)` directly
+to a second-difference smoothness diagnostic, and keeps the diffusion target one scalar per node —
+hence its adoption as the canonical target here.
+
+### 3.3 Denoising diffusion model
+
+The generator is a denoising diffusion probabilistic model (DDPM) `[@ho2020ddpm]` operating on the
+graph node features. The forward process corrupts a clean shape `x_0 = r(θ)` with Gaussian noise over
+`T` steps; in closed form the marginal at step `t` is
+
+> q(x_t | x_0) = N( x_t ; √(ᾱ_t) · x_0 , (1 − ᾱ_t) · I ),
+
+where `ᾱ_t` is the cumulative product of the noise schedule. We use a cosine `ᾱ_t` schedule
+`[@nichol2021improved]`, which spends fewer steps in the near-pure-noise regime than the original
+linear schedule and so allocates more reverse steps to the low-noise regime where fine geometric
+detail emerges. A learned network reverses the process, denoising `x_T ~ N(0, I)` back to a shape,
+and is trained to predict the injected noise `ε` under the standard simple loss
+
+> L = E_{t, x_0, ε} [ ‖ ε − ε_θ(x_t, t, c) ‖² ],
+
+an MSE between the true and predicted noise, with `c` the conditioning context. All schedule buffers
+(`betas`, `alphas_cumprod`, and derived quantities) are owned by a `NoiseSchedule` module and
+registered as module buffers, so they move with the device and are saved inside checkpoints,
+guaranteeing that training and sampling share an identical schedule.
+
+### 3.4 Graph-network score model
+
+The score network `ε_θ` stacks `N` Battaglia-style graph-network blocks `[@battaglia2018relational]`,
+each applying the canonical three-stage update — EdgeModel (φ^e) → NodeModel (φ^v) →
+GlobalModel (φ^u) — and aggregating messages along the bidirectional ring edges of the boundary. The
+key design choice is how time and conditioning enter the network: the timestep is mapped through a
+sinusoidal embedding, and both this embedding and the conditioning vector are injected *once* into the
+per-graph global attribute `u`, rather than being concatenated onto every node. They then propagate to
+the nodes through the GlobalModel → NodeModel message-passing pathway, so a single per-graph signal
+conditions all nodes consistently and the per-node feature stays a single radial channel. The model
+is implemented under a strict one-way package dependency DAG (`building_blocks/ → model/`, with
+`data/` independent of both), keeping the score architecture decoupled from data handling.
+
+![[assets/report_architecture.png]]
+
+*Architecture of the score network `ε_θ`. The diffusion timestep (via a sinusoidal embedding) and the
+DCT pressure-conditioning vector are summed once into the per-graph global attribute `u`, which feeds
+the N× stack of graph-network blocks (φ^e → φ^v → φ^u) operating over the bidirectional ring edges; a
+jointly-trained auxiliary DeepSets pressure head reads the denoised shape to predict its pressure
+spectrum (detailed in 3.5).*
 
 ## 4. Results
 
