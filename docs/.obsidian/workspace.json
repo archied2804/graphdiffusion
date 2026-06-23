@@ -53,12 +53,14 @@
             "id": "85938659bbb00dcb",
             "type": "leaf",
             "state": {
-              "type": "image",
+              "type": "markdown",
               "state": {
-                "file": "assets/report_architecture.png"
+                "file": "architecture.md",
+                "mode": "source",
+                "source": false
               },
-              "icon": "lucide-image",
-              "title": "report_architecture"
+              "icon": "lucide-file",
+              "title": "architecture"
             }
           }
         ],
@@ -226,8 +228,14 @@
   },
   "active": "85938659bbb00dcb",
   "lastOpenFiles": [
-    "assets/report_conditioning_pipeline.png",
+    "architecture.md.tmp.2371560.0271503ed40d",
+    "architecture.md.tmp.2371560.f87b2820f2ee",
+    "experiments/changelog.md.tmp.2371560.8c781555e167",
+    "experiments/EXP-040_openlb_cp_baseline.md",
+    "experiments/EXP-041_openlb_generated_inverse_design.md",
+    "experiments/EXP-042_ood_fidelity_magnitude_creep.md",
     "assets/report_architecture.png",
+    "assets/report_conditioning_pipeline.png",
     "assets/report_dataset_example.png",
     "assets/report_dct_encoding.png",
     "assets/report_diffusion_process.png",
@@ -248,15 +256,9 @@
     "superpowers/specs/2026-06-23-dataset-viz-physical-conditioning-design.md.tmp.2086080.ee8d34d22491",
     "Untitled.md",
     "reports/validation_report.md",
-    "assets/EXP-042_vorticity_smooth.png",
-    "experiments/EXP-041_openlb_generated_inverse_design.md",
     "architecture.md",
     "reports/validation_report.md.tmp.96355.90a5c30203cb",
     "reports/validation_report.md.tmp.96355.2bf33394d850",
-    "experiments/EXP-041_openlb_generated_inverse_design.md.tmp.96355.ed367fdef85b",
-    "experiments/EXP-041_openlb_generated_inverse_design.md.tmp.96355.d30c7958d7de",
-    "experiments/EXP-042_ood_fidelity_magnitude_creep.md",
-    "experiments/EXP-040_openlb_cp_baseline.md",
     "experiments/EXP-00x_series_summary.md",
     "experiments/README.md",
     "experiments/EXPERIMENT_PLAN.md",

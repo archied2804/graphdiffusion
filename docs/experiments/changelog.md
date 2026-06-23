@@ -7,6 +7,46 @@ tags: [changelog, features]
 Tracks code-level additions and modifications that support experiments.
 Each entry links to the experiment that motivated it.
 
+## 2026-06-23 — Dataset-viz suite, OpenLB domain correctness, design-space sampling (tooling)
+
+Spec: [[superpowers/specs/2026-06-23-dataset-viz-physical-conditioning-design|dataset-viz / physical-conditioning design]] ·
+Plan: [[superpowers/plans/2026-06-23-dataset-viz-openlb-sampling|dataset-viz / OpenLB-sampling plan]]
+
+Infrastructure-only work (Parts A–C); **not** a training experiment, so no `EXP-NNN` log.
+Full suite green (215 passed), ruff / black / mypy clean. No `model/` code changed.
+
+### Part A — Dataset visualisation suite (read-only)
+
+| File | Purpose |
+|------|---------|
+| `src/graph_diffusion/visualisation/dataset_overview.py` | `pressure_drag_coefficient` (discrete line integral `Cd_p = ∮ Cp (n·x̂) ds`, pressure drag only); `sim_summary(raw, idx)` per-sim accessor (Re, H, a, b, ordered polygon, cp_mean, x/c, Cp curve, Cd_p); six figure builders — `plot_design_space_drag`, `plot_cp_envelope`, `plot_design_space_coverage`, `plot_shape_gallery`, `plot_drag_vs_re`, `plot_cp_pca`. All re-exported from `graph_diffusion.visualisation` |
+| `scripts/plot_dataset_overview.py` | CLI rendering all 8 figure variants to PNG+PDF under `outputs/dataset_overview/` (gitignored); report figure selection deferred |
+
+### Part B — OpenLB domain correctness (`cfd/ellipse2d/`)
+
+| File | Change |
+|------|--------|
+| `cfd/ellipse2d/ellipse2d.cpp` | `--CHANNEL_HEIGHT` now **required**: old silent default `8.0` replaced by a `-1.0` sentinel + post-CLI guard that aborts FATAL (dataset domain height is 5–6), preventing silent wrong-domain runs |
+| `cfd/ellipse2d/runs/run_from_manifest.sh` | New driver — one OpenLB run per manifest row using that row's **own** Re and H (per-sample domain); `--SEMI_MINOR_B` deliberately omitted (body shape fully set by the `.dat` polygon) |
+| `scripts/export_ellipse_for_openlb.py` | Added `verify_manifest_row` asserting each manifest row's Re/H equal the HDF5 columns |
+| `cfd/ellipse2d/.gitignore` | Tracks `runs/*.sh` driver scripts while ignoring run outputs |
+
+### Part C — Systematic design-space sampling + naming
+
+| File | Change |
+|------|--------|
+| `src/graph_diffusion/data/design_space.py` | New module: `make_case_name(re, h, idx)` → sortable `re{RRRR}_h{HH}_idx{NNNN}` (e.g. `re0500_h53_idx0000`); `sample_design_space(raw, n_re, n_h)` lays an (Re, H) grid, snaps each node to the nearest real sim, guarantees corners (axes are Re and H only — thickness `b` is emergent, recorded not sampled) |
+| `scripts/export_ellipse_for_openlb.py` | Added `--grid` mode (`--n-re`, `--n-h`) and a `name`-first manifest column (`name,idx,Re,H,a,b,n_nodes`) so evaluation and CFD cases share one naming namespace |
+
+### Facts confirmed
+
+- pOnEllipse HDF5 columns are `[x, y, Re, H, p0..p100]`, `Re ∈ [500,1000]`, `H` = channel height `∈ [5,6]` (empirically verified; the legacy `_H5_COL_AOA` alias is a misnomer for H).
+
+> [!NOTE] Part D deferred
+> Augmenting the Cp-conditioned model with physical Re (+ optional H) conditioning and retraining is **planned future work**, not part of this batch. It is independent of validation: in OpenLB, Re is imposed via viscosity `ν = U·L/Re` (inlet velocity stays `U = 1`). See the [[superpowers/specs/2026-06-23-dataset-viz-physical-conditioning-design|design spec]].
+
+---
+
 ## 2026-06-17 — Generated-shape export for OpenLB inverse-design validation (EXP-041)
 
 Motivated by: [[EXP-041_openlb_generated_inverse_design]]
