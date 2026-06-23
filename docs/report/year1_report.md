@@ -119,6 +119,84 @@ the N× stack of graph-network blocks (φ^e → φ^v → φ^u) operating over th
 jointly-trained auxiliary DeepSets pressure head reads the denoised shape to predict its pressure
 spectrum (detailed in 3.5).*
 
+### 3.5 Pressure conditioning
+
+The target pressure curve is encoded compactly: we take the first `K = 8` type-II discrete cosine
+transform (DCT) coefficients of the steady-mean `Cp(x/c)`. This yields a fixed-size conditioning
+vector that is independent of the surface node count and captures the smooth, low-frequency
+morphology of the pressure curve in a handful of numbers. Encoding alone, however, does not force the
+model to respect physics. To tie geometry to pressure, a DeepSets pressure head
+`[@zaheer2017deepsets]` `h(x̂_0, pos) → ℝ^K` is trained jointly with the score network: from the
+denoised shape it must predict the DCT spectrum of the pressure that the *generated* shape would
+actually produce. Its prediction error supplies an auxiliary gradient that couples the generated
+geometry to its implied pressure, forcing the model to learn the forward shape→pressure map rather
+than memorise training shape–pressure pairs. The DeepSets form is chosen because it is permutation-
+invariant over the unordered set of surface nodes, matching the symmetry of the boundary.
+
+### 3.6 Inference guidance
+
+At sampling time the conditioning signal is amplified with classifier-free guidance
+`[@ho2022cfg]`. During training the condition is randomly dropped and replaced by a learnable null
+token, so the same network learns both conditional and unconditional noise prediction. At inference
+the two predictions are combined,
+
+> ε = (1 + w) · ε_cond − w · ε_uncond,
+
+with guidance weight `w` (here `w = 3.0`), pushing samples toward the target without a separate
+classifier. The tested alternative is Diffusion Posterior Sampling `[@chung2023dps]`, which instead
+adds a likelihood gradient from the jointly-trained pressure head to steer the reverse process toward
+the measured target; its effect on out-of-distribution targets is reported in the Results.
+
+### 3.7 Independent CFD validation solver
+
+<!-- provisional: pending validation-framework re-verification -->
+Generated shapes are graded by an independent computational fluid dynamics solve rather than by the
+model's own pressure head. The validation loop is a 2D incompressible lattice-Boltzmann solve
+`[@kruger2017lbm]` built on OpenLB `[@latt2021openlb]`. The generated boundary polygon is stamped into
+the lattice as a solid via a winding-number signed-distance indicator, giving a curved Bouzidi no-slip
+body wall; the domain has a velocity inlet, free-stream-velocity Dirichlet conditions on the top and
+bottom walls, and a pressure outlet. A graded sponge / absorbing layer `[@xu2013sponge]` sits upstream
+of the outlet to suppress reflected acoustic waves that would otherwise contaminate the measured
+field. The decisive property is independence: the solver measures the time-averaged surface
+`Cp(x/c)` from first principles and never sees the diffusion model or its pressure head. Because the
+grading physics shares no component with the generator, a high measured-versus-target correlation is a
+genuine physical confirmation of inverse design, not a surrogate grading itself.
+
+![[assets/EXP-040_domain_schematic.png]]
+
+*Schematic of the 2D lattice-Boltzmann validation domain: a velocity inlet, free-stream Dirichlet top
+and bottom walls, the stamped solid body with a curved Bouzidi no-slip wall, and a pressure outlet
+preceded by a graded sponge layer that absorbs reflected acoustic waves.*
+
+### 3.8 Dataset
+
+Training data is the pOnEllipse dataset `[@lino2022msgnn]`: 2D incompressible flow around an
+elliptical cylinder of major-axis length 1 (semi-major 0.5), with variable minor axis `b` and channel
+height `H`, at Reynolds numbers 500–1000 — the laminar vortex-shedding regime. It comprises 5701
+training simulations, each storing per-surface-node coordinates together with 101 unsteady pressure
+timesteps, which we collapse to a single steady-mean `Cp`. The per-node HDF5 layout is
+`[x, y, Re, H, p0..p100]`. Note that the fourth column `H` is the channel height (≈ 5–6), not angle of
+attack — a distinction that matters because mistaking it for AoA would corrupt the conditioning. The
+narrow, well-characterised regime makes this dataset a controlled testbed for inverse design before
+scaling to higher-Reynolds or 3D flows.
+
+![[assets/report_dataset_example.png]]
+
+*An example pOnEllipse training sample: a closed elliptical boundary (left) and its corresponding
+steady-mean surface pressure curve `Cp(x/c)` (right), the quantity the model is conditioned on.*
+
+### 3.9 Evaluation metrics
+
+The headline verdict for inverse design is the **Pearson correlation** between the solver-measured
+`Cp(x/c)` and the conditioning target: it scores whether the generated shape reproduces the *shape* of
+the target pressure curve (its morphology), independently of amplitude. We report it as the primary
+metric because the model captures `Cp` shape, not absolute magnitude. Alongside it we report the
+affine slope `a` and offset `b` from a linear fit of measured against target `Cp`, which quantify
+amplitude calibration; the drag coefficient `Cd`; and the second-difference roughness of `r(θ)`, a
+surface-quality measure where lower is smoother. We state explicitly that correlation, not absolute
+amplitude, is the inverse-design verdict — the affine slope is reported as a known calibration
+limitation rather than a pass/fail criterion.
+
 ## 4. Results
 
 <!-- DRAFTED IN A LATER TASK (4.1-4.6) -->
