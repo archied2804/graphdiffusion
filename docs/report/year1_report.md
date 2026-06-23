@@ -63,19 +63,18 @@ is why we adopt a conditional generative formulation rather than direct regressi
 
 We diffuse the boundary as a radial field `r(θ)` sampled at the surface nodes, organising those nodes
 into a boundary graph with bidirectional ring edges so each node exchanges messages with its two
-ring neighbours. We selected this representation deliberately. An earlier representation study
-compared a radial field against a direct-Cartesian `(x, y)` node parameterisation and a
-Fourier-coefficient parameterisation of the boundary, and found the radial field the most stable
-diffusion target.
-<!-- source: shape-method studies EXP-011/012/013 -->
-The direct-Cartesian parameterisation couples two correlated channels per node and offers no scalar
-target for a curvature penalty, leaving generated boundaries prone to high-frequency wobble; richer
-per-node conditioning on top of it raised that roughness without lowering denoising loss. The
-Fourier-coefficient route trades node-locality for a global spectral basis, which frustrates the
-local message-passing inductive bias of the graph network and made a stabilising smoothness penalty
-ineffective. The single-channel radial field, by contrast, denoises cleanly, exposes `r(θ)` directly
-to a second-difference smoothness diagnostic, and keeps the diffusion target one scalar per node —
-hence its adoption as the canonical target here.
+ring neighbours. The data pipeline supports several coordinate parameterisations of the same boundary
+— direct-Cartesian `(x, y)`, raw radial, and scale-normalised radial — and we adopt the
+scale-normalised radial field as the diffusion target.
+<!-- source: canonical radial target established in the circle baseline series (EXP-00x) and the EXP-010 radial pipeline; feature modes defined in pOnEllipseDataset -->
+This choice is principled rather than incidental. A single scalar per node is a minimal,
+well-conditioned one-dimensional target on the ring, avoiding the two coupled channels of a
+Cartesian parameterisation. It exposes `r(θ)` directly to a second-difference (curvature) diagnostic,
+so surface smoothness can be both measured and, where useful, penalised. Normalising by scale further
+decouples shape from absolute size, focusing the model on morphology. The same radial target was
+first validated on canonical shapes in a preliminary study (Section 4.1), where radial diffusion on a
+ring graph reproduced target shape distributions, and was carried unchanged into the aerodynamic
+setting.
 
 ### 3.3 Denoising diffusion model
 
