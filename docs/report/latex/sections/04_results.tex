@@ -186,6 +186,20 @@ $C_p$ and $\sim 5\%$ in $C_d$, so the characteristic wobble does not corrupt the
   \label{fig:ood-cp-overlays}
 \end{figure}
 
+The notion of ``out-of-distribution distance'' is made concrete by the structure of the target space
+itself. Projecting every training $C_p$ curve onto its first two principal components reveals a
+low-dimensional manifold, ordered almost entirely by the minor axis $b$:
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.6\linewidth]{report_cp_manifold.png}
+  \caption{Principal-component embedding of the training-set $C_p$ curves, coloured by minor axis
+  $b$. The targets occupy a thin, smoothly-ordered manifold. In-distribution evaluation targets lie
+  inside this cloud; the synthetic out-of-distribution targets are constructed to sit progressively
+  outside it, and fidelity declines with that distance --- the trend quantified above.}
+  \label{fig:cp-manifold}
+\end{figure}
+
 \begin{quote}
   Correlation (morphology) is the inverse-design verdict. The model captures $C_p$ \emph{shape},
   not absolute amplitude: the affine slope on generated targets (2.2--3.6) exceeds the dataset
