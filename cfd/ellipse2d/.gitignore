@@ -4,4 +4,7 @@ ellipse2d
 *.d
 # run outputs / scratch (per-sim dirs hold large VTK under tmp/, plus logs)
 tmp/
-runs/
+# Ignore everything in runs/ (per-run subdirs, logs, csvs, plots) except
+# the driver *.sh scripts.
+runs/*
+!runs/*.sh

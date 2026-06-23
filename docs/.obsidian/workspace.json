@@ -11,10 +11,14 @@
             "id": "431861d14961078f",
             "type": "leaf",
             "state": {
-              "type": "graph",
-              "state": {},
-              "icon": "lucide-git-fork",
-              "title": "Graph view"
+              "type": "markdown",
+              "state": {
+                "file": "reports/validation_report.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "validation_report"
             }
           },
           {
@@ -23,15 +27,44 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "experiments/EXP-00x_series_summary.md",
+                "file": "architecture.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "EXP-00x_series_summary"
+              "title": "architecture"
+            }
+          },
+          {
+            "id": "c2f884fb99a5031f",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "reports/validation_report.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "validation_report"
+            }
+          },
+          {
+            "id": "85938659bbb00dcb",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "architecture.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "architecture"
             }
           }
-        ]
+        ],
+        "currentTab": 3
       }
     ],
     "direction": "vertical"
@@ -193,44 +226,53 @@
       "bases:Create new base": false
     }
   },
-  "active": "431861d14961078f",
+  "active": "85938659bbb00dcb",
   "lastOpenFiles": [
+    "architecture.md.tmp.2371560.0271503ed40d",
+    "architecture.md.tmp.2371560.f87b2820f2ee",
+    "experiments/changelog.md.tmp.2371560.8c781555e167",
+    "experiments/EXP-040_openlb_cp_baseline.md",
+    "experiments/EXP-041_openlb_generated_inverse_design.md",
+    "experiments/EXP-042_ood_fidelity_magnitude_creep.md",
+    "assets/report_architecture.png",
+    "assets/report_conditioning_pipeline.png",
+    "assets/report_dataset_example.png",
+    "assets/report_dct_encoding.png",
+    "assets/report_diffusion_process.png",
+    "assets/report_generated_shapes.png",
+    "assets/report_paraview_pressure.png",
+    "assets/report_paraview_velocity_wake.png",
+    "assets/report_pipeline_schematic.png",
+    "assets/report_roughness_metric.png",
+    "experiments/EXP-002_circle_radial_k-neighbors.md",
+    "report/year1_report.md",
+    "superpowers/plans/2026-06-23-dataset-viz-openlb-sampling.md.tmp.2086080.85348aa0275e",
+    "superpowers/plans/2026-06-23-dataset-viz-openlb-sampling.md.tmp.2086080.3be1386464ab",
+    "superpowers/plans/2026-06-23-dataset-viz-openlb-sampling.md",
+    "superpowers/plans/2026-06-23-dataset-viz-openlb-sampling.md.tmp.2086080.e199cab8d4ad",
+    "superpowers/specs/2026-06-23-dataset-viz-physical-conditioning-design.md.tmp.2086080.ec8b67135b2e",
+    "superpowers/specs/2026-06-23-dataset-viz-physical-conditioning-design.md.tmp.2086080.d7d4ac79fbe8",
+    "superpowers/specs/2026-06-23-dataset-viz-physical-conditioning-design.md",
+    "superpowers/specs/2026-06-23-dataset-viz-physical-conditioning-design.md.tmp.2086080.ee8d34d22491",
+    "Untitled.md",
+    "reports/validation_report.md",
+    "architecture.md",
+    "reports/validation_report.md.tmp.96355.90a5c30203cb",
+    "reports/validation_report.md.tmp.96355.2bf33394d850",
+    "experiments/EXP-00x_series_summary.md",
+    "experiments/README.md",
+    "experiments/EXPERIMENT_PLAN.md",
     "index.md",
     "manual_testing.md",
     "experiments/EXP-030_dual_cp.md",
     "experiments/EXP-020_fourier_pressure_conditioning.md",
-    "experiments/EXP-021_long_train.md.tmp.236020.ca74e41876da",
-    "experiments/EXP-021_long_train.md.tmp.236020.4eb6b30ee3ac",
     "experiments/EXP-025_v_pred.md",
-    "experiments/EXP-025_v_pred.md.tmp.236020.ba3082cfc7f9",
     "experiments/EXP-024_ema.md",
-    "experiments/EXP-024_ema.md.tmp.236020.04d16dc92df0",
     "experiments/EXP-023_min_snr.md",
-    "experiments/EXP-023_min_snr.md.tmp.236020.211a85aed745",
     "experiments/EXP-022_T1000.md",
-    "experiments/EXP-022_T1000.md.tmp.236020.d5d5787d5469",
     "experiments/EXP-021_long_train.md",
-    "experiments/EXP-021_long_train.md.tmp.236020.46ad769fa1b8",
-    "architecture.md",
     "superpowers/specs/2026-05-25-exp020-conditioning-visuals-design.md",
     "superpowers/specs/2026-05-14-aero-refactor-design.md",
-    "superpowers/plans/2026-05-14-aero-refactor.md",
-    "superpowers/plans/2026-05-25-exp020-conditioning-visuals.md",
-    "experiments/EXP-012_ellipse_shape_method_B.md",
-    "experiments/README.md.tmp.21137.301f79756c49",
-    "experiments/EXP-013b_ellipse_smoothness_reg_strong.md.tmp.21137.660ff8f32408",
-    "experiments/EXP-013b_ellipse_smoothness_reg_strong.md.tmp.21137.64433e9ae168",
-    "experiments/EXP-013b_ellipse_smoothness_reg_strong.md",
-    "experiments/EXP-013_ellipse_smoothness_reg.md",
-    "experiments/EXP-011_ellipse_shape_method_A.md",
-    "experiments/EXPERIMENT_PLAN.md",
-    "experiments/EXP-010_ellipse_radial_baseline.md",
-    "experiments/EXP-010_ellipse_radial_mesh.md",
-    "experiments/changelog.md",
-    "experiments/EXP-016_ellipse_conditional_node.md",
-    "experiments/EXP-015_ellipse_conditional_global.md",
-    "experiments/EXP-014_ellipse_shape_method_D.md",
-    "experiments/EXP-013_ellipse_shape_method_E.md",
-    "assets/EXP-001_generated_shapes.png"
+    "superpowers/plans/2026-05-14-aero-refactor.md"
   ]
 }

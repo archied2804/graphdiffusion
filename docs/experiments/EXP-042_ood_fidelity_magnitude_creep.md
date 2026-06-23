@@ -105,6 +105,10 @@ The vorticity wake makes this visual — the rough (raw) and Fourier-smoothed bo
 
 In-distribution `a` is 2.8–3.0 — far above the dataset-shape baseline (~1.78) and unmoved by node count or resolution (node-density null reproduces here too). The two EXP-041 in-distribution targets independently show `a` = 2.92 and 2.48. So the ~1.6× amplitude overshoot exists *where the model has data*; OOD merely worsens it to ~1.9×.
 
+The whole series in one view — the affine slope `a` climbing from the validated dataset shapes (≈1.78, below the line) through in-distribution generated shapes to the OOD shape:
+
+![[assets/EXP-042_creep_ladder.png]]
+
 ## Conclusions
 
 1. **DPS is the wrong knob OOD.** Posterior guidance through the self-trained head degrades true fidelity monotonically. Phase 2 should sample with plain CFG and put the optimisation pressure on **CFD-in-the-loop**, not the surrogate head.

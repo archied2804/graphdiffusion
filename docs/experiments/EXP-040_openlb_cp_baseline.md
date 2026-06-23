@@ -41,6 +41,12 @@ Three new artefacts form the loop. No `src/graph_diffusion/` code changed; the o
 
 3. **Compare** — `scripts/compare_cp_baseline.py`. Interpolates the OpenLB `Cp` onto the dataset's x/c grid, overlays the two curves, and reports both the raw RMS difference and the RMS after a least-squares **affine fit `Cp_olb ≈ a·Cp_ref + b`**, plus the correlation. The affine residual is the key metric: it isolates *shape* agreement (correlation, residual RMS) from a constant *normalisation* discrepancy (the slope `a` and offset `b`).
 
+The domain and boundary-condition layout:
+
+![[assets/EXP-040_domain_schematic.png]]
+
+A 24-chord open channel (6 chords upstream, the body, 17 downstream) at the dataset's channel height `H`: a velocity inlet, free-stream Dirichlet top/bottom (not no-slip walls), a Bouzidi curved no-slip body, and a pressure outlet fronted by the graded sponge zone (material 6) that absorbs reflected acoustic waves.
+
 ### Conventions established (the baseline-reconciliation knobs)
 
 These were painful to derive and are load-bearing for every future CFD run:
@@ -104,6 +110,10 @@ The clean result above is the *end* of a chain of five diagnosed-and-fixed failu
    - **(b) Reflecting outlet.** *Fix:* add a graded `SpongeLayerDynamics` absorbing zone (new material 6, ~4 chords deep, `sigma_max = 0.7`) upstream of the *kept* pressure outlet.
 
    *Result:* the `avgRho` amplitude collapsed from ±0.15 to ±0.0001, the `Cp` match **improved** (`sim_0` correlation 0.98 → **0.998**), and the instantaneous `Cd` std fell from ±1.5 to ±0.05 — confirming that the old "`Cd` noise" was the acoustic resonance, *not* physical force fluctuation. The GPU build needed the descriptor `D2Q9<DENSITY, VELOCITY, DAMPING>` and `geometry.clean(true, {1, 6})` to support the sponge material.
+
+   The before/after traces (Re 1000, with vs without the sponge + rest-init) make the mechanism unmistakable — a clean ±15–20% standing-wave oscillation in `⟨ρ⟩` flattening to a quiescent line, and the `Cd` "noise" vanishing with it:
+
+   ![[assets/EXP-040_stability_trace.png]]
 
 ### Why the correlation tapers with Re
 

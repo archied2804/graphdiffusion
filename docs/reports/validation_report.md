@@ -13,12 +13,7 @@ date: 2026-06-17
 We build a graph-diffusion generative model that, conditioned on a target surface-pressure
 curve `Cp(x/c)`, produces the 2D shape that should carry it — an *inverse-design* generator.
 The model denoises the radial field `r(θ)` of a closed boundary using a graph-network score
-function, with the target pressure encoded as a fixed-size DCT spectrum and injected through a
-jointly-trained DeepSets head. The decisive contribution of this work is *independent physical
-validation*: every generated shape is run through a from-scratch 2D OpenLB lattice-Boltzmann
-(LBM) CFD solve, and its measured `Cp` is compared to the target the shape was conditioned on —
-a check that does not use the model's own pressure head. The loop reproduces dataset pressure on known ellipses at correlation 0.998, and grades generated shapes at correlation ≈ 0.95
-in-distribution. Detail lives in [[EXP-040_openlb_cp_baseline]] and
+function, with the target pressure encoded as a fixed-size DCT (discrete cosine transform) spectrum and injected through a jointly-trained DeepSets [4] head. The decisive contribution of this work is *independent physical validation*: generated shapes run through a from-scratch 2D OpenLB lattice-Boltzmann (LBM) CFD solve, and its measured `Cp` is compared to the target the shape was conditioned on a check that does not use the model's own pressure head. The loop reproduces dataset pressure on known ellipses at correlation 0.998, and grades generated shapes at correlation ≈ 0.95 in-distribution. Detail lives in [[EXP-040_openlb_cp_baseline]] and
 [[EXP-041_openlb_generated_inverse_design]].
 
 ---
@@ -140,16 +135,30 @@ the target each was conditioned on.
 
 | Target | Type | Re | `Cp` corr (raw) | `Cp` corr (smoothed) |
 |---|---|---|---|---|
-| #4849 | in-distribution | 960 | **0.956** | 0.944 |
-| #4066 | in-distribution | 884 | **0.955** | 0.948 |
-| synthetic | out-of-distribution | 754 | **0.869** | 0.822 |
+| #4849 | in-distribution | 960 | **0.964** | 0.952 |
+| #4066 | in-distribution | 884 | **0.966** | 0.963 |
+| synthetic | out-of-distribution | 754 | **0.860** | 0.876 |
 
-Generated shapes hit their target `Cp` at correlation **≈ 0.95 in-distribution** and **≈ 0.85
-out-of-distribution**, verified by the independent solver — not the model's own head. This is the
-first independent confirmation of the inverse-design claim. The OOD drop is exactly the extrapolation failure the loop was built to surface. Boundary roughness turns out to be cosmetic:
+Generated shapes hit their target `Cp` at correlation **≈ 0.95 in-distribution** and, across a
+five-target out-of-distribution spread, **0.70–0.93 (declining with OOD distance)** — verified by
+the independent solver, not the model's own head. This is the first independent confirmation of the
+inverse-design claim. The OOD drop is exactly the extrapolation failure the loop was built to
+surface. Boundary roughness turns out to be cosmetic:
 raw versus Fourier-smoothed variants differ by only Δcorr ~0.01 in `Cp` and ~5% in `Cd`, so the
 characteristic wobble does not corrupt the physics. Full detail:
 [[EXP-041_openlb_generated_inverse_design]].
+
+To check that the out-of-distribution behaviour is general rather than a quirk of one target, we
+ran a spread of five synthetic OOD targets (perturbing the dataset-mean `Cp` in amplitude, sign,
+frequency, and tilt) and plotted fidelity against each target's distance from the training set:
+
+![[assets/EXP-041_ood_spread.png]]
+
+Correlation declines with OOD distance (0.70–0.93, versus ≈ 0.96 in-distribution), while the
+magnitude slope `a` stays elevated (2.3–3.4) for *every* OOD target — the amplitude creep is a
+general model property, not specific to one curve. The per-target measured-vs-target overlays:
+
+![[assets/EXP-041_ood_cp_overlays.png]]
 
 > [!WARNING]
 > Treat **correlation** (morphology) as the inverse-design verdict. The model captures `Cp` shape,
