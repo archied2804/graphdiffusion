@@ -117,6 +117,27 @@ def export_sim(raw: np.ndarray, idx: int, out_dir: Path) -> dict[str, float]:
     return {"idx": idx, "Re": re, "H": h, "a": a, "b": b, "n_nodes": n_nodes}
 
 
+def verify_manifest_row(raw: np.ndarray, row: dict[str, float]) -> None:
+    """Assert a manifest row's Re and H equal the HDF5 columns for that sim.
+
+    Args:
+        raw (np.ndarray): Full HDF5 array.
+        row (dict[str, float]): A manifest row with ``idx``, ``Re``, ``H``.
+
+    Raises:
+        ValueError: If the manifest Re or H differs from the HDF5 value.
+    """
+    idx = int(row["idx"])
+    re_h5 = float(raw[idx, 0, _H5_COL_RE])
+    h_h5 = float(raw[idx, 0, _H5_COL_H])
+    if abs(re_h5 - float(row["Re"])) > 1e-3:
+        raise ValueError(
+            f"Re mismatch for sim {idx}: manifest {row['Re']} vs h5 {re_h5}"
+        )
+    if abs(h_h5 - float(row["H"])) > 1e-3:
+        raise ValueError(f"H mismatch for sim {idx}: manifest {row['H']} vs h5 {h_h5}")
+
+
 def select_indices(raw: np.ndarray, n: int) -> list[int]:
     """Pick ``n`` simulations spanning the Reynolds-number range.
 
@@ -168,6 +189,9 @@ def main() -> None:
     indices = args.indices if args.indices else select_indices(raw, args.n_sims)
 
     rows = [export_sim(raw, idx, args.out_dir) for idx in indices]
+
+    for row in rows:
+        verify_manifest_row(raw, row)
 
     manifest = args.out_dir / "manifest.csv"
     with manifest.open("w", newline="") as fh:
