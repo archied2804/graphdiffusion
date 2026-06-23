@@ -12,7 +12,7 @@ For each selected CFD simulation this writes:
   sorted by chordwise position. This is what the OpenLB-measured Cp(x/c) is
   validated against (shape match; absolute normalisation reconciled
   separately — see ``cfd/ellipse2d/README.md``).
-- ``manifest.csv`` — one row per exported sim: ``idx,Re,H,a,b,n_nodes``.
+- ``manifest.csv`` — one row per exported sim: ``name,idx,Re,H,a,b,n_nodes``.
 
 The reference Cp's absolute scale is left as stored in the HDF5; the
 baseline gate is about curve shape and the Re-reference-length convention.

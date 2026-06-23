@@ -69,6 +69,7 @@ def main() -> None:
         "shape_gallery": plot_shape_gallery(raw, indices[:9]),
         "drag_vs_re": plot_drag_vs_re(raw, indices),
         "cp_pca_by_re": plot_cp_pca(raw, indices, colour_by="re"),
+        "cp_pca_by_b": plot_cp_pca(raw, indices, colour_by="b"),
     }
     for name, fig in figures.items():
         for ext in ("png", "pdf"):
