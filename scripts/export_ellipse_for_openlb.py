@@ -26,6 +26,7 @@ from pathlib import Path
 
 import numpy as np
 
+from graph_diffusion.data.design_space import make_case_name, sample_design_space
 from graph_diffusion.data.pOnEllipse import (
     _H5_COL_H,
     _H5_COL_P_START,
@@ -182,20 +183,37 @@ def main() -> None:
         default=3,
         help="Number of sims spanning the Re range (when --indices unset).",
     )
+    parser.add_argument(
+        "--grid",
+        action="store_true",
+        help="Select sims on an (Re, H) grid snapped to nearest real sims.",
+    )
+    parser.add_argument(
+        "--n-re", type=int, default=5, help="Re grid points for --grid."
+    )
+    parser.add_argument("--n-h", type=int, default=3, help="H grid points for --grid.")
     args = parser.parse_args()
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     raw = _load_h5_raw(args.h5)
-    indices = args.indices if args.indices else select_indices(raw, args.n_sims)
+    if args.indices:
+        indices = args.indices
+    elif args.grid:
+        indices = sample_design_space(raw, n_re=args.n_re, n_h=args.n_h)
+    else:
+        indices = select_indices(raw, args.n_sims)
 
     rows = [export_sim(raw, idx, args.out_dir) for idx in indices]
 
     for row in rows:
         verify_manifest_row(raw, row)
+        row["name"] = make_case_name(row["Re"], row["H"], int(row["idx"]))
 
     manifest = args.out_dir / "manifest.csv"
     with manifest.open("w", newline="") as fh:
-        writer = csv.DictWriter(fh, fieldnames=["idx", "Re", "H", "a", "b", "n_nodes"])
+        writer = csv.DictWriter(
+            fh, fieldnames=["name", "idx", "Re", "H", "a", "b", "n_nodes"]
+        )
         writer.writeheader()
         for row in rows:
             writer.writerow(row)
