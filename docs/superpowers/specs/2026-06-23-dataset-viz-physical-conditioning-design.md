@@ -116,7 +116,25 @@ generated shape, not a controllable input. Sampling axes are **Re and H**.
 - **Shared namespace:** the same sampler later selects generation targets for the
   retrained model, so evaluation cases and CFD cases share one naming namespace.
 
-## Part D — Augment the Cp-conditioned model with Re (and optional H)
+## Part D — Augment the Cp-conditioned model with Re (and optional H) — DEFERRED
+
+**Status: deferred.** This cycle implements Parts A–C only; Part D is a
+follow-up if time allows before the conference. It is **independent of and not
+required for validation** — see the decoupling note below. Retained here as the
+design of record so it can be picked up later (or split into its own spec).
+
+**Re vs the OpenLB inlet velocity (decoupling, verified in code).** In the
+OpenLB case, Re is imposed through *viscosity*, not inlet velocity: the unit
+converter uses a fixed characteristic velocity `U = 1.0` (`ellipse2d.cpp:114`)
+and sets `physViscosity = U·L/Re` (`lattice.h:92`). Changing Re changes ν (and
+the lattice Mach, hence the RES-scales-with-Re stability rule), **never the
+inlet BC**. So model-side Re conditioning and the OpenLB inlet are orthogonal:
+the Re the generator is conditioned on is exactly the Re already passed via
+`--REYNOLDS`, and neither side alters the inlet velocity. Consequently the
+validation loop (Parts B/C) is already Re-faithful without Part D — Part D only
+improves the *generator*. (Separate, non-Re caveat: the dataset Cp appears
+normalised by a velocity-scale factor ~1.8, the `a≈1.78` baseline; pin this
+from the dataset card independently of any Re decision.)
 
 Decision: **augment** the existing Cp-DCT inverse-design model with the physical
 Reynolds number; **produce both configs** — Re-only and Re+H. Column semantics
@@ -178,9 +196,13 @@ versus the Cp-only baseline? A concrete, report-ready result.
 - Total-drag (skin-friction) reconstruction from the pressure-only dataset.
 - Changing the DCT-mode count or the feature_mode representations.
 
-## Suggested execution order
+## Execution scope and order
+
+This cycle implements **Parts A–C only**. Part D is deferred (see its section).
 
 1. **Part A** (independent, immediate report value, read-only).
 2. **Part B** (small, de-risks every CFD run).
-3. **Part C** (depends on B's manifest; feeds D's inference).
-4. **Part D** (long pole: dataset change → both configs → retrain → ablation).
+3. **Part C** (depends on B's manifest).
+
+Part D (long pole: dataset change → both configs → retrain → ablation) is a
+follow-up, picked up later or split into its own spec.
