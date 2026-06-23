@@ -36,6 +36,9 @@ __all__ = [
     "plot_design_space_drag",
     "plot_cp_envelope",
     "plot_design_space_coverage",
+    "plot_shape_gallery",
+    "plot_drag_vs_re",
+    "plot_cp_pca",
 ]
 
 
@@ -246,5 +249,129 @@ def plot_design_space_coverage(
     ax.set_xlabel("Reynolds number $Re$")
     ax.set_ylabel("semi-minor axis $b$")
     ax.set_title("Design-space coverage")
+    fig.tight_layout()
+    return fig
+
+
+def plot_shape_gallery(
+    raw: np.ndarray,
+    indices: list[int],
+    figsize: tuple[float, float] = (9.0, 6.0),
+) -> matplotlib.figure.Figure:
+    """Grid of body outlines, one per selected sim, labelled by Re and b.
+
+    Args:
+        raw (np.ndarray): Full HDF5 array.
+        indices (list[int]): Sim indices to draw.
+        figsize (tuple[float, float]): Figure size in inches.
+
+    Returns:
+        matplotlib.figure.Figure: The rendered gallery.
+    """
+    n = len(indices)
+    ncols = min(3, n)
+    nrows = int(np.ceil(n / ncols))
+    fig, axes = plt.subplots(nrows, ncols, figsize=figsize, squeeze=False)
+    for ax in axes.flat:
+        ax.axis("off")
+    for k, idx in enumerate(indices):
+        d = sim_summary(raw, idx)
+        ax = axes[k // ncols][k % ncols]
+        ax.axis("on")
+        poly = np.vstack([d["polygon"], d["polygon"][:1]])
+        ax.plot(poly[:, 0], poly[:, 1], color="navy")
+        ax.set_aspect("equal")
+        ax.set_title(f"Re={d['re']:.0f}, b={d['b']:.3f}", fontsize=8)
+        ax.set_xticks([])
+        ax.set_yticks([])
+    fig.tight_layout()
+    return fig
+
+
+def plot_drag_vs_re(
+    raw: np.ndarray,
+    indices: list[int],
+    n_bins: int = 4,
+    figsize: tuple[float, float] = (7.0, 5.0),
+) -> matplotlib.figure.Figure:
+    """Pressure drag vs Re, with sims grouped into ``n_bins`` thickness bands.
+
+    Args:
+        raw (np.ndarray): Full HDF5 array.
+        indices (list[int]): Sim indices to include.
+        n_bins (int): Number of b (thickness) bands.
+        figsize (tuple[float, float]): Figure size in inches.
+
+    Returns:
+        matplotlib.figure.Figure: The rendered figure.
+    """
+    s = _summaries(raw, indices)
+    re = np.array([d["re"] for d in s])
+    b = np.array([d["b"] for d in s])
+    cd = np.array([d["cd_p"] for d in s])
+    edges = np.linspace(b.min(), b.max() + 1e-9, n_bins + 1)
+    fig, ax = plt.subplots(figsize=figsize)
+    for j in range(n_bins):
+        mask = (b >= edges[j]) & (b < edges[j + 1])
+        if not mask.any():
+            continue
+        order = np.argsort(re[mask])
+        ax.plot(
+            re[mask][order],
+            cd[mask][order],
+            marker="o",
+            markersize=3,
+            label=f"b in [{edges[j]:.3f}, {edges[j + 1]:.3f})",
+        )
+    ax.set_xlabel("Reynolds number $Re$")
+    ax.set_ylabel(r"pressure drag $C_{d,p}$")
+    ax.set_title("Pressure drag vs Re by thickness band")
+    ax.legend(fontsize=8)
+    fig.tight_layout()
+    return fig
+
+
+def plot_cp_pca(
+    raw: np.ndarray,
+    indices: list[int],
+    colour_by: str = "re",
+    figsize: tuple[float, float] = (7.0, 5.0),
+) -> matplotlib.figure.Figure:
+    """2-D PCA projection of the resampled Cp(x/c) curves.
+
+    A learned-latent view: each sim's Cp curve is resampled onto a common
+    grid, then projected onto its first two principal components.
+
+    Args:
+        raw (np.ndarray): Full HDF5 array.
+        indices (list[int]): Sim indices to include.
+        colour_by (str): ``"re"`` or ``"b"``.
+        figsize (tuple[float, float]): Figure size in inches.
+
+    Returns:
+        matplotlib.figure.Figure: The rendered figure.
+
+    Raises:
+        ValueError: If ``colour_by`` is not ``"re"`` or ``"b"``.
+    """
+    if colour_by not in ("re", "b"):
+        raise ValueError(f"colour_by must be 're' or 'b', got '{colour_by}'")
+    s = _summaries(raw, indices)
+    grid = np.linspace(0.0, 1.0, 100)
+    curves = np.stack(
+        [np.interp(grid, d["x_over_c"], d["cp_curve"]) for d in s], axis=0
+    )
+    centred = curves - curves.mean(axis=0, keepdims=True)
+    # SVD-based PCA; first two right-singular vectors are the components.
+    _, _, vt = np.linalg.svd(centred, full_matrices=False)
+    coords = centred @ vt[:2].T
+    key = np.array([d[colour_by] for d in s])
+    fig, ax = plt.subplots(figsize=figsize)
+    sc = ax.scatter(coords[:, 0], coords[:, 1], c=key, cmap="plasma", s=14)
+    cb_labels: dict[str, str] = {"re": "Reynolds $Re$", "b": "semi-minor $b$"}
+    fig.colorbar(sc, ax=ax, label=cb_labels[colour_by])
+    ax.set_xlabel("PC 1")
+    ax.set_ylabel("PC 2")
+    ax.set_title(f"Cp-curve PCA (coloured by {colour_by})")
     fig.tight_layout()
     return fig

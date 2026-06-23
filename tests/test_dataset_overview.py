@@ -1,10 +1,16 @@
 """Tests for graph_diffusion.visualisation.dataset_overview."""
 
-import numpy as np
-import pytest
-from context import graph_diffusion  # noqa: F401
+import matplotlib
 
-from graph_diffusion.visualisation.dataset_overview import (
+matplotlib.use("Agg")
+
+import matplotlib.figure  # noqa: E402
+import matplotlib.pyplot  # noqa: E402
+import numpy as np  # noqa: E402
+import pytest  # noqa: E402
+from context import graph_diffusion  # noqa: F401, E402
+
+from graph_diffusion.visualisation.dataset_overview import (  # noqa: E402
     pressure_drag_coefficient,
     sim_summary,
 )
@@ -64,12 +70,6 @@ def test_sim_summary_fields():
     assert s["cp_mean"].shape[0] == s["polygon"].shape[0]
 
 
-import matplotlib  # noqa: E402
-
-matplotlib.use("Agg")
-import matplotlib.figure  # noqa: E402
-import matplotlib.pyplot  # noqa: E402
-
 from graph_diffusion.visualisation.dataset_overview import (  # noqa: E402
     plot_cp_envelope,
     plot_design_space_coverage,
@@ -85,6 +85,27 @@ def test_core_figures_smoke():
     f3 = plot_cp_envelope(raw, idxs, colour_by="b")
     f4 = plot_design_space_coverage(raw, idxs, eval_indices=[0, 7])
     for fig in (f1, f2, f3, f4):
+        assert isinstance(fig, matplotlib.figure.Figure)
+        assert len(fig.axes) >= 1
+    matplotlib.pyplot.close("all")
+
+
+from graph_diffusion.visualisation.dataset_overview import (  # noqa: E402
+    plot_cp_pca,
+    plot_drag_vs_re,
+    plot_shape_gallery,
+)
+
+
+def test_extra_figures_smoke():
+    raw = _fake_raw(n_sims=8)
+    idxs = list(range(8))
+    figs = [
+        plot_shape_gallery(raw, idxs[:6]),
+        plot_drag_vs_re(raw, idxs, n_bins=3),
+        plot_cp_pca(raw, idxs, colour_by="re"),
+    ]
+    for fig in figs:
         assert isinstance(fig, matplotlib.figure.Figure)
         assert len(fig.axes) >= 1
     matplotlib.pyplot.close("all")
