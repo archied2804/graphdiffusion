@@ -7,6 +7,28 @@ tags: [changelog, features]
 Tracks code-level additions and modifications that support experiments.
 Each entry links to the experiment that motivated it.
 
+## 2026-06-24 — Systematic OOD Cp sampling, validation & results viz (EXP-043)
+
+Spec: [[superpowers/specs/2026-06-23-systematic-ood-cp-validation-design|systematic OOD design]] ·
+Plan: [[superpowers/plans/2026-06-24-systematic-ood-cp-validation|systematic OOD plan]] ·
+Experiment: [[EXP-043_systematic_ood_validation]]
+
+- **`src/graph_diffusion/data/cp_manifold.py`** — dataset Cp-PCA primitive
+  (`dataset_cp_curves`, `cp_pca_basis`, `dataset_cp_pca`) + `pc_ladder_targets`
+  (PC-mode amplitude-ladder OOD Cp targets).
+- **`src/graph_diffusion/visualisation/sweep_results.py`** — `cp_match_metrics`
+  (corrected interp-onto-measured ρ/affine), `SampleRecord`, and five figures:
+  gallery, design-space context, Cp-manifold context, Cp-envelope overlay,
+  results-vs-OOD summary. `plot_cp_pca` refactored onto the shared basis.
+- **`scripts/export_ood_systematic.py`** — generates the 16 PC-ladder OOD shapes
+  via the `EXP-022_T1000` inverse-design checkpoint (plain CFG).
+- **`scripts/plot_sweep_results.py`** — CLI + per-set loaders (`ood_systematic`,
+  `eval_grid`) rendering the suite to `outputs/sweep_results/<set>/`.
+- **`cfd/ellipse2d/runs/run_from_manifest.sh`** — per-row RES auto-scaling
+  (`RES = max(100, 0.2·Re)`).
+- **Result:** solver validated in-distribution (ρ≈0.96, a≈1.74); OOD inverse design
+  degrades with OOD distance and carries model-side magnitude creep a≈2.0–2.5.
+
 ## 2026-06-23 — Dataset-viz suite, OpenLB domain correctness, design-space sampling (tooling)
 
 Spec: [[superpowers/specs/2026-06-23-dataset-viz-physical-conditioning-design|dataset-viz / physical-conditioning design]] ·

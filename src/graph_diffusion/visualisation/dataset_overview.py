@@ -20,6 +20,7 @@ import matplotlib.figure
 import matplotlib.pyplot as plt
 import numpy as np
 
+from graph_diffusion.data.cp_manifold import cp_pca_basis
 from graph_diffusion.data.pOnEllipse import (
     _H5_COL_H,
     _H5_COL_P_START,
@@ -361,10 +362,8 @@ def plot_cp_pca(
     curves = np.stack(
         [np.interp(grid, d["x_over_c"], d["cp_curve"]) for d in s], axis=0
     )
-    centred = curves - curves.mean(axis=0, keepdims=True)
-    # SVD-based PCA; first two right-singular vectors are the components.
-    _, _, vt = np.linalg.svd(centred, full_matrices=False)
-    coords = centred @ vt[:2].T
+    basis = cp_pca_basis(curves, n_components=2)
+    coords = basis.project(curves)
     key = np.array([d[colour_by] for d in s])
     fig, ax = plt.subplots(figsize=figsize)
     sc = ax.scatter(coords[:, 0], coords[:, 1], c=key, cmap="plasma", s=14)
