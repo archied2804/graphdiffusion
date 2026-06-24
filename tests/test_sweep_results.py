@@ -101,3 +101,20 @@ def test_context_figures_smoke():
         assert isinstance(fig, matplotlib.figure.Figure)
         assert len(fig.axes) >= 1
     matplotlib.pyplot.close("all")
+
+
+from graph_diffusion.visualisation.sweep_results import (  # noqa: E402
+    plot_cp_envelope_overlay,
+    plot_results_summary,
+)
+
+
+def test_overlay_and_summary_smoke():
+    raw = _fake_raw_ctx()
+    samples = _fake_samples(5)
+    f1 = plot_cp_envelope_overlay(raw, samples)
+    f2 = plot_results_summary(samples)
+    for fig in (f1, f2):
+        assert isinstance(fig, matplotlib.figure.Figure)
+        assert len(fig.axes) >= 1
+    matplotlib.pyplot.close("all")

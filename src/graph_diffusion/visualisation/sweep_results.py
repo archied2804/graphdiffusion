@@ -197,3 +197,77 @@ def plot_cp_manifold_context(
     ax.legend()
     fig.tight_layout()
     return fig
+
+
+def plot_cp_envelope_overlay(
+    raw: np.ndarray,
+    samples: list[SampleRecord],
+    n_grid: int = 128,
+    figsize: tuple[float, float] = (7.0, 5.0),
+) -> matplotlib.figure.Figure:
+    """Dataset Cp mean±std band with sample measured & target curves on top.
+
+    Args:
+        raw (np.ndarray): Full HDF5 array.
+        samples (list[SampleRecord]): Samples to overlay.
+        n_grid (int): Cp grid.
+        figsize (tuple[float, float]): Figure size.
+
+    Returns:
+        matplotlib.figure.Figure: The rendered figure.
+    """
+    grid = np.linspace(0.0, 1.0, n_grid)
+    curves = dataset_cp_curves(raw, n_grid=n_grid)
+    mean = curves.mean(axis=0)
+    std = curves.std(axis=0)
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.fill_between(
+        grid, mean - std, mean + std, color="0.8", label=r"dataset mean$\pm\sigma$"
+    )
+    ax.plot(grid, mean, "k-", lw=1.5)
+    for s in samples:
+        order = np.argsort(s.meas_x)
+        ax.plot(s.target_x, s.target_cp, "C0--", lw=0.8, alpha=0.7)
+        ax.plot(s.meas_x[order], s.meas_cp[order], "C3-", lw=0.8, alpha=0.7)
+    ax.plot([], [], "C0--", label="sample target")
+    ax.plot([], [], "C3-", label="sample measured")
+    ax.invert_yaxis()
+    ax.set_xlabel("x/c")
+    ax.set_ylabel("Cp")
+    ax.set_title("Samples vs dataset Cp envelope")
+    ax.legend(fontsize=8)
+    fig.tight_layout()
+    return fig
+
+
+def plot_results_summary(
+    samples: list[SampleRecord],
+    figsize: tuple[float, float] = (8.0, 4.0),
+) -> matplotlib.figure.Figure:
+    """Correlation and affine slope ``a`` vs OOD distance across samples.
+
+    Args:
+        samples (list[SampleRecord]): Samples (need ``ood_dist`` set).
+        figsize (tuple[float, float]): Figure size.
+
+    Returns:
+        matplotlib.figure.Figure: Two-panel figure (corr and a vs ood_dist).
+    """
+    metrics = [
+        cp_match_metrics(s.target_x, s.target_cp, s.meas_x, s.meas_cp) for s in samples
+    ]
+    ood = np.array([s.ood_dist if s.ood_dist is not None else np.nan for s in samples])
+    corr = np.array([m["corr"] for m in metrics])
+    aff = np.array([m["affine_a"] for m in metrics])
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+    ax1.scatter(ood, corr, c="C0")
+    ax1.set_xlabel("OOD distance")
+    ax1.set_ylabel(r"correlation $\rho$")
+    ax1.set_title("Fidelity vs OOD distance")
+    ax2.scatter(ood, aff, c="C3")
+    ax2.axhline(1.0, color="0.6", ls="--", lw=1)
+    ax2.set_xlabel("OOD distance")
+    ax2.set_ylabel("affine slope $a$ (magnitude)")
+    ax2.set_title("Magnitude creep vs OOD distance")
+    fig.tight_layout()
+    return fig
