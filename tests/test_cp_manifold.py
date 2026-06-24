@@ -8,6 +8,7 @@ from graph_diffusion.data.cp_manifold import (
     cp_pca_basis,
     dataset_cp_curves,
     dataset_cp_pca,
+    pc_ladder_targets,
 )
 
 
@@ -52,3 +53,25 @@ def test_dataset_cp_pca_grid_matches():
     grid, basis = dataset_cp_pca(raw, n_grid=32, n_components=2)
     assert grid.shape == (32,)
     assert basis.components.shape == (2, 32)
+
+
+def test_pc_ladder_targets_count_and_names():
+    raw = _fake_raw()
+    grid, basis = dataset_cp_pca(raw, n_grid=64, n_components=2)
+    targets = pc_ladder_targets(basis, amplitudes=(1.0, 2.0, 3.0, 4.0), n_modes=2)
+    assert len(targets) == 2 * 4 * 2  # modes x amps x signs = 16
+    names = [t["name"] for t in targets]
+    assert len(set(names)) == 16  # unique
+    assert "pc1_p1sig" in names and "pc2_m4sig" in names
+    for t in targets:
+        assert t["cp_target"].shape == (64,)
+
+
+def test_pc_ladder_amplitude_increases_deviation():
+    raw = _fake_raw()
+    _, basis = dataset_cp_pca(raw, n_grid=64, n_components=2)
+    targets = pc_ladder_targets(basis, amplitudes=(1.0, 4.0), n_modes=1)
+    by_name = {t["name"]: t for t in targets}
+    dev1 = np.linalg.norm(by_name["pc1_p1sig"]["cp_target"] - basis.mean)
+    dev4 = np.linalg.norm(by_name["pc1_p4sig"]["cp_target"] - basis.mean)
+    assert dev4 > dev1  # larger sigma-amplitude => farther from the mean

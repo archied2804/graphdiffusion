@@ -12,7 +12,7 @@ context plots. Pure NumPy; depends only on the pOnEllipse column layout.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
 
@@ -23,7 +23,13 @@ from graph_diffusion.data.pOnEllipse import (
     _node_count,
 )
 
-__all__ = ["CpPcaBasis", "cp_pca_basis", "dataset_cp_curves", "dataset_cp_pca"]
+__all__ = [
+    "CpPcaBasis",
+    "cp_pca_basis",
+    "dataset_cp_curves",
+    "dataset_cp_pca",
+    "pc_ladder_targets",
+]
 
 
 @dataclass
@@ -126,3 +132,56 @@ def dataset_cp_pca(
     grid = np.linspace(0.0, 1.0, n_grid)
     curves = dataset_cp_curves(raw, n_grid=n_grid)
     return grid, cp_pca_basis(curves, n_components=n_components)
+
+
+def pc_ladder_targets(
+    basis: CpPcaBasis,
+    amplitudes: tuple[float, ...] = (1.0, 2.0, 3.0, 4.0),
+    n_modes: int = 2,
+) -> list[dict[str, Any]]:
+    """Systematic OOD Cp targets along the dataset's principal Cp modes.
+
+    For each mode ``m`` in ``1..n_modes``, signed amplitude ``s in {+, -}``
+    and ``alpha`` in ``amplitudes``::
+
+        cp_target = mean + s * alpha * proj_std[m-1] * components[m-1]
+
+    The amplitude is in units of the dataset projection std, so ``alpha=1``
+    is interior, ``~2`` is the border of the dataset spread, and ``>=3`` is
+    out of distribution.
+
+    Args:
+        basis (CpPcaBasis): Dataset Cp-PCA basis.
+        amplitudes (tuple[float, ...]): Sigma-unit amplitudes to sweep.
+        n_modes (int): Number of leading modes to perturb along.
+
+    Returns:
+        list[dict[str, Any]]: One dict per target with keys ``name``
+            (e.g. ``"pc1_p2sig"``), ``mode`` (int, 1-based), ``sign``
+            (``+1``/``-1``), ``amp_sigma`` (float), and ``cp_target``
+            (``np.ndarray (n_grid,)``).
+
+    Raises:
+        ValueError: If ``n_modes`` exceeds the available components.
+    """
+    if n_modes < 1 or n_modes > basis.components.shape[0]:
+        raise ValueError(
+            f"n_modes must be in [1, {basis.components.shape[0]}], got {n_modes}"
+        )
+    targets: list[dict[str, Any]] = []
+    for m in range(1, n_modes + 1):
+        comp = basis.components[m - 1]
+        sigma = float(basis.proj_std[m - 1])
+        for alpha in amplitudes:
+            for sign, tag in ((1.0, "p"), (-1.0, "m")):
+                cp_target = basis.mean + sign * alpha * sigma * comp
+                targets.append(
+                    {
+                        "name": f"pc{m}_{tag}{int(round(alpha))}sig",
+                        "mode": m,
+                        "sign": int(sign),
+                        "amp_sigma": float(alpha),
+                        "cp_target": cp_target.astype(np.float64),
+                    }
+                )
+    return targets
