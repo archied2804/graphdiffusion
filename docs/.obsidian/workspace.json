@@ -48,23 +48,9 @@
               "icon": "lucide-file",
               "title": "validation_report"
             }
-          },
-          {
-            "id": "85938659bbb00dcb",
-            "type": "leaf",
-            "state": {
-              "type": "markdown",
-              "state": {
-                "file": "architecture.md",
-                "mode": "source",
-                "source": false
-              },
-              "icon": "lucide-file",
-              "title": "architecture"
-            }
           }
         ],
-        "currentTab": 3
+        "currentTab": 2
       }
     ],
     "direction": "vertical"
@@ -226,14 +212,27 @@
       "bases:Create new base": false
     }
   },
-  "active": "85938659bbb00dcb",
+  "active": "c2f884fb99a5031f",
   "lastOpenFiles": [
-    "architecture.md.tmp.2371560.0271503ed40d",
-    "architecture.md.tmp.2371560.f87b2820f2ee",
-    "experiments/changelog.md.tmp.2371560.8c781555e167",
+    "superpowers/plans/2026-06-24-systematic-ood-cp-validation.md.tmp.2371560.e0590e440fc5",
+    "superpowers/plans/2026-06-24-systematic-ood-cp-validation.md.tmp.2371560.a8803a1eb8db",
+    "superpowers/plans/2026-06-24-systematic-ood-cp-validation.md.tmp.2371560.85ca934b0b7f",
+    "superpowers/plans/2026-06-24-systematic-ood-cp-validation.md.tmp.2371560.dfb9e069849e",
+    "superpowers/plans/2026-06-24-systematic-ood-cp-validation.md",
+    "superpowers/plans/2026-06-24-systematic-ood-cp-validation.md.tmp.2371560.65e1c96124b5",
+    "superpowers/specs/2026-06-23-systematic-ood-cp-validation-design.md",
+    "superpowers/specs/2026-06-23-systematic-ood-cp-validation-design.md.tmp.2371560.fabf7c790be7",
+    "experiments/EXP-024_ema.md",
+    "experiments/EXP-025_v_pred.md",
+    "experiments/EXP-030_dual_cp.md",
     "experiments/EXP-040_openlb_cp_baseline.md",
     "experiments/EXP-041_openlb_generated_inverse_design.md",
     "experiments/EXP-042_ood_fidelity_magnitude_creep.md",
+    "report/year1_report.md",
+    "architecture.md",
+    "architecture.md.tmp.2371560.0271503ed40d",
+    "architecture.md.tmp.2371560.f87b2820f2ee",
+    "experiments/changelog.md.tmp.2371560.8c781555e167",
     "assets/report_architecture.png",
     "assets/report_conditioning_pipeline.png",
     "assets/report_dataset_example.png",
@@ -245,34 +244,21 @@
     "assets/report_pipeline_schematic.png",
     "assets/report_roughness_metric.png",
     "experiments/EXP-002_circle_radial_k-neighbors.md",
-    "report/year1_report.md",
     "superpowers/plans/2026-06-23-dataset-viz-openlb-sampling.md.tmp.2086080.85348aa0275e",
     "superpowers/plans/2026-06-23-dataset-viz-openlb-sampling.md.tmp.2086080.3be1386464ab",
     "superpowers/plans/2026-06-23-dataset-viz-openlb-sampling.md",
-    "superpowers/plans/2026-06-23-dataset-viz-openlb-sampling.md.tmp.2086080.e199cab8d4ad",
-    "superpowers/specs/2026-06-23-dataset-viz-physical-conditioning-design.md.tmp.2086080.ec8b67135b2e",
-    "superpowers/specs/2026-06-23-dataset-viz-physical-conditioning-design.md.tmp.2086080.d7d4ac79fbe8",
     "superpowers/specs/2026-06-23-dataset-viz-physical-conditioning-design.md",
-    "superpowers/specs/2026-06-23-dataset-viz-physical-conditioning-design.md.tmp.2086080.ee8d34d22491",
     "Untitled.md",
     "reports/validation_report.md",
-    "architecture.md",
-    "reports/validation_report.md.tmp.96355.90a5c30203cb",
-    "reports/validation_report.md.tmp.96355.2bf33394d850",
     "experiments/EXP-00x_series_summary.md",
     "experiments/README.md",
     "experiments/EXPERIMENT_PLAN.md",
     "index.md",
     "manual_testing.md",
-    "experiments/EXP-030_dual_cp.md",
     "experiments/EXP-020_fourier_pressure_conditioning.md",
-    "experiments/EXP-025_v_pred.md",
-    "experiments/EXP-024_ema.md",
     "experiments/EXP-023_min_snr.md",
     "experiments/EXP-022_T1000.md",
     "experiments/EXP-021_long_train.md",
-    "superpowers/specs/2026-05-25-exp020-conditioning-visuals-design.md",
-    "superpowers/specs/2026-05-14-aero-refactor-design.md",
-    "superpowers/plans/2026-05-14-aero-refactor.md"
+    "superpowers/specs/2026-05-25-exp020-conditioning-visuals-design.md"
   ]
 }
