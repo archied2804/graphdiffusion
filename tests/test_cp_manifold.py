@@ -75,3 +75,9 @@ def test_pc_ladder_amplitude_increases_deviation():
     dev1 = np.linalg.norm(by_name["pc1_p1sig"]["cp_target"] - basis.mean)
     dev4 = np.linalg.norm(by_name["pc1_p4sig"]["cp_target"] - basis.mean)
     assert dev4 > dev1  # larger sigma-amplitude => farther from the mean
+
+
+def test_proj_std_descending():
+    raw = _fake_raw()
+    _, basis = dataset_cp_pca(raw, n_grid=64, n_components=2)
+    assert basis.proj_std[0] >= basis.proj_std[1]

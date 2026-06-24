@@ -59,6 +59,7 @@ def _fake_samples(n: int = 4) -> list:
                 target_cp=cpt,
                 meas_x=xt,
                 meas_cp=cpt + 0.05 * rng.standard_normal(64),
+                cd=1.0 + 0.1 * i,
             )
         )
     return out
@@ -68,6 +69,9 @@ def test_sample_gallery_smoke():
     fig = plot_sample_gallery(_fake_samples(4), ncols=2)
     assert isinstance(fig, matplotlib.figure.Figure)
     assert len(fig.axes) >= 4
+    # Each active panel must have exactly one inset child axes (the shape outline).
+    active_axes = [ax for ax in fig.axes if ax.get_visible() and ax.axison]
+    assert all(len(ax.child_axes) >= 1 for ax in active_axes)
     matplotlib.pyplot.close("all")
 
 
@@ -117,4 +121,5 @@ def test_overlay_and_summary_smoke():
     for fig in (f1, f2):
         assert isinstance(fig, matplotlib.figure.Figure)
         assert len(fig.axes) >= 1
+    assert len(f2.axes) == 3  # three panels: corr, affine a, Cd
     matplotlib.pyplot.close("all")

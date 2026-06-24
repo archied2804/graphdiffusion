@@ -68,6 +68,7 @@ class SampleRecord:
         target_cp (np.ndarray): Target/reference Cp, shape ``(K,)``.
         meas_x (np.ndarray): OpenLB-measured x/c, shape ``(M,)``.
         meas_cp (np.ndarray): OpenLB-measured Cp, shape ``(M,)``.
+        cd (float | None): Time-averaged drag coefficient (Cd_mean), if known.
     """
 
     name: str
@@ -79,6 +80,7 @@ class SampleRecord:
     target_cp: np.ndarray
     meas_x: np.ndarray
     meas_cp: np.ndarray
+    cd: float | None = None
 
 
 def plot_sample_gallery(
@@ -114,6 +116,12 @@ def plot_sample_gallery(
             f"{s.name}\n" r"$\rho$=" f"{m['corr']:.2f}  a={m['affine_a']:.2f}",
             fontsize=8,
         )
+        inset = ax.inset_axes((0.62, 0.62, 0.36, 0.36))
+        poly = np.vstack([s.polygon, s.polygon[:1]])  # close the loop
+        inset.plot(poly[:, 0], poly[:, 1], color="navy", lw=0.8)
+        inset.set_aspect("equal")
+        inset.set_xticks([])
+        inset.set_yticks([])
         ax.set_xlabel("x/c", fontsize=7)
         ax.set_ylabel("Cp", fontsize=7)
         ax.tick_params(labelsize=6)
@@ -242,16 +250,16 @@ def plot_cp_envelope_overlay(
 
 def plot_results_summary(
     samples: list[SampleRecord],
-    figsize: tuple[float, float] = (8.0, 4.0),
+    figsize: tuple[float, float] = (11.0, 4.0),
 ) -> matplotlib.figure.Figure:
-    """Correlation and affine slope ``a`` vs OOD distance across samples.
+    """Correlation, affine slope ``a``, and drag Cd vs OOD distance across samples.
 
     Args:
         samples (list[SampleRecord]): Samples (need ``ood_dist`` set).
         figsize (tuple[float, float]): Figure size.
 
     Returns:
-        matplotlib.figure.Figure: Two-panel figure (corr and a vs ood_dist).
+        matplotlib.figure.Figure: Three-panel figure (corr, a, and Cd vs ood_dist).
     """
     metrics = [
         cp_match_metrics(s.target_x, s.target_cp, s.meas_x, s.meas_cp) for s in samples
@@ -259,7 +267,8 @@ def plot_results_summary(
     ood = np.array([s.ood_dist if s.ood_dist is not None else np.nan for s in samples])
     corr = np.array([m["corr"] for m in metrics])
     aff = np.array([m["affine_a"] for m in metrics])
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+    cd = np.array([s.cd if s.cd is not None else np.nan for s in samples])
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=figsize)
     ax1.scatter(ood, corr, c="C0")
     ax1.set_xlabel("OOD distance")
     ax1.set_ylabel(r"correlation $\rho$")
@@ -269,5 +278,9 @@ def plot_results_summary(
     ax2.set_xlabel("OOD distance")
     ax2.set_ylabel("affine slope $a$ (magnitude)")
     ax2.set_title("Magnitude creep vs OOD distance")
+    ax3.scatter(ood, cd, c="C2")
+    ax3.set_xlabel("OOD distance")
+    ax3.set_ylabel("drag $C_d$")
+    ax3.set_title("Drag vs OOD distance")
     fig.tight_layout()
     return fig

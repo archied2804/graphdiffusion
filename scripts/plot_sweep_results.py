@@ -45,6 +45,17 @@ def _read_xy(dat_path: Path) -> np.ndarray:
     return np.array(pts)
 
 
+def _read_cd(force_path: Path) -> float | None:
+    """Read Cd_mean (first column) from an OpenLB force CSV, or None if absent."""
+    if not force_path.is_file():
+        return None
+    with force_path.open() as fh:
+        reader = csv.reader(fh)
+        next(reader)  # header: Cd_mean,Cd_std,Cl_mean,Cl_std,...
+        row = next(reader, None)
+    return float(row[0]) if row else None
+
+
 def _read_cp(csv_path: Path) -> tuple[np.ndarray, np.ndarray]:
     """Read a 2-column Cp CSV (x_over_c, Cp); returns (x, cp)."""
     x, cp = [], []
@@ -76,6 +87,7 @@ def _load_ood_systematic() -> list[SampleRecord]:
                     target_cp=tcp,
                     meas_x=mx,
                     meas_cp=mcp,
+                    cd=_read_cd(_CFD / "runs" / name / "tmp" / "ellipse2d_force.csv"),
                 )
             )
     return records
@@ -101,6 +113,7 @@ def _load_eval_grid() -> list[SampleRecord]:
                     target_cp=tcp,
                     meas_x=mx,
                     meas_cp=mcp,
+                    cd=_read_cd(_CFD / "runs" / name / "tmp" / "ellipse2d_force.csv"),
                 )
             )
     return records
