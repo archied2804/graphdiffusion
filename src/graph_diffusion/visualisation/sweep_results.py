@@ -17,6 +17,9 @@ import matplotlib.figure
 import matplotlib.pyplot as plt
 import numpy as np
 
+from graph_diffusion.data.cp_manifold import dataset_cp_curves, dataset_cp_pca
+from graph_diffusion.data.pOnEllipse import _H5_COL_H, _H5_COL_RE
+
 
 def cp_match_metrics(
     target_x: np.ndarray,
@@ -114,5 +117,83 @@ def plot_sample_gallery(
         ax.set_xlabel("x/c", fontsize=7)
         ax.set_ylabel("Cp", fontsize=7)
         ax.tick_params(labelsize=6)
+    fig.tight_layout()
+    return fig
+
+
+def plot_design_space_context(
+    raw: np.ndarray,
+    samples: list[SampleRecord],
+    figsize: tuple[float, float] = (7.0, 5.0),
+) -> matplotlib.figure.Figure:
+    """Sample (Re, H) points over the full dataset cloud.
+
+    Args:
+        raw (np.ndarray): Full HDF5 array.
+        samples (list[SampleRecord]): Samples to overlay.
+        figsize (tuple[float, float]): Figure size.
+
+    Returns:
+        matplotlib.figure.Figure: The rendered figure.
+    """
+    re = raw[:, 0, _H5_COL_RE]
+    h = raw[:, 0, _H5_COL_H]
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.scatter(re, h, s=8, c="0.7", alpha=0.5, label="dataset")
+    ax.scatter(
+        [s.re for s in samples],
+        [s.h for s in samples],
+        s=70,
+        facecolors="none",
+        edgecolors="red",
+        linewidths=1.5,
+        label="samples",
+    )
+    ax.set_xlabel("Reynolds number $Re$")
+    ax.set_ylabel("channel height $H$")
+    ax.set_title("Samples in dataset design space")
+    ax.legend()
+    fig.tight_layout()
+    return fig
+
+
+def plot_cp_manifold_context(
+    raw: np.ndarray,
+    samples: list[SampleRecord],
+    n_grid: int = 128,
+    figsize: tuple[float, float] = (7.0, 5.0),
+) -> matplotlib.figure.Figure:
+    """Project sample target & measured Cp into the dataset Cp-PCA plane.
+
+    The dataset cloud is the backdrop; an OOD sample sits outside it. Each
+    sample's target (square) and measured (filled circle) are joined by a
+    thin line so the generation+solver drift is visible.
+
+    Args:
+        raw (np.ndarray): Full HDF5 array.
+        samples (list[SampleRecord]): Samples to project.
+        n_grid (int): Cp grid for the basis.
+        figsize (tuple[float, float]): Figure size.
+
+    Returns:
+        matplotlib.figure.Figure: The rendered figure.
+    """
+    grid, basis = dataset_cp_pca(raw, n_grid=n_grid, n_components=2)
+    cloud = basis.project(dataset_cp_curves(raw, n_grid=n_grid))
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.scatter(cloud[:, 0], cloud[:, 1], s=8, c="0.75", alpha=0.5, label="dataset")
+    for s in samples:
+        tgt = basis.project(np.interp(grid, s.target_x, s.target_cp))
+        order = np.argsort(s.meas_x)
+        mea = basis.project(np.interp(grid, s.meas_x[order], s.meas_cp[order]))
+        ax.plot([tgt[0], mea[0]], [tgt[1], mea[1]], "0.5", lw=0.6, zorder=1)
+        ax.scatter(tgt[0], tgt[1], marker="s", s=45, c="C0", zorder=2)
+        ax.scatter(mea[0], mea[1], marker="o", s=35, c="C3", zorder=2)
+    ax.scatter([], [], marker="s", c="C0", label="target")
+    ax.scatter([], [], marker="o", c="C3", label="measured")
+    ax.set_xlabel("Cp PC 1")
+    ax.set_ylabel("Cp PC 2")
+    ax.set_title("Samples on the dataset Cp manifold")
+    ax.legend()
     fig.tight_layout()
     return fig

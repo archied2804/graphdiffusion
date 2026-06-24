@@ -69,3 +69,35 @@ def test_sample_gallery_smoke():
     assert isinstance(fig, matplotlib.figure.Figure)
     assert len(fig.axes) >= 4
     matplotlib.pyplot.close("all")
+
+
+from graph_diffusion.visualisation.sweep_results import (  # noqa: E402
+    plot_cp_manifold_context,
+    plot_design_space_context,
+)
+
+
+def _fake_raw_ctx(n_sims: int = 30, max_nodes: int = 16) -> np.ndarray:
+    rng = np.random.default_rng(1)
+    raw = np.full((n_sims, max_nodes, 105), np.nan, dtype=np.float32)
+    grid = np.linspace(0.0, 1.0, 12)
+    for s in range(n_sims):
+        raw[s, :12, 0] = grid - 0.5
+        raw[s, :12, 1] = 0.0
+        raw[s, :12, 2] = 500.0 + 500.0 * (s / n_sims)
+        raw[s, :12, 3] = 5.0 + 1.0 * rng.random()
+        raw[s, :12, 4:105] = (np.cos(np.pi * grid) + 0.2 * rng.standard_normal())[
+            :, None
+        ]
+    return raw
+
+
+def test_context_figures_smoke():
+    raw = _fake_raw_ctx()
+    samples = _fake_samples(4)
+    f1 = plot_design_space_context(raw, samples)
+    f2 = plot_cp_manifold_context(raw, samples)
+    for fig in (f1, f2):
+        assert isinstance(fig, matplotlib.figure.Figure)
+        assert len(fig.axes) >= 1
+    matplotlib.pyplot.close("all")
