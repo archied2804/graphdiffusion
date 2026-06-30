@@ -64,19 +64,22 @@ def _read_cp_csv(path: Path, value_col: str, x_grid: np.ndarray) -> np.ndarray:
 
 
 def _select_indist_cases(n_indist: int) -> list[tuple[str, Path]]:
-    """Pick ``n_indist`` Re-spanning eval_grid cases as ``(label, csv_path)``.
+    """Pick ``n_indist`` thickness-spanning eval_grid cases as ``(label, path)``.
 
-    Reads ``eval_grid/manifest.csv``, sorts by Reynolds number, and takes
-    evenly-spaced cases (first .. last) so the clip traverses the dataset.
+    Reads ``eval_grid/manifest.csv``, sorts by ellipse thickness (the vertical
+    semi-axis ``b``; ``a`` is fixed) and takes evenly-spaced cases so the clip
+    traverses a wide range of body heights — from the flattest ellipse to the
+    thickest one.
     """
     with (EVAL_GRID_DIR / "manifest.csv").open(newline="") as handle:
         rows = list(csv.DictReader(handle))
-    rows.sort(key=lambda r: float(r["Re"]))
+    rows.sort(key=lambda r: float(r["b"]))
     picks = np.linspace(0, len(rows) - 1, n_indist).round().astype(int)
     selected: list[tuple[str, Path]] = []
     for i in picks:
         row = rows[int(i)]
-        label = f"Re={float(row['Re']):.0f}, H={float(row['H']):.1f}"
+        aspect = float(row["b"]) / float(row["a"])
+        label = f"Re={float(row['Re']):.0f}  b/a={aspect:.2f}"
         csv_path = EVAL_GRID_DIR / f"sim_{row['idx']}_ref_cp.csv"
         selected.append((label, csv_path))
     return selected
@@ -94,6 +97,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--out-dir", type=Path, default=None)
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--fps", type=int, default=25)
+    parser.add_argument(
+        "--n-hold",
+        type=int,
+        default=50,
+        help="Frames each target is held (longer = longer pause per stage).",
+    )
+    parser.add_argument(
+        "--n-tween",
+        type=int,
+        default=25,
+        help="Frames per morph between consecutive targets.",
+    )
     parser.add_argument("--seed", type=int, default=0)
     return parser.parse_args()
 
@@ -154,6 +169,8 @@ def main() -> None:
         k_modes=k_modes,
         out_path_mp4=out_dir / "cp_morph.mp4",
         out_path_gif=out_dir / "cp_morph.gif",
+        n_tween=args.n_tween,
+        n_hold=args.n_hold,
         fps=args.fps,
     )
     print(f"[cp_morph] wrote {out_dir / 'cp_morph.gif'} (+ mp4 if ffmpeg available)")
