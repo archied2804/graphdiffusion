@@ -3,11 +3,14 @@ make_cp_morph_animation
 =======================
 
 Render the scripted Cp-morph generation clip: the Cp spline morphs through
-three in-distribution target Cp curves (auto-selected from the EXP-043
-``eval_grid`` sweep to span the Reynolds range) and one 3-sigma OOD target
-(``pc1_p3sig`` from the ``ood_systematic`` sweep). One shape is sampled per
-target from the EXP-021 conditional diffusion model; the morph itself is
-cheap (no per-frame sampling).
+several in-distribution target Cp curves and one 3-sigma OOD target
+(``pc1_p3sig`` from the ``ood_systematic`` sweep). The in-distribution
+targets are chosen from the EXP-043 ``eval_grid`` sweep by sampling every
+case, scoring how smoothly each generates, picking the ``n_indist`` smoothest,
+and ordering them thin -> thick — so the clip switches between clean outlines
+across a range of body heights. One shape is sampled per target from the EXP-021
+conditional diffusion model; the morph itself is cheap (no per-frame
+sampling).
 
 Example:
     python scripts/make_cp_morph_animation.py \
@@ -63,26 +66,65 @@ def _read_cp_csv(path: Path, value_col: str, x_grid: np.ndarray) -> np.ndarray:
     return np.interp(x_grid, x_sorted, y_sorted).astype(np.float32)
 
 
-def _select_indist_cases(n_indist: int) -> list[tuple[str, Path]]:
-    """Pick ``n_indist`` thickness-spanning eval_grid cases as ``(label, path)``.
+def _eval_grid_candidates(x_grid: np.ndarray) -> list[tuple[str, float, np.ndarray]]:
+    """All eval_grid in-distribution cases as ``(label, thickness, cp_dense)``.
 
-    Reads ``eval_grid/manifest.csv``, sorts by ellipse thickness (the vertical
-    semi-axis ``b``; ``a`` is fixed) and takes evenly-spaced cases so the clip
-    traverses a wide range of body heights — from the flattest ellipse to the
-    thickest one.
+    Reads ``eval_grid/manifest.csv`` and loads each case's reference Cp curve
+    resampled onto ``x_grid``. ``thickness`` is the ellipse aspect ratio
+    ``b / a`` (vertical semi-axis over horizontal), used downstream to span a
+    range of body heights.
     """
     with (EVAL_GRID_DIR / "manifest.csv").open(newline="") as handle:
         rows = list(csv.DictReader(handle))
-    rows.sort(key=lambda r: float(r["b"]))
-    picks = np.linspace(0, len(rows) - 1, n_indist).round().astype(int)
-    selected: list[tuple[str, Path]] = []
-    for i in picks:
-        row = rows[int(i)]
+    candidates: list[tuple[str, float, np.ndarray]] = []
+    for row in rows:
         aspect = float(row["b"]) / float(row["a"])
         label = f"Re={float(row['Re']):.0f}  b/a={aspect:.2f}"
-        csv_path = EVAL_GRID_DIR / f"sim_{row['idx']}_ref_cp.csv"
-        selected.append((label, csv_path))
-    return selected
+        cp_path = EVAL_GRID_DIR / f"sim_{row['idx']}_ref_cp.csv"
+        candidates.append((label, aspect, _read_cp_csv(cp_path, "cp_ref", x_grid)))
+    return candidates
+
+
+def _sample_shape(
+    model: object,
+    template: object,
+    theta: np.ndarray,
+    cp_dense: np.ndarray,
+    k_modes: int,
+    guidance_scale: float,
+    device: str,
+    seed: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Sample one boundary shape for a dense target Cp curve.
+
+    Returns:
+        Tuple ``(radii, xy)``: the raw per-node radii ``(N,)`` and the
+        theta-ordered Cartesian outline ``(N, 2)``.
+    """
+    cond_vec = torch.from_numpy(dct_ii(cp_dense, k_modes)).float()
+    radii, _ = sample_shapes_from_cond(
+        model=model,  # type: ignore[arg-type]
+        template=template,  # type: ignore[arg-type]
+        cond_vec=cond_vec,
+        n_samples=1,
+        guidance_scale=guidance_scale,
+        device=device,
+        seed=seed,
+    )
+    return radii[0], radial_to_xy(radii[0], theta)
+
+
+def _radial_roughness(radii: np.ndarray, theta: np.ndarray) -> float:
+    """High-frequency wiggle of a generated outline (lower = smoother).
+
+    Orders the per-node radii by angle and returns the RMS of the discrete
+    second difference (a curvature proxy), normalised by the mean radius so
+    the metric is scale-free across thin and thick bodies.
+    """
+    order = np.argsort(theta)
+    r = radii[order].astype(np.float64)
+    second_diff = r - 0.5 * (np.roll(r, 1) + np.roll(r, -1))
+    return float(np.sqrt(np.mean(second_diff**2)) / np.mean(r))
 
 
 def parse_args() -> argparse.Namespace:
@@ -93,7 +135,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--config", type=str, default="configs/EXP-021_long_train.yaml")
     parser.add_argument("--checkpoint-name", type=str, default="checkpoint_best.pt")
     parser.add_argument("--ood-case", type=str, default="pc1_p3sig")
-    parser.add_argument("--n-indist", type=int, default=3)
+    parser.add_argument("--n-indist", type=int, default=5)
     parser.add_argument("--out-dir", type=Path, default=None)
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--fps", type=int, default=25)
@@ -129,33 +171,53 @@ def main() -> None:
     template = copy.copy(dataset[0]).to(args.device)
     theta = template_thetas(template)
 
-    # Build the ordered target list: in-distribution cases, then the OOD climax.
-    targets_meta: list[tuple[str, np.ndarray, bool]] = []
-    for label, csv_path in _select_indist_cases(args.n_indist):
-        targets_meta.append((label, _read_cp_csv(csv_path, "cp_ref", x_grid), False))
-    ood_csv = OOD_DIR / f"{args.ood_case}_target_cp.csv"
-    targets_meta.append(
-        (f"{args.ood_case}", _read_cp_csv(ood_csv, "cp_target", x_grid), True)
-    )
-
-    targets = np.stack([cp for _, cp, _ in targets_meta], axis=0)
-    labels = [lab for lab, _, _ in targets_meta]
-    ood_flags = [flag for _, _, flag in targets_meta]
-
-    # Sample one shape per target (single sample = fast, reproducible).
-    shapes: list[np.ndarray] = []
-    for _, cp_dense, _ in targets_meta:
-        cond_vec = torch.from_numpy(dct_ii(cp_dense, k_modes)).float()
-        radii, _ = sample_shapes_from_cond(
-            model=model,
-            template=template,
-            cond_vec=cond_vec,
-            n_samples=1,
-            guidance_scale=guidance_scale,
-            device=args.device,
-            seed=args.seed,
+    # Sample every in-distribution candidate once and score how smoothly it
+    # generates, so we can switch between clean (un-wiggly) outlines.
+    candidates = _eval_grid_candidates(x_grid)
+    scored: list[tuple[str, float, np.ndarray, np.ndarray, float]] = []
+    for label, aspect, cp_dense in candidates:
+        radii, xy = _sample_shape(
+            model,
+            template,
+            theta,
+            cp_dense,
+            k_modes,
+            guidance_scale,
+            args.device,
+            args.seed,
         )
-        shapes.append(radial_to_xy(radii[0], theta))
+        scored.append((label, aspect, cp_dense, xy, _radial_roughness(radii, theta)))
+
+    # Report the full roughness ranking (smoothest first) so the selection is
+    # transparent; thin bodies tend to generate wigglier with this model.
+    print("[cp_morph] eval_grid roughness ranking (smoothest first):")
+    for label, _aspect, _cp, _xy, rough in sorted(scored, key=lambda s: s[4]):
+        print(f"    {rough:.4f}  {label}")
+
+    # Pick the n_indist smoothest-generating cases (the user wants clean
+    # outlines to switch between), then order them thin -> thick so the morph
+    # still progresses through a range of body heights.
+    chosen = sorted(scored, key=lambda s: s[4])[: args.n_indist]
+    chosen.sort(key=lambda s: s[1])
+
+    # Ordered targets: smooth in-distribution shapes, then the OOD climax.
+    labels = [c[0] for c in chosen]
+    targets_list = [c[2] for c in chosen]
+    shapes = [c[3] for c in chosen]
+    ood_flags = [False] * len(chosen)
+
+    ood_cp = _read_cp_csv(
+        OOD_DIR / f"{args.ood_case}_target_cp.csv", "cp_target", x_grid
+    )
+    _, ood_xy = _sample_shape(
+        model, template, theta, ood_cp, k_modes, guidance_scale, args.device, args.seed
+    )
+    labels.append(args.ood_case)
+    targets_list.append(ood_cp)
+    shapes.append(ood_xy)
+    ood_flags.append(True)
+
+    targets = np.stack(targets_list, axis=0)
 
     out_dir = args.out_dir if args.out_dir is not None else args.experiment_dir
     out_dir.mkdir(parents=True, exist_ok=True)
