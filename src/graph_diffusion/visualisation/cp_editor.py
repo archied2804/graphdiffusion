@@ -212,8 +212,14 @@ class CpCurveEditor:
         return dct_curve
 
     def _redraw(self) -> None:
-        self._spline_line.set_ydata(self._spline_curve())
-        self._dct_line.set_ydata(self._compute_dct_curve())
+        # Compute spline + DCT in one pass so a drag event builds the
+        # CubicSpline only once (the two getters above are kept for the
+        # public API and tests, which call them independently).
+        spline, dct_curve = cp_spline_and_dct(
+            self._control_x, self._control_y, self._x_grid, self.k_modes
+        )
+        self._spline_line.set_ydata(spline)
+        self._dct_line.set_ydata(dct_curve)
         self._handles_line.set_data(self._control_x, self._control_y)
         if self.ax.figure.canvas is not None:
             self.ax.figure.canvas.draw_idle()
