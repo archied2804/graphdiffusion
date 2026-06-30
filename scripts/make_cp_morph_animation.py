@@ -6,9 +6,9 @@ Render the scripted Cp-morph generation clip: the Cp spline morphs through
 several in-distribution target Cp curves and one 3-sigma OOD target
 (``pc1_p3sig`` from the ``ood_systematic`` sweep). The in-distribution
 targets are chosen from the EXP-043 ``eval_grid`` sweep by sampling every
-case, scoring how smoothly each generates, picking the ``n_indist`` smoothest,
-and ordering them thin -> thick — so the clip switches between clean outlines
-across a range of body heights. One shape is sampled per target from the EXP-021
+case, scoring how smoothly each generates, picking the smoothest set (plus one
+flat body, which generates wigglier), and ordering them so consecutive Cp
+curves vary as much as possible. One shape is sampled per target from the EXP-021
 conditional diffusion model; the morph itself is cheap (no per-frame
 sampling).
 
@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import copy
 import csv
+import itertools
 from pathlib import Path
 
 import numpy as np
@@ -127,6 +128,32 @@ def _radial_roughness(radii: np.ndarray, theta: np.ndarray) -> float:
     return float(np.sqrt(np.mean(second_diff**2)) / np.mean(r))
 
 
+def _max_variation_order(curves: list[np.ndarray]) -> list[int]:
+    """Visiting order maximising consecutive Cp-curve variation.
+
+    Brute-forces the open path that maximises the sum of consecutive L2
+    distances between curves, so the morph makes the biggest possible jumps
+    each step. Cheap for the handful of in-distribution targets; falls back to
+    the input order when there are too many curves to enumerate.
+    """
+    n = len(curves)
+    if n <= 2 or n > 8:
+        return list(range(n))
+    dist = np.zeros((n, n))
+    for i in range(n):
+        for j in range(i + 1, n):
+            d = float(np.linalg.norm(curves[i] - curves[j]))
+            dist[i, j] = dist[j, i] = d
+    best_order = list(range(n))
+    best_score = -1.0
+    for perm in itertools.permutations(range(n)):
+        score = sum(dist[perm[k], perm[k + 1]] for k in range(n - 1))
+        if score > best_score:
+            best_score = score
+            best_order = list(perm)
+    return best_order
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -136,6 +163,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--checkpoint-name", type=str, default="checkpoint_best.pt")
     parser.add_argument("--ood-case", type=str, default="pc1_p3sig")
     parser.add_argument("--n-indist", type=int, default=5)
+    parser.add_argument(
+        "--flat-aspect",
+        type=float,
+        default=0.60,
+        help="Aspect ratio b/a below which a body counts as 'flat' for the "
+        "one flat case mixed into the smoothest set.",
+    )
     parser.add_argument("--out-dir", type=Path, default=None)
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--fps", type=int, default=25)
@@ -194,11 +228,22 @@ def main() -> None:
     for label, _aspect, _cp, _xy, rough in sorted(scored, key=lambda s: s[4]):
         print(f"    {rough:.4f}  {label}")
 
-    # Pick the n_indist smoothest-generating cases (the user wants clean
-    # outlines to switch between), then order them thin -> thick so the morph
-    # still progresses through a range of body heights.
-    chosen = sorted(scored, key=lambda s: s[4])[: args.n_indist]
-    chosen.sort(key=lambda s: s[1])
+    # Pick the (n_indist - 1) smoothest cases plus the smoothest genuinely-flat
+    # body, so the set is clean but still includes a flat shape (flat bodies
+    # generate wigglier, so we take the cleanest available one).
+    by_rough = sorted(range(len(scored)), key=lambda i: scored[i][4])
+    core_idx = by_rough[: max(args.n_indist - 1, 0)]
+    flat_idx = [
+        i for i in by_rough if scored[i][1] < args.flat_aspect and i not in core_idx
+    ]
+    if flat_idx and len(core_idx) < args.n_indist:
+        chosen_idx = core_idx + [flat_idx[0]]
+    else:
+        chosen_idx = by_rough[: args.n_indist]
+    chosen = [scored[i] for i in chosen_idx]
+
+    # Switch between them in the order that maximises Cp-curve variation.
+    chosen = [chosen[i] for i in _max_variation_order([c[2] for c in chosen])]
 
     # Ordered targets: smooth in-distribution shapes, then the OOD climax.
     labels = [c[0] for c in chosen]
