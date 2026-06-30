@@ -36,6 +36,34 @@ from graph_diffusion.data.pOnEllipseConditional import dct_ii, dct_ii_inverse
 _DEFAULT_HANDLE_X = np.array([0.0, 0.15, 0.30, 0.50, 0.70, 0.85, 1.0], dtype=np.float32)
 
 
+def cp_spline_and_dct(
+    handle_x: np.ndarray,
+    handle_y: np.ndarray,
+    x_grid: np.ndarray,
+    k_modes: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Natural cubic spline through the handles and its DCT-k reconstruction.
+
+    Args:
+        handle_x: Handle x-positions, shape ``(n_handles,)``.
+        handle_y: Handle y-values, shape ``(n_handles,)``.
+        x_grid: Dense ``x/c`` grid, shape ``(n_grid,)``.
+        k_modes: Number of DCT-II coefficients kept.
+
+    Returns:
+        Tuple ``(spline, dct_curve)``, each shape ``(n_grid,)`` and
+        ``float32``. ``spline`` is the cubic-spline curve the user
+        "draws"; ``dct_curve`` is the DCT-k reconstruction the model sees.
+    """
+    spline_fn = CubicSpline(handle_x, handle_y, bc_type="natural")
+    spline: np.ndarray = spline_fn(x_grid).astype(np.float32)
+    coeffs = dct_ii(spline, int(k_modes))
+    dct_curve: np.ndarray = dct_ii_inverse(coeffs, int(x_grid.shape[0])).astype(
+        np.float32
+    )
+    return spline, dct_curve
+
+
 class CpCurveEditor:
     """Draggable Cp(x/c) curve editor.
 
@@ -172,13 +200,16 @@ class CpCurveEditor:
         return out
 
     def _spline_curve(self) -> np.ndarray:
-        spline = CubicSpline(self._control_x, self._control_y, bc_type="natural")
-        out: np.ndarray = spline(self._x_grid).astype(np.float32)
-        return out
+        spline, _ = cp_spline_and_dct(
+            self._control_x, self._control_y, self._x_grid, self.k_modes
+        )
+        return spline
 
     def _compute_dct_curve(self) -> np.ndarray:
-        coeffs = dct_ii(self._spline_curve(), self.k_modes)
-        return dct_ii_inverse(coeffs, self._n_grid)
+        _, dct_curve = cp_spline_and_dct(
+            self._control_x, self._control_y, self._x_grid, self.k_modes
+        )
+        return dct_curve
 
     def _redraw(self) -> None:
         self._spline_line.set_ydata(self._spline_curve())

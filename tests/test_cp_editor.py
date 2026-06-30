@@ -23,7 +23,10 @@ from graph_diffusion.data.pOnEllipseConditional import (  # noqa: E402
     dct_ii,
     dct_ii_inverse,
 )
-from graph_diffusion.visualisation.cp_editor import CpCurveEditor  # noqa: E402
+from graph_diffusion.visualisation.cp_editor import (  # noqa: E402
+    CpCurveEditor,
+    cp_spline_and_dct,
+)
 
 
 def _make_axes() -> plt.Axes:
@@ -121,6 +124,19 @@ def test_editor_fire_release_invokes_callback_with_cond() -> None:
     assert len(fired) == 1
     np.testing.assert_allclose(fired[0], editor.get_cond_vector())
     plt.close(ax.figure)
+
+
+def test_cp_spline_and_dct_shapes_and_dct_identity() -> None:
+    handle_x = np.linspace(0.0, 1.0, 7, dtype=np.float32)
+    handle_y = np.array([0.6, 0.2, -0.3, -0.8, -0.4, 0.1, 0.5], dtype=np.float32)
+    x_grid = np.linspace(0.0, 1.0, 64, dtype=np.float32)
+
+    spline, dct_curve = cp_spline_and_dct(handle_x, handle_y, x_grid, k_modes=8)
+
+    assert spline.shape == (64,)
+    assert dct_curve.shape == (64,)
+    expected = dct_ii_inverse(dct_ii(spline, 8), n_samples=64)
+    np.testing.assert_allclose(dct_curve, expected, atol=1e-5)
 
 
 def test_editor_raises_on_too_few_control_points() -> None:
