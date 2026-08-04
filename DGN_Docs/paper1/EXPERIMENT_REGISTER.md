@@ -29,7 +29,7 @@ appear in the paper · `support` strengthens it, cut first if time runs out.
 | ID | Title | Tier | Question | Depends | Train | Solver | Status |
 |---|---|:--:|---|---|:--:|:--:|:--:|
 | [P1-F01](specs/P1-F01_data-partition.md) | Data partition & leakage audit | **gate** | Is there a clean disjoint three-way split, and what did Year-1 actually evaluate on? | — | 0 | 0 | ✅ **[reported](results/P1-F01_data-partition.md)** — falsified |
-| [P1-F02](specs/P1-F02_grading-metric.md) | Canonical grading metric | **gate** | Do the four existing (ρ, a) implementations agree? What is the single definition? | — | 0 | 0 | planned |
+| [P1-F02](specs/P1-F02_grading-metric.md) | Canonical grading metric | **gate** | Do the four existing (ρ, a) implementations agree? What is the single definition? | — | 0 | 0 | ✅ **[reported](results/P1-F02_grading-metric.md)** — falsified |
 | [P1-F03](specs/P1-F03_solver-qualification.md) | Solver instrument qualification | **gate** | Is the solver fit to grade — accurate, stable, resolution-insensitive? | F02 | 0 | ~29 | planned |
 | [P1-F04](specs/P1-F04_noise-floor.md) | Grading noise floor | **gate** | What is the measurement uncertainty of ρ and a? | F02 F03 | 0 | ~18 | planned |
 | [P1-F05](specs/P1-F05_reference-model.md) | Reference model, clean protocol | **gate** | Does the EXP-022 recipe reproduce on a clean split, and what is its true held-out performance? | F01 (F02 for grading only) | 5 | 0 | 🔄 **running** — 5 seeds |
