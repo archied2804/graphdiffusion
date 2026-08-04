@@ -78,4 +78,13 @@ sampling:
 training:
   scheduler: cosine_annealing
   eta_min: 1.0e-5
-  early_stopping_patience: 100
+  # EXP-022 used 100.  The first P1-F05 attempt showed that is a confound for a
+  # multi-seed reference: seed 0 early-stopped at epoch 281 (best at 181) while
+  # seeds 1-3 improved until epoch ~950-990 and never triggered it, so seeds
+  # received unequal training budgets and seed 0's best_val was ~10x worse.
+  #
+  # Set above the epoch budget so it can never fire.  This is deliberately NOT
+  # `null`: in train.py the best-checkpoint save lives inside the
+  # early-stopping branch, so disabling it entirely would also disable
+  # best-checkpoint selection.  Equal budgets, same checkpoint rule.
+  early_stopping_patience: 1001
