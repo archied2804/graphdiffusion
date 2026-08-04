@@ -140,3 +140,47 @@ SLURM job script: `scripts/run_experiment.slurm`. Submit via:
 ```bash
 sbatch --job-name=EXP-NNN --export=CONFIG=configs/...,EPOCHS=100,DEVICE=cuda scripts/run_experiment.slurm
 ```
+
+---
+
+## Paper 1 — pre-registered suite (ACTIVE, Aug–Dec 2026)
+
+All Paper 1 work is governed by **`DGN_Docs/paper1/`** — 29 experiments named
+`P1-<GROUP><NN>_<slug>`, each pre-registered with a hypothesis, a falsifier, and a
+pass/fail decision rule fixed *before* running. The exploratory `EXP-0xx` series is
+the pilot phase and is cited, not extended.
+
+**Before touching any Paper 1 experiment, read in this order:**
+1. `DGN_Docs/paper1/specs/P1-<ID>_*.md` — the pre-registration for that experiment
+2. `DGN_Docs/paper1/PROTOCOL.md` — splits, seeds, metrics, grading, significance
+3. `DGN_Docs/paper1/EXPERIMENT_REGISTER.md` — dependencies and current status
+
+### Hard rules
+
+- **Never retrofit.** If a result falls outside its pre-registered decision rule,
+  report that plainly and follow the spec's stated consequence. Do not reinterpret
+  the hypothesis to fit the outcome, and do not re-run the suite at a new optimum
+  discovered from test numbers — that contaminates every downstream experiment.
+- **Never edit a spec after its first run.** Deviations go in the results file
+  under "Protocol deviations", dated.
+- **The test split is not a development set.** Looking at a test number and then
+  changing a hyperparameter invalidates that experiment.
+- **A difference below 2σ of the F04 noise floor is "no detectable difference"** —
+  applied symmetrically, including to results that favour the method.
+- **Baselines must match parameters (±5%) and state what could not be matched.**
+- **Scope is closed.** Anything on the "deliberately not here" list in
+  `EXPERIMENT_REGISTER.md §5` belongs to Paper 2 or 3. If asked for it, say so
+  first, then proceed if confirmed.
+- **One experiment at a time.** Its results file is written before the next starts.
+
+### Claim discipline
+
+Paper 1 earns the word **"discretisation-native"** and nothing more. Not "direct
+node movement" (nodes move radially, 1 DOF, on a fixed ring — Paper 2), not
+"mesh-native" (a 96-node boundary ring, no interior nodes — Paper 3). The permitted
+and forbidden wording is tabulated in `DGN_Docs/paper1/REPORT_OUTLINE.md`.
+
+### Report writing
+
+The user writes all paper prose by hand — **do not draft report text.** Assist with
+structure, figures, analysis, tables, and critique of their draft.
