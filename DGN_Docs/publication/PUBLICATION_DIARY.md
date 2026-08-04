@@ -114,6 +114,29 @@ record `git_dirty: true` and PROTOCOL §7 forbids using such a run for a reporte
 number. Committing before the runs finish fixes it (git state is captured at run
 end).
 
+**Amendment, same day — F05 attempt 1 discarded and relaunched.** The first run
+exposed a protocol confound: `early_stopping_patience: 100`, inherited from
+EXP-022, meant **seeds received unequal training budgets**. Seed 0 stopped at
+epoch 281 (best at 181, `val = 1.44e-3`) while seeds 1–3 ran the full 1000 and
+improved until epoch ~950–990 (`val ≈ 1.0–1.7e-4`) — an order of magnitude apart.
+Reported as-is, that would have been recorded as *seed variance* when it was a
+budget artefact.
+
+Fixed by raising patience above the epoch budget so it can never fire —
+deliberately not `null`, because in `train.py` the best-checkpoint save sits
+inside the early-stopping branch and would be disabled with it. Applied uniformly;
+recorded here and in the F05 results file as a **protocol deviation**, not a
+silent spec edit. Attempt 1 archived at
+`outputs/paper1/_archive_P1-F05_attempt1_earlystop/` as evidence.
+
+Relaunched on a clean tree (12 commits landed first), so `run_meta.json` will now
+record `git_dirty: false` and the runs are usable under PROTOCOL §7.
+
+**Observation, logged not acted on:** seeds 1–3 were still improving at epoch
+~990, so the 1000-epoch budget may itself be under-specified. That is
+[[../paper1/specs/P1-S03_diffusion-schedule|S03]]'s question — do not change the
+reference recipe to chase it.
+
 **Next:** F02 `cp_metrics` module — the last thing blocking any graded result.
 
 ---
