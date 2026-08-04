@@ -86,9 +86,23 @@ def test_dataset_url_contains_repo() -> None:
 
 def test_dataset_url_filenames() -> None:
     assert DatasetUrl.TRAIN_H5.value.endswith("pOnEllipseTrain.h5")
-    assert DatasetUrl.TEST_H5.value.endswith("pOnEllipseTest.h5")
     assert DatasetUrl.TIME_TRAIN_NPY.value.endswith("TimeEllipseTrain.npy")
     assert DatasetUrl.AOA10_H5.value.endswith("pOnEllipseAoA10.h5")
+
+
+def test_dataset_url_evaluation_sets() -> None:
+    """The five published evaluation sets, none of which existed as TEST_H5.
+
+    ``pOnEllipseTest.h5`` is NOT published upstream — the URL previously listed
+    under ``DatasetUrl.TEST_H5`` returned 404.  Verified against the HuggingFace
+    repository listing during P1-F01.
+    """
+    assert DatasetUrl.INDIST_H5.value.endswith("pOnEllipseInDist.h5")
+    assert DatasetUrl.LOWRE_H5.value.endswith("pOnEllipseLowRe.h5")
+    assert DatasetUrl.HIGHRE_H5.value.endswith("pOnEllipseHighRe.h5")
+    assert DatasetUrl.THIN_H5.value.endswith("pOnEllipseThin.h5")
+    assert DatasetUrl.THICK_H5.value.endswith("pOnEllipseThick.h5")
+    assert not hasattr(DatasetUrl, "TEST_H5")
 
 
 # ---------------------------------------------------------------------------
