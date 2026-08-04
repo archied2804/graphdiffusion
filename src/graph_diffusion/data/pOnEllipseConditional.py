@@ -63,9 +63,26 @@ def dct_ii(x: np.ndarray, k_modes: int) -> np.ndarray:
         X[k] = sum_{n=0..N-1} x[n] * cos(pi * (2n+1) * k / (2N))
 
     Orthonormalised: multiplied by ``sqrt(2/N)`` for ``k>0`` and
-    ``sqrt(1/N)`` for ``k=0``, so the encoding is scale-invariant under
-    a change in sample count ``N``. This is what makes the resulting
-    descriptor source-agnostic across different node counts.
+    ``sqrt(1/N)`` for ``k=0``.
+
+    .. warning::
+
+       This convention is **not** invariant to the sample count ``N``.
+       Orthonormalisation preserves the vector norm (Parseval), and the norm
+       of a sampled continuous function grows as ``sqrt(N)``, so the
+       coefficients of a *fixed* curve scale as ``sqrt(N)``. Resampling the
+       same Cp curve from 96 to 192 points inflates the descriptor by 41%.
+
+       Measured by ``P1-D01``; see
+       ``DGN_Docs/paper1/results/P1-D01_conditioning-invariance.md``. An
+       earlier version of this docstring claimed the opposite. Sample-count
+       invariance requires the ``1/N`` (forward-scaling) convention instead,
+       which approximates the continuous cosine coefficients.
+
+       Changing this would alter the conditioning seen by every trained
+       checkpoint, so it is pinned by
+       ``tests/test_pOnEllipseConditional.py::test_dct_ii_scales_as_sqrt_n_not_invariant``
+       and must not be changed casually.
 
     Args:
         x (np.ndarray): Real input signal, shape ``(N,)``.
