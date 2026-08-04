@@ -38,6 +38,20 @@ and recompute anything carried forward.**
 
 n = 22 stored OpenLB runs with a matching reference curve.
 
+**Data provenance — no new CFD was run for this experiment.** All 22 pairs are
+stored solver output from 16–24 June 2026 (the EXP-04x era), at a **single
+operating point**: `RESOLUTION = 160`, `Re = 754`, every measured curve n = 60.
+Twenty-one of the 22 are synthetic perturbations of one base shape (`ood_sin*`,
+`pc1_*`, `pc2_*` at ±1–4σ along two principal components); the twenty-second is
+`sim_0`.
+
+This is legitimate for the pre-registered hypothesis, which is a **software-
+equivalence question** — the CFD output is a fixture, and Finding 1 holds
+whatever the solver did. It is **not** a broad or independent sample, and
+Finding 2 must be read against that limit (§4). None of these runs come from
+the held-out evaluation sets, which were not downloaded until
+[[../specs/P1-F01_data-partition]], so no test-split contamination arises.
+
 ## 3. Finding 1 — `compare_cp_baseline.py` interpolates onto a non-monotonic grid
 
 The two variants differ in resampling direction:
@@ -82,11 +96,22 @@ regression of `a` on Re, `H`, `b` should now be read alongside this: a structure
 residual and an operating-point-dependent `a` would together mean the single-constant
 story is wrong.
 
-**Do not treat this as settled.** The runs test is sensitive to serial correlation,
-and a curve sampled on a fine grid is autocorrelated by construction, which
-inflates `|z|`. The finding is that the residual is *not* white; quantifying how
-much of that is genuine misfit versus grid autocorrelation is F03's job, where the
-same diagnostic runs across the 15-case envelope.
+**Do not treat this as settled.** Two independent reasons:
+
+1. **Statistical.** The runs test is sensitive to serial correlation, and a curve
+   sampled on a fine grid is autocorrelated by construction, which inflates `|z|`.
+2. **Sampling.** Per §2, the 22 runs are one resolution, one Reynolds number, and
+   21 of them are ±1–4σ steps along two PCs from a single base shape. They are
+   correlated by construction, so the effective sample size is far below 22, and
+   a residual structure specific to *that* shape family would look exactly like
+   this. The consistency of `|z|` across runs is therefore **not** evidence of
+   generality — it is partly evidence that the runs are near-duplicates.
+
+The finding is that the residual is *not* white **on this sample**. Establishing
+whether that is a property of the affine model, of this shape family, or of grid
+autocorrelation is [[../specs/P1-F03_solver-qualification]]'s job, where the same
+diagnostic runs across the 15-case envelope — which varies Re, resolution and
+thickness independently, and is the first sample capable of separating the three.
 
 ## 5. Finding 3 — reference curves are stored already collapsed
 
