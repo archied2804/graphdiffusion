@@ -11,11 +11,21 @@ wheels/
 .github
 
 # Runtime outputs
-/data/
+# Raw datasets are large and fetched on demand; exclude contents, not the dir,
+# so the frozen Paper 1 partition can be re-included (PROTOCOL §1).
+/data/*
+!/data/splits/
+/data/splits/*
+!/data/splits/*.json
 outputs/
 generated_shapes.png
 
 # AI
 .claude/
-notebooks/data/
+notebooks# Raw datasets are large and fetched on demand; exclude contents, not the dir,
+# so the frozen Paper 1 partition can be re-included (PROTOCOL §1).
+/data/*
+!/data/splits/
+/data/splits/*
+!/data/splits/*.json
 **/.ipynb_checkpoints/
