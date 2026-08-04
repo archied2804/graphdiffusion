@@ -1,0 +1,81 @@
+# P1-F05: Reference model under the clean protocol
+# =================================================
+# Forked verbatim from configs/EXP-022_T1000.yaml.  The ONLY differences are
+# operational, not architectural:
+#   * the train/val split comes from data/splits/paper1_partition.json
+#     (pass --partition), never from a runtime random_split
+#   * --seed is mandatory; 5 seeds (0-4) are trained
+#   * run_meta.json is emitted per PROTOCOL §7
+#
+# The resulting checkpoints are frozen as P1-REF.  Every A/B/C/D/G/S experiment
+# is a delta from this and must reuse these seeds.
+#
+# Spec: DGN_Docs/paper1/specs/P1-F05_reference-model.md
+#
+# NOTE on node counts: the training corpus has 52-96 boundary nodes across 12
+# distinct values (the HDF5 array is padded to its 96-node maximum; only 37 of
+# 5701 samples actually have 96).  The model is therefore already trained across
+# a range of discretisations -- see P1-F01's audit.
+
+dataset_type: shape_conditional
+
+ellipse_dataset:
+  root: data/ellipse
+  split: train
+  feature_mode: radial_norm
+  cond_mode: fourier
+  k_modes: 8
+  n_samples: null
+  k_neighbors: 6
+  global_dim: 8
+
+data:
+  batch_size: 32
+  val_split: 0.1          # ignored when --partition is supplied
+  num_workers: 0
+  shuffle: true
+
+noise_schedule:
+  T: 1000
+  schedule_type: cosine
+  beta_start: 1.0e-4
+  beta_end: 0.02
+
+score_network:
+  node_dim: 32
+  edge_dim: 2
+  global_dim: 8
+  time_embed_dim: 64
+  n_layers: 4
+  hidden_dims: [64, 64]
+  input_dim: 3
+  output_dim: 1
+  cond_dim: 8
+  p_uncond: 0.15
+
+pressure_head:
+  in_dim: 3
+  out_dim: 8
+  node_hidden: [64, 64]
+  global_hidden: [64, 64]
+  node_embed_dim: 64
+
+mlp:
+  activation: silu
+  layer_norm: true
+  residual: true
+
+model:
+  n_noise_channels: 1
+  lambda_pressure: 0.1
+
+clamp_range: [0.5, 2.0]
+
+sampling:
+  guidance_scale: 3.0
+  dps_guidance_weight: 0.0
+
+training:
+  scheduler: cosine_annealing
+  eta_min: 1.0e-5
+  early_stopping_patience: 100
