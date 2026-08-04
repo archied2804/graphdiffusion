@@ -1,0 +1,52 @@
+\documentclass[11pt]{article}
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{siunitx}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\graphicspath{{../../assets/}}
+
+% C++ code listing style for the OpenLB implementation snippets.
+\definecolor{codecomment}{rgb}{0.40,0.45,0.50}
+\definecolor{codekeyword}{rgb}{0.10,0.20,0.55}
+\definecolor{codeback}{rgb}{0.97,0.97,0.97}
+\lstdefinestyle{cpp}{
+  language=C++,
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{codekeyword},
+  commentstyle=\color{codecomment}\itshape,
+  backgroundcolor=\color{codeback},
+  frame=single,
+  rulecolor=\color{gray!40},
+  breaklines=true,
+  columns=fullflexible,
+  showstringspaces=false,
+  literate={→}{$\rightarrow$}{1} {≈}{$\approx$}{1} {≲}{$\lesssim$}{1}
+           {½}{$\tfrac12$}{1} {·}{$\cdot$}{1} {←}{$\leftarrow$}{1}
+           {ν}{$\nu$}{1} {τ}{$\tau$}{1},
+}
+
+\title{Diffusion-based inverse design of aerodynamic shapes,\\
+validated against an independent lattice-Boltzmann solver}
+\author{Archie Dobson \\ University of Manchester}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\input{sections/00_abstract}
+\input{sections/01_introduction}
+\input{sections/02_related_work}
+\input{sections/03_methodology}
+\input{sections/04_results}
+\input{sections/05_discussion}
+\input{sections/06_conclusions}
+
+\bibliographystyle{plainnat}
+\bibliography{refs}
+
+\end{document}

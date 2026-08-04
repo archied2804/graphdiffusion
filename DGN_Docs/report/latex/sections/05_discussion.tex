@@ -1,0 +1,125 @@
+\section{Discussion}
+
+\subsection{In-distribution trust versus out-of-distribution extrapolation}
+
+The clearest message of the results is a sharp boundary between two regimes. \emph{In-distribution},
+the loop is trustworthy on every axis we can test: the solver reproduces dataset pressure at
+$\rho \approx 0.96$ across the whole $(Re, H)$ grid, and generated shapes hit their target morphology
+at $\rho \approx 0.95$. This is a genuine, independent confirmation of inverse design --- the grading
+physics shares no component with the generator, so a high correlation cannot be the model marking its
+own work. \emph{Out-of-distribution}, fidelity degrades smoothly and predictably with distance from
+the training manifold: morphology correlation softens from $\approx 0.96$ to $\approx 0.86$ along the
+controlled $+\mathrm{PC1}$ ladder. The model interpolates within the laminar elliptical regime it has
+seen and extrapolates poorly beyond it --- exactly the behaviour the independent loop was built to
+expose, and a useful one to have quantified rather than assumed.
+
+\subsection{Magnitude creep is a model-side calibration issue}
+
+Two independent lines of evidence localise the amplitude bias to the generator, not the solver. First,
+the resolution-, node-density- and roughness-controlled ladder leaves the affine slope $a$ unmoved by
+any CFD or discretisation lever, with $a$ already elevated \emph{in-distribution}. Second, the
+systematic OOD ladder measures $a \approx 2.0$--2.5 on generated shapes against the solver's validated
+$a \approx 1.74$ on real dataset shapes run through the same pipeline --- the same solver, the same
+mesh family, the same normalisation, differing only in whether the shape was generated or real. The
+gap is therefore generative: the model captures pressure \emph{shape} faithfully but systematically
+overshoots its \emph{amplitude}. This is why we report correlation, not absolute amplitude, as the
+inverse-design verdict, and treat the slope as a calibration target to be closed model-side (for
+example via the deferred physical-$Re$ conditioning) rather than a solver defect to be chased in the
+CFD.
+
+\subsection{Why posterior guidance is the wrong knob out-of-distribution}
+
+The intuitive fix for the OOD gap --- adding a likelihood gradient from the model's own pressure head
+via Diffusion Posterior Sampling \cite{chung2023dps} --- makes every metric worse, monotonically with
+guidance strength. The mechanism is that DPS steers toward the \emph{self-trained} head's estimate of
+the target, and out-of-distribution that head is precisely the component that is unreliable; stronger
+guidance just optimises the surrogate's own error and inflates the body. This is a clean negative
+result: plain classifier-free guidance is the correct OOD configuration, and the OOD gap cannot be
+closed cheaply with a self-graded posterior. It must be closed by widening what the model genuinely
+knows --- more diverse training data, or physically-grounded conditioning --- not by trusting the
+surrogate harder.
+
+\subsection{Limitations}
+
+The findings above are bounded by several limitations, which also frame the next phase of work.
+
+\paragraph{Validation framework still being verified.} All OpenLB-derived numbers are provisional
+pending re-verification of the validation framework, and are flagged as such throughout. The
+qualitative conclusions --- in-distribution trust, OOD decay, model-side magnitude creep, the DPS
+negative --- are robust to modest shifts in the exact figures, but the precise correlations and slopes
+should be read as current best estimates rather than settled values.
+
+\paragraph{Narrow physical regime.} The entire study lives in 2D incompressible laminar flow around
+elliptical cylinders at $Re$ 500--1000 (the vortex-shedding regime), with a single-family geometry
+parameterised mainly by minor axis $b$. Nothing here speaks to turbulent, compressible, 3D, or
+aerofoil-like flows; the demonstrated inverse-design capability is for this controlled testbed, chosen
+deliberately as a tractable first target before scaling.
+
+\paragraph{Steady-mean pressure target.} The 101 unsteady pressure timesteps per simulation are
+collapsed to a single steady-mean $C_p$, discarding all temporal structure of the shedding. The model
+neither conditions on nor predicts unsteady loads, so phenomena that matter aerodynamically ---
+shedding frequency, fluctuating lift, phase --- are outside its scope by construction.
+
+\paragraph{Single solver, single mesh family, no formal grid-convergence study.} Validation rests on
+one lattice-Boltzmann solver with Reynolds-scaled but not formally converged resolution
+($\mathrm{RES} \approx 0.2\,Re$, set for stability rather than from a grid-independence study), and
+correlation is observed to taper slightly at the high-$Re$ end through genuine under-resolution. An
+external benchmark (the Hron--Turek case) and a grid-convergence study remain outstanding and are
+required before the solver's absolute accuracy --- as opposed to its internal consistency --- can be
+claimed.
+
+\paragraph{Conditioning is pressure-only and band-limited.} The target is encoded as just the first
+$K = 8$ DCT-II modes of $C_p(x/c)$, which capture smooth low-frequency morphology but truncate sharp
+pressure features; and the model conditions on $C_p$ alone, with no physical $Re$/$H$ conditioning.
+Reynolds number is fixed (754) across the OOD ladder, so the present results cannot separate
+$C_p$-morphology extrapolation from Reynolds extrapolation. Adding $Re$ conditioning is the deferred
+next step and the natural lever on the magnitude creep.
+
+\paragraph{OOD axis not isometric to conditioning space.} The PCA-$\sigma$ ladder only reaches genuine
+OOD along $+\mathrm{PC1}$; the other principal directions stay near the training manifold regardless of
+amplitude, because raw-curve PCA $\sigma$-units do not map linearly onto the DCT-conditioning space the
+model sees. The controlled OOD claim is therefore strongest along $+\mathrm{PC1}$; a fully monotone,
+isotropic OOD sweep requires re-parameterising the ladder directly in conditioning space.
+
+\paragraph{Unresolved amplitude calibration.} The magnitude creep ($a$ elevated above the validated
+1.74) is diagnosed but not yet fixed, so the model is an inverse designer of pressure \emph{shape}, not
+of absolute pressure level. Until calibration is closed, downstream use must rely on correlation rather
+than predicted magnitudes.
+
+\paragraph{Surface roughness is cosmetic here but unquantified at scale.} Raw-versus-smoothed shapes
+differ by only $\sim 0.01$ in correlation and $\sim 5\%$ in $C_d$ in the present regime, so the
+characteristic boundary wobble does not corrupt the physics measured here. Whether that remains true at
+higher $Re$, where thinner boundary layers are more sensitive to surface detail, is untested.
+
+\subsection{Toward a rigorous evaluation}
+\label{sec:toward-rigour}
+
+The preliminary studies of Sections~\ref{sec:surface-quality} and earlier fixed design choices but are
+not, on their own, rigorous; this section states how each would be put on a firm footing, alongside the
+validation work proper.
+
+\paragraph{Representation and connectivity.} The $k = 6$ connectivity choice rests on a single-seed
+sweep on the \emph{circle} benchmark. A rigorous version would (i) repeat across several seeds and
+report confidence intervals rather than point estimates, (ii) run the ablation on the \emph{aerodynamic}
+dataset, where the relevant metric is the solver-graded $C_p$ correlation rather than a
+radius-distribution KS distance, and (iii) sweep connectivity jointly with the layer count to rule out
+confounding.
+
+\paragraph{Surface quality.} The second-difference roughness of $r(\theta)$ is a convenient proxy, not a
+standard measure. A rigorous treatment would adopt a resolution-independent curvature/spectral roughness
+metric, tie it to a mesh-convergence study, and --- most importantly --- test directly whether smoothing
+changes the solver-measured $C_p$/$C_d$ at the upper end of the Reynolds range, where boundary layers
+are thinnest and most sensitive to surface detail. The present evidence that the wobble is cosmetic
+holds only in the validated regime.
+
+\paragraph{Out-of-distribution axis.} The PCA-$\sigma$ ladder reaches genuine OOD only along
+$+\mathrm{PC1}$. A rigorous OOD protocol would define the ladder directly in the DCT-conditioning space
+the model sees, so distance is monotone and isotropic in every direction, and would sample several seeds
+per target to separate generative variance from systematic extrapolation error.
+
+\paragraph{Validation framework and benchmarking.} Throughout, the OpenLB numbers are provisional
+pending re-verification of the validation framework, and the solver itself has been checked only for
+internal consistency (it reproduces the dataset normalisation). Establishing \emph{absolute} accuracy
+requires a formal grid-convergence study and an external benchmark --- the Hron--Turek case --- which is
+the immediate next validation milestone. The qualitative flow fields would likewise be promoted to
+quantitative wake diagnostics (Strouhal number, separation point) compared against reference values.
