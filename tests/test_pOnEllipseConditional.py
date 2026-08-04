@@ -104,6 +104,52 @@ def test_dct_ii_basis_orthogonality() -> None:
     assert np.max(np.abs(out[mask])) < 1e-4
 
 
+def test_dct_ii_scales_as_sqrt_n_not_invariant() -> None:
+    """Pin the sample-count scaling law measured by P1-D01.
+
+    The orthonormal DCT-II convention preserves the *vector* norm (Parseval),
+    and the norm of a sampled continuous function grows as ``sqrt(N)``. So the
+    descriptor scales as ``sqrt(N)`` — it is **not** sample-count invariant.
+
+    This test exists to make that behaviour explicit and to fail loudly if the
+    normalisation is ever changed, because the conditioning of every trained
+    checkpoint depends on it. See ``DGN_Docs/paper1/results/P1-D01_*``.
+    """
+    torch.manual_seed(0)
+
+    def signal(n: int) -> np.ndarray:
+        t = np.linspace(0.0, 1.0, n, dtype=np.float32)
+        sig = 1.0 - 4.0 * np.sin(np.pi * t) ** 2 + 0.3 * np.cos(6 * np.pi * t)
+        return sig.astype(np.float32)
+
+    ref = dct_ii(signal(96), k_modes=8)
+    for n in (48, 64, 128, 192):
+        got = dct_ii(signal(n), k_modes=8)
+        ratio = float(np.linalg.norm(got) / np.linalg.norm(ref))
+        assert abs(ratio - np.sqrt(n / 96)) < 0.01, f"N={n}: ratio {ratio}"
+
+
+def test_dct_ii_becomes_invariant_under_one_over_n_convention() -> None:
+    """Dividing by ``sqrt(N)`` restores sample-count invariance.
+
+    Confirms the P1-D01 diagnosis: the deviation is the normalisation
+    convention, not interpolation error. Under the ``1/N`` convention the
+    residual is small and shrinks as the grid refines.
+    """
+    torch.manual_seed(0)
+
+    def signal(n: int) -> np.ndarray:
+        t = np.linspace(0.0, 1.0, n, dtype=np.float32)
+        sig = 1.0 - 4.0 * np.sin(np.pi * t) ** 2 + 0.3 * np.cos(6 * np.pi * t)
+        return sig.astype(np.float32)
+
+    ref = dct_ii(signal(96), k_modes=8) / np.sqrt(96)
+    for n in (48, 64, 128, 192):
+        got = dct_ii(signal(n), k_modes=8) / np.sqrt(n)
+        rel = float(np.linalg.norm(got - ref) / np.linalg.norm(ref))
+        assert rel < 0.03, f"N={n}: relative deviation {rel}"
+
+
 # ---------------------------------------------------------------------------
 # dct_ii_inverse
 # ---------------------------------------------------------------------------
