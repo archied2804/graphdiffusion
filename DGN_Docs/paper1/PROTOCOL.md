@@ -382,6 +382,21 @@ Every run writes `outputs/paper1/<EXP-ID>/<seed>/run_meta.json`:
 
 A run with `git_dirty: true` may not be used for a reported number.
 
+**Amended 2026-08-04 (P1-F05).** `git_dirty` is evaluated **at process start**,
+over **code paths only** — `train.py`, `src/`, `configs/`, `data/splits/`. The
+repo-wide list is still recorded as `git_dirty_files` for audit.
+
+Two defects made the original rule unusable in practice. Git state was captured
+when the run *finished*, so a run was attributed to whatever had been committed by
+then rather than to the commit it actually executed. And the dirty check was
+repo-wide, so an Obsidian vault autosave during a 7-hour training run marked it
+unusable.
+
+The rule's purpose is that the computation be reproducible from an identified
+commit. A documentation file cannot change what a training run computes; a file
+under `src/` can. The amended check is **stricter where it matters** (correct
+attribution) and no longer fires on files that cannot affect the result.
+
 ---
 
 ## 8. Reporting a result

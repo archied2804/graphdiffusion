@@ -69,8 +69,23 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+# Paths whose state determines the computation.  A change anywhere else -- an
+# Obsidian vault autosave, a docs edit, an analysis script -- cannot alter what
+# a training run computes, so it must not mark the run unusable (PROTOCOL §7).
+_CODE_PATHS = ("train.py", "src/", "configs/", "data/splits/")
+
+
 def _git_state() -> dict[str, object]:
-    """Return the current commit SHA and whether the tree is dirty."""
+    """Return the commit SHA and whether the *code* paths are dirty.
+
+    Called at process start, not at the end: the run must be attributed to the
+    commit it actually executed, and later commits in the same session would
+    otherwise be recorded instead.
+
+    Returns:
+        dict[str, object]: ``git_sha``, ``git_dirty`` (code paths only),
+            ``git_dirty_files`` (the full repo-wide list, for audit).
+    """
     try:
         sha = subprocess.run(
             ["git", "rev-parse", "HEAD"],
@@ -78,17 +93,25 @@ def _git_state() -> dict[str, object]:
             text=True,
             check=True,
         ).stdout.strip()
-        dirty = bool(
-            subprocess.run(
-                ["git", "status", "--porcelain"],
-                capture_output=True,
-                text=True,
-                check=True,
-            ).stdout.strip()
-        )
-        return {"git_sha": sha, "git_dirty": dirty}
+        all_dirty = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        code_dirty = subprocess.run(
+            ["git", "status", "--porcelain", "--", *_CODE_PATHS],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        return {
+            "git_sha": sha,
+            "git_dirty": bool(code_dirty),
+            "git_dirty_files": all_dirty.splitlines(),
+        }
     except (subprocess.CalledProcessError, FileNotFoundError):
-        return {"git_sha": None, "git_dirty": None}
+        return {"git_sha": None, "git_dirty": None, "git_dirty_files": []}
 
 
 def load_config(path: str) -> dict:  # type: ignore[type-arg]
@@ -176,6 +199,8 @@ def main() -> None:
 
     _t0 = time.time()
     _started_at = datetime.datetime.now(datetime.UTC).isoformat()
+    # Captured at START so the run is attributed to the commit it executed.
+    _git = _git_state()
 
     config = load_config(args.config)
     device = torch.device(args.device)
@@ -449,7 +474,7 @@ def main() -> None:
     # --- Reproducibility record (PROTOCOL §7) -------------------------------
     run_meta: dict = {
         "exp_id": args.exp_id,
-        **_git_state(),
+        **_git,
         "config_path": args.config,
         "config_sha256": _sha256(Path(args.config)),
         "train_seed": args.seed,
