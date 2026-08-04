@@ -21,12 +21,16 @@ The layout mirrors ``ScoreNetwork.forward`` in
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import FancyBboxPatch
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # for sibling scripts
+from _report_style import apply_house_style  # noqa: E402
 
 ASSETS = Path("docs/assets")
 
@@ -134,7 +138,8 @@ def _ring_glyph(ax: plt.Axes, cx: float, cy: float, r: float) -> None:
 
 
 def main() -> None:
-    """Render and save the architecture figure."""
+    """Render and save the architecture figure in the report house style."""
+    apply_house_style()
     fig, ax = plt.subplots(figsize=(12.5, 6.2))
     ax.set_xlim(0, 25)
     ax.set_ylim(0, 12.5)
@@ -153,9 +158,7 @@ def main() -> None:
         color=TXT,
     )
     in_t = _box(ax, (0.4, 5.6), 4.2, 1.5, "timestep $t$", C_INPUT, C_INPUT_E)
-    in_cp = _box(
-        ax, (0.4, 2.7), 4.2, 1.7, "target\n$C_p(x/c)$", C_INPUT, C_INPUT_E
-    )
+    in_cp = _box(ax, (0.4, 2.7), 4.2, 1.7, "target\n$C_p(x/c)$", C_INPUT, C_INPUT_E)
 
     # ----- Encoders -----
     enc_dct = _box(
@@ -270,7 +273,13 @@ def main() -> None:
     # aux branch: denoised shape -> head -> spectrum
     _arrow(ax, (18.2, 3.5), (18.2, 2.4), color=C_CORE_E, style="-|>")
     ax.text(
-        18.9, 2.95, "$\\hat{\\mathbf{x}}_0$", ha="left", va="center", fontsize=9.5, color=TXT
+        18.9,
+        2.95,
+        "$\\hat{\\mathbf{x}}_0$",
+        ha="left",
+        va="center",
+        fontsize=9.5,
+        color=TXT,
     )
     _arrow(ax, (20.8, 1.45), (21.9, 1.45), color=C_CORE_E)
     ax.text(
@@ -291,7 +300,9 @@ def main() -> None:
         mpatches.Patch(
             facecolor=C_GLOBAL, edgecolor=C_GLOBAL_E, label="global attribute $u$"
         ),
-        mpatches.Patch(facecolor=C_CORE, edgecolor=C_CORE_E, label="GN core / aux head"),
+        mpatches.Patch(
+            facecolor=C_CORE, edgecolor=C_CORE_E, label="GN core / aux head"
+        ),
         mpatches.Patch(facecolor=C_OUT, edgecolor=C_OUT_E, label="noise prediction"),
     ]
     ax.legend(
@@ -303,13 +314,6 @@ def main() -> None:
         fontsize=8.5,
         handlelength=1.4,
         columnspacing=1.3,
-    )
-
-    ax.set_title(
-        "Conditional graph-network DDPM score model $\\varepsilon_\\theta(\\mathbf{x}_t,\\,t,\\,c)$",
-        fontsize=12.5,
-        color=TXT,
-        pad=8,
     )
 
     ASSETS.mkdir(parents=True, exist_ok=True)

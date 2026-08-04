@@ -3,14 +3,14 @@ make_cp_morph_animation
 =======================
 
 Render the scripted Cp-morph generation clip: the Cp spline morphs through
-several in-distribution target Cp curves and one 3-sigma OOD target
-(``pc1_p3sig`` from the ``ood_systematic`` sweep). The in-distribution
-targets are chosen from the EXP-043 ``eval_grid`` sweep by sampling every
-case, scoring how smoothly each generates, picking the smoothest set (plus one
-flat body, which generates wigglier), and ordering them so consecutive Cp
-curves vary as much as possible. One shape is sampled per target from the EXP-021
-conditional diffusion model; the morph itself is cheap (no per-frame
-sampling).
+several in-distribution target Cp curves, a 3-sigma OOD target (``pc1_p3sig``
+from the ``ood_systematic`` sweep), and finally a random far-OOD Cp that no
+longer yields an ellipse. The in-distribution targets are chosen from the
+EXP-043 ``eval_grid`` sweep by sampling every case, scoring how smoothly each
+generates, picking the smoothest set (plus one flat body, which generates
+wigglier), and ordering them so consecutive Cp curves vary as much as
+possible. One shape is sampled per target from the EXP-021 conditional
+diffusion model; the morph itself is cheap (no per-frame sampling).
 
 Example:
     python scripts/make_cp_morph_animation.py \
@@ -36,6 +36,7 @@ from graph_diffusion.postprocessing.inference import (
     template_thetas,
 )
 from graph_diffusion.postprocessing.loaders import load_exp020
+from graph_diffusion.visualisation.cp_editor import cp_spline_and_dct
 from graph_diffusion.visualisation.cp_morph import write_cp_morph_animation
 
 N_CP_GRID = 128
@@ -128,6 +129,23 @@ def _radial_roughness(radii: np.ndarray, theta: np.ndarray) -> float:
     return float(np.sqrt(np.mean(second_diff**2)) / np.mean(r))
 
 
+def _random_ood_cp(x_grid: np.ndarray, k_modes: int, seed: int) -> np.ndarray:
+    """A far-out-of-distribution Cp curve from random handle positions.
+
+    Mimics dragging the editor handles to random heights over a wide range,
+    well outside any training Cp. Conditioning on it pushes the model off the
+    ellipse manifold, so the generated shape no longer resembles a clean body.
+
+    Returns:
+        Dense Cp curve on ``x_grid``, shape ``(N_CP_GRID,)`` ``float32``.
+    """
+    rng = np.random.default_rng(seed)
+    handle_x = np.linspace(0.0, 1.0, 7, dtype=np.float32)
+    handle_y = rng.uniform(-1.6, 1.6, size=handle_x.shape[0]).astype(np.float32)
+    spline, _ = cp_spline_and_dct(handle_x, handle_y, x_grid, k_modes)
+    return spline.astype(np.float32)
+
+
 def _max_variation_order(curves: list[np.ndarray]) -> list[int]:
     """Visiting order maximising consecutive Cp-curve variation.
 
@@ -162,7 +180,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--config", type=str, default="configs/EXP-021_long_train.yaml")
     parser.add_argument("--checkpoint-name", type=str, default="checkpoint_best.pt")
     parser.add_argument("--ood-case", type=str, default="pc1_p3sig")
-    parser.add_argument("--n-indist", type=int, default=5)
+    parser.add_argument("--n-indist", type=int, default=4)
+    parser.add_argument(
+        "--random-seed",
+        type=int,
+        default=3,
+        help="Seed for the final random far-OOD Cp target (changes the "
+        "non-ellipse shape the clip ends on).",
+    )
     parser.add_argument(
         "--flat-aspect",
         type=float,
@@ -260,6 +285,16 @@ def main() -> None:
     labels.append(args.ood_case)
     targets_list.append(ood_cp)
     shapes.append(ood_xy)
+    ood_flags.append(True)
+
+    # Final far-OOD target: a random Cp that no longer yields an ellipse.
+    rand_cp = _random_ood_cp(x_grid, k_modes, args.random_seed)
+    _, rand_xy = _sample_shape(
+        model, template, theta, rand_cp, k_modes, guidance_scale, args.device, args.seed
+    )
+    labels.append("random Cp")
+    targets_list.append(rand_cp)
+    shapes.append(rand_xy)
     ood_flags.append(True)
 
     targets = np.stack(targets_list, axis=0)
