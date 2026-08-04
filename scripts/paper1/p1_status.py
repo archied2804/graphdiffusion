@@ -141,7 +141,11 @@ def main() -> None:
         return
 
     print("\nTraining runs\n")
-    for exp_dir in sorted(d for d in _OUTPUTS.iterdir() if d.is_dir()):
+    # Leading underscore marks archived attempts; they are kept as evidence but
+    # are not live runs.
+    for exp_dir in sorted(
+        d for d in _OUTPUTS.iterdir() if d.is_dir() and not d.name.startswith("_")
+    ):
         seeds = sorted(d for d in exp_dir.iterdir() if d.is_dir())
         if not seeds:
             continue
