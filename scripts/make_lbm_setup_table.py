@@ -27,30 +27,66 @@ ASSETS = Path("docs/assets")
 
 # (Quantity, Value, Why this choice) — verified against runs/*/run.log.
 ROWS: list[tuple[str, str, str]] = [
-    ("Method", "D2Q9, single-relaxation BGK",
-     "simplest collision that is adequate in the laminar regime"),
-    ("Reynolds number", "500 – 1000",
-     "matches the pOnEllipse dataset; laminar shedding, St $\\approx$ 0.2"),
-    ("Mach number", "$\\approx$ 0.13  (held fixed)",
-     "weakly-compressible limit; error $O(\\mathrm{Ma}^2)\\approx$ 1.7%"),
-    ("Relaxation  $\\tau$ / $\\omega$", "0.545 / 1.835",
-     "fixed; $\\tau-0.5=0.045$ stability margin, $\\omega<2$"),
-    ("Resolution", "N $\\approx$ 0.2$\\cdot$Re cells/chord (100$\\to$200)",
-     "scaled with Re to pin Ma $\\approx$ 0.13 as $\\nu$ drops"),
-    ("Knudsen number", "$\\approx 3\\times10^{-4}$",
-     "$\\ll$ 1 $\\Rightarrow$ continuum / Navier-Stokes limit valid"),
-    ("Wall model", "Bouzidi curved no-slip",
-     "sub-grid wall distance; no staircasing on arbitrary polygons"),
-    ("Turbulence model", "none (DNS-resolved)",
-     "2D laminar, Re $\\leq$ 1000 — no LES needed"),
-    ("Domain", "24 chords (6$\\cdot$body$\\cdot$17) + sponge outlet",
-     "open free-stream box; sponge kills acoustic reflections"),
-    ("Time-averaging", "$\\geq$10 shedding periods after washout",
-     "unsteady shedding $\\Rightarrow$ mean $C_d$, $C_l$, surface $C_p$"),
-    ("Cost (1 GPU, $\\approx$1500 MLUPs)", "60 s (Re500) $\\to$ 7.5 min (Re1000)",
-     "per shape — cheap enough to sit in the design loop"),
-    ("Validation", "surface $C_p$ vs dataset, $\\rho$ = 0.97 – 0.999",
-     "calibrates the solver as an independent ground truth"),
+    (
+        "Method",
+        "D2Q9, single-relaxation BGK",
+        "simplest collision that is adequate in the laminar regime",
+    ),
+    (
+        "Reynolds number",
+        "500 – 1000",
+        "matches the pOnEllipse dataset; laminar shedding, St $\\approx$ 0.2",
+    ),
+    (
+        "Mach number",
+        "$\\approx$ 0.13  (held fixed)",
+        "weakly-compressible limit; error $O(\\mathrm{Ma}^2)\\approx$ 1.7%",
+    ),
+    (
+        "Relaxation  $\\tau$ / $\\omega$",
+        "0.545 / 1.835",
+        "fixed; $\\tau-0.5=0.045$ stability margin, $\\omega<2$",
+    ),
+    (
+        "Resolution",
+        "N $\\approx$ 0.2$\\cdot$Re cells/chord (100$\\to$200)",
+        "scaled with Re to pin Ma $\\approx$ 0.13 as $\\nu$ drops",
+    ),
+    (
+        "Knudsen number",
+        "$\\approx 3\\times10^{-4}$",
+        "$\\ll$ 1 $\\Rightarrow$ continuum / Navier-Stokes limit valid",
+    ),
+    (
+        "Wall model",
+        "Bouzidi curved no-slip",
+        "sub-grid wall distance; no staircasing on arbitrary polygons",
+    ),
+    (
+        "Turbulence model",
+        "none (DNS-resolved)",
+        "2D laminar, Re $\\leq$ 1000 — no LES needed",
+    ),
+    (
+        "Domain",
+        "24 chords (6$\\cdot$body$\\cdot$17) + sponge outlet",
+        "open free-stream box; sponge kills acoustic reflections",
+    ),
+    (
+        "Time-averaging",
+        "$\\geq$10 shedding periods after washout",
+        "unsteady shedding $\\Rightarrow$ mean $C_d$, $C_l$, surface $C_p$",
+    ),
+    (
+        "Cost (1 GPU, $\\approx$1500 MLUPs)",
+        "60 s (Re500) $\\to$ 7.5 min (Re1000)",
+        "per shape — cheap enough to sit in the design loop",
+    ),
+    (
+        "Validation",
+        "surface $C_p$ vs dataset, $\\rho$ = 0.97 – 0.999",
+        "calibrates the solver as an independent ground truth",
+    ),
 ]
 
 COL_HEADERS = ("Quantity", "Value (as run)", "Why this choice")

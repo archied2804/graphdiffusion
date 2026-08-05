@@ -186,7 +186,7 @@ def _mini_stem(ax, x0, y0, w, h, vals, title, color, pad=0.18):
 def fig_conditioning_pipeline() -> None:
     """Schematic of the pressure-conditioning data flow (all in data coords)."""
     cp = _load_cp(SHAPES / "baseline" / "sim_0_ref_cp.csv")
-    coeffs = dct_ii(cp, 8)
+    coeffs = dct_ii(cp, 8, norm="ortho")
 
     fig, ax = plt.subplots(figsize=(13.0, 5.0))
     ax.set_xlim(0, 24)
@@ -387,9 +387,9 @@ def fig_dct_encoding() -> None:
     """Real Cp sequence and its K=8 DCT-II reconstruction."""
     cp = _load_cp(SHAPES / "baseline" / "sim_0_ref_cp.csv")
     n = cp.shape[0]
-    rec8 = dct_ii_inverse(dct_ii(cp, 8), n)
-    rec3 = dct_ii_inverse(dct_ii(cp, 3), n)
-    coeffs = dct_ii(cp, 8)
+    rec8 = dct_ii_inverse(dct_ii(cp, 8, norm="ortho"), n)
+    rec3 = dct_ii_inverse(dct_ii(cp, 3, norm="ortho"), n)
+    coeffs = dct_ii(cp, 8, norm="ortho")
 
     fig, (axl, axr) = plt.subplots(1, 2, figsize=(11.5, 3.9), width_ratios=[1.7, 1])
     idx = np.arange(n)

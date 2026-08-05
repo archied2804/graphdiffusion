@@ -59,6 +59,12 @@ N_REF = 96
 K_PROD = 8  # the production setting
 N_CURVES = 200
 
+# The reported result was produced under the orthonormal convention, which was
+# production at the time. Pinned so this script keeps reproducing the published
+# table after the default changed on 2026-08-05; the fix is verified in
+# `verify_fix` below.
+LEGACY = "ortho"
+
 
 def extract_curve(sample: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Reproduce the production Cp(x/c) extraction for one simulation.
@@ -121,11 +127,13 @@ def sweep(curves: list[tuple[np.ndarray, np.ndarray]], mode: str) -> dict:
     out: dict[str, dict] = {}
     for k in K_LADDER:
         ref = np.stack(
-            [dct_ii(resample(x, c, N_REF, mode), k) for x, c in curves]
+            [dct_ii(resample(x, c, N_REF, mode), k, norm=LEGACY) for x, c in curves]
         )  # (n_curves, k)
         per_n: dict[str, dict] = {}
         for n in N_LADDER:
-            got = np.stack([dct_ii(resample(x, c, n, mode), k) for x, c in curves])
+            got = np.stack(
+                [dct_ii(resample(x, c, n, mode), k, norm=LEGACY) for x, c in curves]
+            )
             overall = np.array(
                 [rel_l2(got[i], ref[i]) for i in range(len(curves))], dtype=np.float64
             )
@@ -162,10 +170,14 @@ def diagnose_scaling(curves: list[tuple[np.ndarray, np.ndarray]]) -> dict:
             renormalising to the ``1/N`` convention.
     """
     out: dict[str, dict] = {}
-    ref = np.stack([dct_ii(resample(x, c, N_REF, "rank"), K_PROD) for x, c in curves])
+    ref = np.stack(
+        [dct_ii(resample(x, c, N_REF, "rank"), K_PROD, norm=LEGACY) for x, c in curves]
+    )
     ref_fix = ref / np.sqrt(N_REF)
     for n in N_LADDER:
-        got = np.stack([dct_ii(resample(x, c, n, "rank"), K_PROD) for x, c in curves])
+        got = np.stack(
+            [dct_ii(resample(x, c, n, "rank"), K_PROD, norm=LEGACY) for x, c in curves]
+        )
         meas = float(np.median([rel_l2(got[i], ref[i]) for i in range(len(curves))]))
         fixed = got / np.sqrt(n)
         fixed_dev = float(
@@ -186,7 +198,7 @@ def node_count_confound(path: Path) -> dict:
     mags, counts = [], []
     for i in range(raw.shape[0]):
         _, cp = extract_curve(raw[i])
-        mags.append(float(np.linalg.norm(dct_ii(cp, K_PROD))))
+        mags.append(float(np.linalg.norm(dct_ii(cp, K_PROD, norm=LEGACY))))
         counts.append(cp.size)
     mag = np.array(mags)
     cnt = np.array(counts)
@@ -200,6 +212,40 @@ def node_count_confound(path: Path) -> dict:
         "cv_magnitude": float(mag.std() / mag.mean()),
         "cv_magnitude_after_removing_N": float(resid.std() / resid.mean()),
     }
+
+
+def verify_fix(curves: list[tuple[np.ndarray, np.ndarray]]) -> dict:
+    """Re-run the production setting under the corrected encoder.
+
+    Two independent errors are corrected together, so both are isolated:
+
+      ``forward_uniform``   right normalisation, still assuming even spacing
+      ``forward_positions`` right normalisation *and* true chordwise abscissae
+
+    The second is what the dataset now does. Reported against the same N=96
+    reference as the headline table, so the numbers are directly comparable.
+
+    Args:
+        curves: ``(x_over_c, cp)`` pairs.
+
+    Returns:
+        dict: median relative L2 deviation per node count, per variant.
+    """
+    out: dict[str, dict[str, float]] = {"forward_uniform": {}, "forward_positions": {}}
+
+    def enc(x: np.ndarray, c: np.ndarray, n: int, with_pos: bool) -> np.ndarray:
+        cp = resample(x, c, n, "chord" if with_pos else "rank")
+        pos = np.linspace(0.0, 1.0, n) if with_pos else None
+        return dct_ii(cp, K_PROD, positions=pos)
+
+    for key, with_pos in (("forward_uniform", False), ("forward_positions", True)):
+        ref = np.stack([enc(x, c, N_REF, with_pos) for x, c in curves])
+        for n in N_LADDER:
+            got = np.stack([enc(x, c, n, with_pos) for x, c in curves])
+            out[key][str(n)] = float(
+                np.median([rel_l2(got[i], ref[i]) for i in range(len(curves))])
+            )
+    return out
 
 
 def _load(path: Path, indices: np.ndarray | None = None) -> list:
@@ -287,6 +333,18 @@ def main() -> None:
             f"{d['sqrt_law_prediction']:>10.2%} "
             f"{d['unexplained_residual']:>10.2%} "
             f"{d['rel_l2_under_1_over_n_convention']:>11.2%}"
+        )
+    print()
+
+    fix = verify_fix(train_curves)
+    results["fix_verification"] = fix
+    print("  Fix verification -- same sweep under the corrected encoder:")
+    print(f"    {'N':>5} {'legacy':>10} {'forward':>10} {'+positions':>12}")
+    for n in N_LADDER:
+        print(
+            f"    {n:>5} {diag[str(n)]['measured_rel_l2']:>10.2%} "
+            f"{fix['forward_uniform'][str(n)]:>10.2%} "
+            f"{fix['forward_positions'][str(n)]:>12.2%}"
         )
     print()
 

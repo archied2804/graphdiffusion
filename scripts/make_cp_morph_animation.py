@@ -103,7 +103,7 @@ def _sample_shape(
         Tuple ``(radii, xy)``: the raw per-node radii ``(N,)`` and the
         theta-ordered Cartesian outline ``(N, 2)``.
     """
-    cond_vec = torch.from_numpy(dct_ii(cp_dense, k_modes)).float()
+    cond_vec = torch.from_numpy(dct_ii(cp_dense, k_modes, norm="ortho")).float()
     radii, _ = sample_shapes_from_cond(
         model=model,  # type: ignore[arg-type]
         template=template,  # type: ignore[arg-type]

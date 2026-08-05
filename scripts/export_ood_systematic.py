@@ -84,7 +84,7 @@ def main() -> None:
     rows = []
     for i, t in enumerate(targets):
         cp_target = t["cp_target"].astype(np.float32)
-        cond = dct_ii(cp_target, k_modes).astype(np.float32)
+        cond = dct_ii(cp_target, k_modes, norm="ortho").astype(np.float32)
         ood_dist = float(np.linalg.norm(train_conds - cond, axis=1).min())
 
         template.cond = (

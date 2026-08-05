@@ -267,7 +267,7 @@ def main() -> None:
     dct_sets = {}
     for k, raw in raws.items():
         curves = dataset_cp_curves(raw, n_grid=128)
-        dct_sets[k] = np.stack([dct_ii(c, args.k_modes) for c in curves])
+        dct_sets[k] = np.stack([dct_ii(c, args.k_modes, norm="ortho") for c in curves])
     d_within = nn_distance(dct_sets["train"][sub], dct_sets["train"], True)
     dct_report = {"within_train_median": float(np.median(d_within))}
     print(f"  within-train  median = {np.median(d_within):.5f}")
