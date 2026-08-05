@@ -41,12 +41,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "paper1/specs/P1-F05_reference-model.md",
+                "file": "paper1/results/P1-F02_grading-metric.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "P1-F05_reference-model"
+              "title": "P1-F02_grading-metric"
             }
           },
           {
@@ -55,12 +55,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "paper1/specs/P1-A01_no-edge-control.md",
+                "file": "paper1/specs/P1-F03_solver-qualification.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "P1-A01_no-edge-control"
+              "title": "P1-F03_solver-qualification"
             }
           },
           {
@@ -92,7 +92,7 @@
             }
           }
         ],
-        "currentTab": 2
+        "currentTab": 3
       }
     ],
     "direction": "vertical"
@@ -256,22 +256,30 @@
       "bases:Create new base": false
     }
   },
-  "active": "5439b9fc0827397a",
+  "active": "fbe9b59fdd5624eb",
   "lastOpenFiles": [
-    "paper1/specs/P1-F01_data-partition.md",
-    "paper1/EXPERIMENT_REGISTER.md",
-    "publication/PUBLICATION_DIARY.md.tmp.1066958.c5eaae9f44f6",
-    "paper1/EXPERIMENT_REGISTER.md.tmp.1066958.74eeabca6332",
-    "paper1/EXPERIMENT_REGISTER.md.tmp.1066958.33cd04fc9e27",
-    "publication/PUBLICATION_PLAN.md.tmp.1066958.4170fe1862af",
-    "publication/PUBLICATION_PLAN.md.tmp.1066958.2a3dc5e1f17a",
-    "paper1/PROTOCOL.md.tmp.1066958.1b9fd5219eac",
-    "paper1/specs/P1-G03_dct-ood-ladder.md.tmp.1066958.7c4a72c63467",
-    "paper1/specs/P1-G03_dct-ood-ladder.md.tmp.1066958.d04eeab839f4",
-    "paper1/specs/P1-G03_dct-ood-ladder.md.tmp.1066958.29cafdf0d22d",
-    "paper1/specs/P1-D02_node-count-transfer.md.tmp.1066958.3b19f47f6788",
-    "paper1/results/P1-F01_data-partition.md",
+    "paper1/CONDITIONING_MATHS.md",
+    "paper1/CONDITIONING_MATHS.md.tmp.10365.5c564ec15290",
+    "paper1/specs/P1-F02_grading-metric.md",
+    "paper1/results/P1-F02_grading-metric.md",
+    "paper1/results/P1-B03_basis-reachability.md",
+    "paper1/results/P1-B03_basis-reachability.md.tmp.10365.969a76c14b45",
+    "paper1/EXPERIMENT_REGISTER.md.tmp.10365.56fa7139e764",
+    "paper1/results/P1-D01_conditioning-invariance.md",
+    "paper1/results/P1-D01_conditioning-invariance.md.tmp.10365.67a536d18404",
+    "paper1/results/P1-F05_reference-model.md",
+    "paper1/specs/P1-F05_reference-model.md",
+    "paper1/results/P1-F02_grading-metric.md.tmp.10365.2c09dfcd2925",
+    "paper1/results/P1-F02_grading-metric.md.tmp.10365.6a14bdf28349",
+    "paper1/results/P1-F05_reference-model.md.tmp.10365.d4f562fb0996",
+    "paper1/PROTOCOL.md.tmp.10365.446bc8818b9b",
     "paper1/specs/P1-A01_no-edge-control.md",
+    "paper1/results/P1-F01_data-partition.md",
+    "paper1/specs/P1-A02_cnn1d-ring.md",
+    "paper1/specs/P1-F01_data-partition.md",
+    "paper1/results/P1-F02_grading-metric.md.tmp.1066958.0dd7ef0760c1",
+    "publication/PUBLICATION_DIARY.md.tmp.1066958.58d39c73ff7a",
+    "paper1/EXPERIMENT_REGISTER.md",
     "paper1/REPORT_OUTLINE.md",
     "paper1/specs/P1-F07_normalisation-audit.md",
     "paper1/specs/P1-F06_schafer-turek.md",
@@ -286,14 +294,6 @@
     "paper1/specs/P1-G03_dct-ood-ladder.md",
     "paper1/specs/P1-G02_aoa10-ood.md",
     "paper1/specs/P1-G01_holdout-inverse-design.md",
-    "paper1/specs/P1-C04_dps-guidance.md",
-    "paper1/specs/P1-C03_cfg-weight.md",
-    "publication/PUBLICATION_PLAN.md",
-    "paper1/specs/P1-C02_dct-modes.md",
-    "paper1/specs/P1-C01_lambda-pressure.md",
-    "paper1/specs/P1-D03_mixed-resolution.md",
-    "paper1/specs/P1-D02_node-count-transfer.md",
-    "paper1/specs/P1-D01_conditioning-invariance.md",
     "assets/EXP-043_ood_gallery_a4.png",
     "assets/EXP-043_cp_validation_fixed18.png",
     "assets/EXP-043_cp_validation_raw.png",

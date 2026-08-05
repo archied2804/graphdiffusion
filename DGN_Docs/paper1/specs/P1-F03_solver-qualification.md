@@ -69,7 +69,7 @@ publication-grade CFD study. Full grid convergence is explicitly out of scope.
 ## Decision rule
 
 - **Pass:** mean ρ ≥ 0.95, `|slope of a on Re|` not significantly different from
-  zero, cylinder within literature range → the instrument is qualified, C3 stands.
+- zero, cylinder within literature range → the instrument is qualified, C3 stands.
 - **Marginal:** systematic `a` drift under 10% → qualified *with* a stated
   correction, applied identically to real and generated shapes so G04 remains a
   valid comparison.
