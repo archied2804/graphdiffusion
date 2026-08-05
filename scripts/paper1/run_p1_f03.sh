@@ -61,7 +61,9 @@ for name in "${CASES[@]}"; do
     # One-row manifest so the shared runner handles the actual invocation.
     printf 'name,idx,Re,H\n%s,%s,%s,%s\n' "$tag" "$(echo "$row" | cut -d, -f2)" "$re" "$h" \
       > "$STAGE/manifest.csv"
-    cp "$SHAPES/${name}.dat" "$STAGE/${tag}.dat"
+    # Shape files are named sim_<idx>.dat, not <name>.dat.
+  idx=$(echo "$row" | cut -d, -f2)
+  cp "$SHAPES/sim_${idx}.dat" "$STAGE/${tag}.dat"
     say "  $tag (Re=$re, RES=$res, ${mult}x rule)"
     "$RUNNER" "$STAGE" "$res" 50 >> "$LOG" 2>&1
     src="$ROOT/cfd/ellipse2d/runs/$tag"
