@@ -146,6 +146,55 @@ settled, because the numbers would be discarded.
 a test added. Changing the normalisation silently would have invalidated
 [[P1-F05_reference-model]] without a record.
 
+### 6.1 Decision taken — 2026-08-05
+
+**Option 2, extended: fix the encoder and retrain.** Recorded here rather than
+in the spec, which is closed.
+
+A second defect was found while implementing the fix, and corrected with it:
+the descriptor also **ignored where the nodes sat**, treating
+LE/TE-clustered boundary nodes as evenly spaced. Passing the true chordwise
+positions as quadrature abscissae is what makes the descriptor invariant to
+node *spacing* as well as node *count*. On a clustered grid, ignoring positions
+costs **36%** — an error of the same order as the one this experiment was
+opened to investigate, and entirely independent of it.
+
+Measured on the same 200 training curves, against the same N=96 reference:
+
+| N | 48 | 64 | 80 | 128 | 192 |
+|---|--:|--:|--:|--:|--:|
+| legacy (as reported above) | 29.08% | 18.20% | 8.64% | 15.37% | 41.17% |
+| normalisation fixed | 2.25% | 1.19% | 0.46% | 0.59% | 1.14% |
+| **+ node positions** | **0.49%** | **0.23%** | **0.14%** | **0.12%** | **0.14%** |
+
+**Worst-case deviation falls from 41.17% to 0.49%**, inside the 1% the
+hypothesis originally predicted. The pre-registered verdict above is unchanged
+— D01 tested what was shipped on 2026-08-04, and that was falsified. This
+section records the remedy, not a re-grade.
+
+Derivation, validity bound and the full numerical validation:
+[[../CONDITIONING_MATHS]].
+
+**Consequences, all now live:**
+
+- **[[P1-F05_reference-model]] must be re-run.** Its five seeds were
+  conditioned under the legacy convention. `configs/paper1/P1-F05_reference.yaml`
+  now states `cond_norm: forward`; this will be attempt 3.
+- B01, D02 and G03 are unblocked on the convention but now depend on the new
+  reference checkpoints.
+- F01's published ladder still reproduces — `p1_f01_partition.py` is pinned to
+  `norm="ortho"` — but it should be regenerated under the corrected encoder
+  before it appears in a figure, and the two versions compared (§5).
+- [[P1-B03_basis-reachability]] is unaffected: both conventions differ by a
+  positive diagonal scaling and span the same subspace, so its reconstruction
+  errors are unchanged. Verified to float32 precision.
+
+**A note for §5 of the paper.** The old and new conditioning differ by a factor
+that correlates 0.708 with `sqrt(N)`, so the retrained model is not merely a
+reseeded version of the old one — it is conditioned on a different signal. Any
+comparison between attempt 2 and attempt 3 results is a comparison of two
+methods, not two runs, and must be reported as such.
+
 ## 7. Validity range for C2, if the current convention is kept
 
 Even under the `1/N` convention the claim is not unqualified — deviation

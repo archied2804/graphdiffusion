@@ -258,6 +258,7 @@
   },
   "active": "fbe9b59fdd5624eb",
   "lastOpenFiles": [
+    "paper1/results/P1-D01_conditioning-invariance.md.tmp.10365.fa23b9099fa6",
     "paper1/CONDITIONING_MATHS.md",
     "paper1/CONDITIONING_MATHS.md.tmp.10365.5c564ec15290",
     "paper1/specs/P1-F02_grading-metric.md",
@@ -293,7 +294,6 @@
     "paper1/specs/P1-G04_creep-attribution.md",
     "paper1/specs/P1-G03_dct-ood-ladder.md",
     "paper1/specs/P1-G02_aoa10-ood.md",
-    "paper1/specs/P1-G01_holdout-inverse-design.md",
     "assets/EXP-043_ood_gallery_a4.png",
     "assets/EXP-043_cp_validation_fixed18.png",
     "assets/EXP-043_cp_validation_raw.png",

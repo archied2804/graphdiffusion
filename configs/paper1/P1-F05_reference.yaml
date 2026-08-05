@@ -25,6 +25,10 @@ ellipse_dataset:
   feature_mode: radial_norm
   cond_mode: fourier
   k_modes: 8
+  # Node-count- and spacing-invariant descriptor (P1-D01, 2026-08-05).
+  # Attempt 2 of this experiment used the legacy "ortho" convention
+  # implicitly; attempt 3 states it. See DGN_Docs/paper1/CONDITIONING_MATHS.md.
+  cond_norm: forward
   n_samples: null
   k_neighbors: 6
   global_dim: 8

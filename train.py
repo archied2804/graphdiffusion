@@ -143,6 +143,9 @@ def _build_dataset(config: dict) -> pOnEllipseDataset:  # type: ignore[type-arg]
         return pOnEllipseConditionalDataset(
             cond_mode=ds_cfg.get("cond_mode", "fourier"),
             k_modes=ds_cfg.get("k_modes", 8),
+            # Defaults to the node-count- and spacing-invariant convention.
+            # Set explicitly to "ortho" to reproduce a pre-2026-08-05 run.
+            cond_norm=ds_cfg.get("cond_norm", "forward"),
             **common,
         )
     return pOnEllipseDataset(**common)
