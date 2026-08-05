@@ -54,7 +54,7 @@ def test_editor_initial_dct_curve_matches_inverse_dct_of_initial() -> None:
 
     cond = editor.get_cond_vector()
     dct_curve = editor.get_dct_curve()
-    expected_curve = dct_ii_inverse(cond, n_samples=n_grid)
+    expected_curve = dct_ii_inverse(cond, positions=editor._x_grid)
     np.testing.assert_allclose(dct_curve, expected_curve, atol=1e-5)
     plt.close(ax.figure)
 
@@ -72,10 +72,14 @@ def test_editor_set_cp_updates_cond_vector() -> None:
     # Self-consistency: the cond vector and the displayed DCT curve must
     # both come from the same spline.
     np.testing.assert_allclose(
-        editor.get_dct_curve(), dct_ii_inverse(cond_after, 64), atol=1e-5
+        editor.get_dct_curve(),
+        dct_ii_inverse(cond_after, positions=editor._x_grid),
+        atol=1e-5,
     )
     np.testing.assert_allclose(
-        cond_after, dct_ii(editor.get_spline_curve(), 8), atol=1e-5
+        cond_after,
+        dct_ii(editor.get_spline_curve(), 8, positions=editor._x_grid),
+        atol=1e-5,
     )
     plt.close(ax.figure)
 
@@ -135,7 +139,7 @@ def test_cp_spline_and_dct_shapes_and_dct_identity() -> None:
 
     assert spline.shape == (64,)
     assert dct_curve.shape == (64,)
-    expected = dct_ii_inverse(dct_ii(spline, 8), n_samples=64)
+    expected = dct_ii_inverse(dct_ii(spline, 8, positions=x_grid), positions=x_grid)
     np.testing.assert_allclose(dct_curve, expected, atol=1e-5)
 
 

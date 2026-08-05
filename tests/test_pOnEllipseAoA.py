@@ -131,8 +131,11 @@ def test_fourier_dual_upper_modes_differ_from_lower_when_cp_asymmetric() -> None
         asym_gap = float(np.abs(upper0 - lower0).max())
         sym_gap = float(np.abs(upper1 - lower1).max())
         # Asymmetric gap should be much bigger than the residual interpolation
-        # noise gap in the symmetric case.
-        assert asym_gap > 0.5
+        # noise gap in the symmetric case. Stated relative to sym_gap rather
+        # than against an absolute constant: under the forward convention the
+        # coefficients carry Cp units directly, so any absolute threshold would
+        # be a restatement of the normalisation rather than of asymmetry.
+        assert asym_gap > 10.0 * max(sym_gap, 1e-6)
         assert sym_gap < 0.1
         assert asym_gap > 10.0 * sym_gap
 
