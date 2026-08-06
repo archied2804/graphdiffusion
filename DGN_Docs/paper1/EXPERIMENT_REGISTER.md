@@ -32,7 +32,7 @@ appear in the paper · `support` strengthens it, cut first if time runs out.
 | [P1-F02](specs/P1-F02_grading-metric.md) | Canonical grading metric | **gate** | Do the four existing (ρ, a) implementations agree? What is the single definition? | — | 0 | 0 | ✅ **[reported](results/P1-F02_grading-metric.md)** — falsified |
 | [P1-F03](specs/P1-F03_solver-qualification.md) | Solver instrument qualification | **gate** | Is the solver fit to grade — accurate, stable, resolution-insensitive? | F02 | 0 | ~29 | ✅ **[reported](results/P1-F03_solver-qualification.md)** — falsified |
 | [P1-F04](specs/P1-F04_noise-floor.md) | Grading noise floor | **gate** | What is the measurement uncertainty of ρ and a? | F02 F03 | 0 | ~18 | planned |
-| [P1-F05](specs/P1-F05_reference-model.md) | Reference model, clean protocol | **gate** | Does the EXP-022 recipe reproduce on a clean split, and what is its true held-out performance? | F01 (F02 for grading only) | 5 | 0 | 🔁 **re-run required** — [attempt 2 reported](results/P1-F05_reference-model.md); D01 §6.1 changed the conditioning |
+| [P1-F05](specs/P1-F05_reference-model.md) | Reference model, clean protocol | **gate** | Does the EXP-022 recipe reproduce on a clean split, and what is its true held-out performance? | F01 (F02 for grading only) | 5 | 0 | ✅ **[reported](results/P1-F05_reference-model-attempt3.md)** — supported; attempt 3 is P1-REF |
 | [P1-F06](specs/P1-F06_schafer-turek.md) | **Schäfer–Turek absolute benchmark** | **gate** | Does the solver reproduce published `Cd`, `Cl`, Δp, St bounds — i.e. is it *absolutely* correct, not just self-consistent? | F02 | 0 | ~12 | 🟡 **[partial](results/P1-F06_schafer-turek.md)** — L0 done, build sound; float32 finding |
 | [P1-F07](specs/P1-F07_normalisation-audit.md) | **Cp normalisation audit** — source of `a ≈ 1.74` | **gate** | Where does the affine magnitude factor come from? | F02 F04 F06 | 0 | ~6 | planned |
 
@@ -49,7 +49,7 @@ appear in the paper · `support` strengthens it, cut first if time runs out.
 
 | ID | Title | Tier | Question | Depends | Train | Solver | Status |
 |---|---|:--:|---|---|:--:|:--:|:--:|
-| [P1-B01](specs/P1-B01_retrieval-baseline.md) | Nearest-neighbour retrieval | **gate** | Does generation beat a lookup table? | F01 F02 | 0 | ~35 | ready — awaits F05 attempt 3 (new conditioning) |
+| [P1-B01](specs/P1-B01_retrieval-baseline.md) | Nearest-neighbour retrieval | **gate** | Does generation beat a lookup table? | F01 F02 | 0 | ~35 | ready — P1-REF available |
 | [P1-B02](specs/P1-B02_pca-generative.md) | Low-dim PCA generative baseline | **gate** | Does node-native reach designs a 10-mode basis cannot? | F05 B03 | 4 | ~16 | planned |
 | [P1-B03](specs/P1-B03_basis-reachability.md) | Basis reachability analysis | core | How many modes cover this dataset to within the noise floor? | F01 F04 | 0 | ~8 | 🟡 **[partial](results/P1-B03_basis-reachability.md)** — falsified; solver half awaits F04 |
 | [P1-B04](specs/P1-B04_diversity-coverage.md) | Diversity & design-space coverage | core | Is this *exploration*, or one-to-one regression? | F05 B01 | 0 | ~40 | planned |
@@ -59,7 +59,7 @@ appear in the paper · `support` strengthens it, cut first if time runs out.
 | ID | Title | Tier | Question | Depends | Train | Solver | Status |
 |---|---|:--:|---|---|:--:|:--:|:--:|
 | [P1-D01](specs/P1-D01_conditioning-invariance.md) | Conditioning invariance under resampling | core | Is the DCT conditioning genuinely node-count independent? | F01 | 0 | 0 | ✅ **[reported](results/P1-D01_conditioning-invariance.md)** — falsified |
-| [P1-D02](specs/P1-D02_node-count-transfer.md) | Node-count transfer at sampling time | **core** ★ | Can a 96-node-trained model generate at 48 and 192? | F05 D01 | 0 | ~60 | ready — D01 §6.1 removed the confound; awaits F05 attempt 3 |
+| [P1-D02](specs/P1-D02_node-count-transfer.md) | Node-count transfer at sampling time | **core** ★ | Can a 96-node-trained model generate at 48 and 192? | F05 D01 | 0 | ~60 | ready — P1-REF available |
 | [P1-D03](specs/P1-D03_mixed-resolution.md) | Mixed-resolution training | conditional | If D02 fails, does training across node counts fix it? | D02 | 3 | ~20 | planned |
 
 ### C — Conditioning ablations → paper §4.5 (C2)
