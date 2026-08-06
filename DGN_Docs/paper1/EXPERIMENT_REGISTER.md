@@ -33,7 +33,7 @@ appear in the paper · `support` strengthens it, cut first if time runs out.
 | [P1-F03](specs/P1-F03_solver-qualification.md) | Solver instrument qualification | **gate** | Is the solver fit to grade — accurate, stable, resolution-insensitive? | F02 | 0 | ~29 | ✅ **[reported](results/P1-F03_solver-qualification.md)** — falsified |
 | [P1-F04](specs/P1-F04_noise-floor.md) | Grading noise floor | **gate** | What is the measurement uncertainty of ρ and a? | F02 F03 | 0 | ~18 | planned |
 | [P1-F05](specs/P1-F05_reference-model.md) | Reference model, clean protocol | **gate** | Does the EXP-022 recipe reproduce on a clean split, and what is its true held-out performance? | F01 (F02 for grading only) | 5 | 0 | 🔁 **re-run required** — [attempt 2 reported](results/P1-F05_reference-model.md); D01 §6.1 changed the conditioning |
-| [P1-F06](specs/P1-F06_schafer-turek.md) | **Schäfer–Turek absolute benchmark** | **gate** | Does the solver reproduce published `Cd`, `Cl`, Δp, St bounds — i.e. is it *absolutely* correct, not just self-consistent? | F02 | 0 | ~12 | planned |
+| [P1-F06](specs/P1-F06_schafer-turek.md) | **Schäfer–Turek absolute benchmark** | **gate** | Does the solver reproduce published `Cd`, `Cl`, Δp, St bounds — i.e. is it *absolutely* correct, not just self-consistent? | F02 | 0 | ~12 | 🟡 **[partial](results/P1-F06_schafer-turek.md)** — L0 done, build sound; float32 finding |
 | [P1-F07](specs/P1-F07_normalisation-audit.md) | **Cp normalisation audit** — source of `a ≈ 1.74` | **gate** | Where does the affine magnitude factor come from? | F02 F04 F06 | 0 | ~6 | planned |
 
 ### A — Architecture necessity → paper §4.2 (C1)
