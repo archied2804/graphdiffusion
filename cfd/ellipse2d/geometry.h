@@ -129,6 +129,14 @@ struct CHORD_LENGTH       : public descriptors::FIELD_BASE<1> { };
 // (e.g. force-integration probe points in getResults).
 struct BODY_CENTROID      : public descriptors::FIELD_BASE<0, 1> { };
 
+// Vertical displacement of the body from the channel centreline, in physical
+// units. Default 0 keeps the body centred, which is what every ellipse
+// experiment uses. The Schaefer-Turek benchmark (P1-F06) requires a small
+// deliberate asymmetry -- its cylinder sits at y = 0.20 in a 0.41 channel, i.e.
+// 0.005 below centre -- because a perfectly symmetric configuration will not
+// shed vortices in 2D-2.
+struct BODY_Y_OFFSET      : public descriptors::FIELD_BASE<1> { };
+
 // Streamwise extent of the absorbing SPONGE zone (material 6), in chord
 // lengths, measured from the inner edge of the outlet strip backwards into the
 // bulk. The sponge sits in the last SPONGE_CHORDS chords of the domain just
@@ -496,7 +504,8 @@ void prepareGeometry(MyCase& myCase)
   //   Translate the body so its leading edge (minX) sits `upstreamChords`
   //   chords from the inlet, and centre it vertically in H.
   const T shiftX = upstreamChords * chord - body.minX;
-  const T shiftY = (physLengthY / T{2}) - body.centroid[1];
+  const T shiftY = (physLengthY / T{2}) - body.centroid[1]
+                 + parameters.get<parameters::BODY_Y_OFFSET>();
   std::shared_ptr<IndicatorF2D<T>> placedShape =
     makePolygonIndicator<T>(body, Vector<T,2>{shiftX, shiftY});
 
