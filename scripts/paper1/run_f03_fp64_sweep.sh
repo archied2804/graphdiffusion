@@ -39,7 +39,7 @@ say() { echo "[$(date -Is)] $*" | tee -a "$LOG"; }
 CASES=("re0501_h50_idx0018" "re0751_h50_idx2833" "re0998_h50_idx5642")
 
 say "=========================================================="
-say "F03 Part B repeated in fp64 -- does the spread in `a` collapse?"
+say "F03 Part B repeated in fp64 -- does the spread in the affine slope collapse?"
 say "git: $(git -C "$ROOT" rev-parse --short HEAD)"
 
 for name in "${CASES[@]}"; do
