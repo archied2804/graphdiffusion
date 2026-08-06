@@ -31,6 +31,14 @@ MIN_FREE_GB=40
 
 mkdir -p "$WORK" "$STAGE"
 LOG="$WORK/f03.log"          # appended, never truncated
+SENTINEL="$WORK/.f03_complete"
+rm -f "$SENTINEL"            # cleared now, written only on a clean finish
+
+# Retries per case. The GPU is display-attached, so the driver watchdog can
+# kill a long kernel with cudaErrorLaunchTimeout regardless of the physics --
+# runs have died at t=49 of 50. That is an infrastructure failure, not solver
+# divergence, and must not be recorded as one.
+MAX_TRIES=3
 say() { echo "[$(date -Is)] $*" | tee -a "$LOG"; }
 
 check_disk() {
@@ -48,26 +56,52 @@ complete() {
   [ -s "$d/tmp/ellipse2d_cp.csv" ] && [ -s "$d/tmp/ellipse2d_force.csv" ]
 }
 
+# classify <run_name> -> echoes why a run produced no results
+classify() {
+  local log="$RUNS/$1/run.log"
+  local reached
+  reached=$(grep -E "^\[getResults\]" "$log" 2>/dev/null | tail -1 |
+            grep -oE "t=[0-9.]+" | head -1)
+  if grep -qi "launch timed out" "$log" 2>/dev/null; then
+    echo "GPU-WATCHDOG (cudaErrorLaunchTimeout) at ${reached:-t=?}"
+  elif grep -qiE "Uncaught exception|nan|diverge" "$log" 2>/dev/null; then
+    echo "SOLVER at ${reached:-t=?}: $(grep -i "Uncaught exception" "$log" |
+         head -1 | cut -c1-60)"
+  else
+    echo "INCOMPLETE at ${reached:-t=?} (no exception -- killed externally?)"
+  fi
+}
+
 # run_one <shapes_dir> <name> <res_override>
 # Skips a complete case; clears a partial one first so no stale VTK survives.
+# Retries transient GPU watchdog kills; a genuine solver failure is recorded
+# after the first attempt, since retrying it would only waste time.
 run_one() {
-  local shapes="$1" name="$2" res="$3"
+  local shapes="$1" name="$2" res="$3" try reason
   if complete "$name"; then
     say "  skip $name (already complete)"
     return 0
   fi
-  if [ -d "$RUNS/$name" ]; then
-    say "  clearing partial $name ($(du -sh "$RUNS/$name" | cut -f1))"
-    rm -rf "${RUNS:?}/$name"
-  fi
-  check_disk
-  say "  running $name (RES=${res:-auto})"
-  "$RUNNER" "$shapes" "$res" 50 >> "$LOG" 2>&1
-  if complete "$name"; then
-    say "  $name OK"
-  else
-    say "  WARN: $name produced no results -- recorded as failed, not hidden"
-  fi
+  for try in $(seq 1 "$MAX_TRIES"); do
+    if [ -d "$RUNS/$name" ]; then
+      rm -rf "${RUNS:?}/$name"
+    fi
+    check_disk
+    say "  running $name (RES=${res:-auto}) attempt $try/$MAX_TRIES"
+    "$RUNNER" "$shapes" "$res" 50 >> "$LOG" 2>&1
+    if complete "$name"; then
+      say "  $name OK"
+      return 0
+    fi
+    reason=$(classify "$name")
+    say "  FAILED $name -- $reason"
+    case "$reason" in
+      GPU-WATCHDOG*) [ "$try" -lt "$MAX_TRIES" ] && say "  retrying" ;;
+      *) say "  not retrying -- recorded as failed, not hidden"; return 1 ;;
+    esac
+  done
+  say "  GAVE UP on $name after $MAX_TRIES watchdog kills"
+  return 1
 }
 
 say "=========================================================="
@@ -137,5 +171,6 @@ for name in "${CASES[@]}"; do
 done
 
 say "Part B done"
+touch "$SENTINEL"
 say "P1-F03 solver runs complete -- grade with scripts/paper1/p1_f03_grade.py"
 say "free disk: $(df -h "$ROOT" | tail -1 | awk '{print $4}')"

@@ -15,7 +15,9 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 F03LOG="outputs/paper1/P1-F03_solver-qualification/f03.log"
-MARKER="P1-F03 solver runs complete"
+# A sentinel file, not a log grep: the log is appended across attempts, so a
+# marker from an earlier attempt would falsely authorise training.
+SENTINEL="outputs/paper1/P1-F03_solver-qualification/.f03_complete"
 
 say() { echo "[$(date -Is)] $*"; }
 
@@ -26,8 +28,8 @@ done
 
 # The script exiting is not proof it succeeded -- it may have hit the disk
 # guard. Check for the completion marker before committing 7.5 h of training.
-if ! grep -q "$MARKER" "$F03LOG" 2>/dev/null; then
-  say "ABORT: P1-F03 exited without its completion marker."
+if [ ! -f "$SENTINEL" ]; then
+  say "ABORT: P1-F03 exited without writing $SENTINEL."
   say "       Inspect $F03LOG before starting F05."
   exit 1
 fi
