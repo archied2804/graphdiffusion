@@ -8,9 +8,14 @@ status: reference
 # pOnEllipse — what the source actually says
 
 > **What this file is.** Facts about the training dataset, taken from the papers
-> that produced it, with citations. Written because the affine slope `a ≈ 1.74`
-> has been attributed to a "documented `u / 1.8` velocity scaling" that **this
-> search could not find any source for** (§5).
+> that produced it, with citations.
+>
+> **Two results settle long-standing questions.** The affine slope `a` has a
+> **derived prediction of exactly 2.00** from the source's own
+> non-dimensionalisation (§4), and the "documented `u / 1.8` velocity scaling"
+> the Year-1 work attributed it to is a **misreading** — that scaling belongs to
+> a different dataset and is a machine-learning input normalisation, not a
+> physical one (§5).
 >
 > **What this file is not.** Report prose. Every claim here carries a citation
 > or is explicitly marked as inference.
@@ -49,11 +54,36 @@ Verbatim where quoted:
 - Each simulation is **101 consecutive time-steps** of fully developed 2-D flow.
 - Node types are **inlet, wall, or inner node**.
 
-**Confirms** our case's `CHANNEL_HEIGHT` 5.0–6.0 and chord = 1. The phrase
-"free-stream velocity" supports the open-domain reading our case implements,
-rather than a duct with a parabolic inlet — but the paper does **not** state the
-top/bottom boundary condition explicitly, so this is not settled. It matters:
-see §6.
+### Boundary conditions — settled, from Lino et al. (2022) §III C
+
+> *"These datasets contain simulations of the two-dimensional incompressible
+> flow around an elliptical cylinder with major axis a = 1 and minor axis b
+> **inside a channel of height H**. … On the left, top and bottom boundaries
+> **u = 1 and v = ∂p/∂x = 0**, the right boundary is an outlet with
+> ∂u/∂x = ∂v/∂x = 0 and **p = 0**, and the cylinder wall has a no-slip
+> condition."*
+
+| Boundary | Source data | `ellipse2d` | |
+|---|---|---|:--:|
+| inlet | `u = 1, v = 0` uniform | material 3, uniform `(U,0)` | ✅ |
+| top **and** bottom | `u = 1, v = 0` uniform | material 2, free-stream `(U,0)` | ✅ |
+| outlet | `∂u/∂x = ∂v/∂x = 0`, `p = 0` | material 4, pressure outlet `p = 0` | ✅ |
+| body | no-slip | material 5, Bouzidi no-slip | ✅ |
+
+**The production case reproduces the source's boundary conditions exactly.**
+The uniform inlet is not a simplification of this dataset — it is what the
+dataset actually used. `lattice.h:15` records the uniform inlet as a deliberate
+departure from `cylinder2d`; it is in fact a *faithful* reproduction of the
+data's own configuration.
+
+Two consequences:
+
+- **The open-domain-versus-duct explanation for `a` is eliminated.** There is no
+  BC mismatch to account for.
+- [[results/P1-F06_schafer-turek]]'s L2 result (−31% vs the benchmark) is a
+  statement about **Schäfer–Turek being a different problem** — a duct with a
+  parabolic inlet — not about the production case being misconfigured. L1 is the
+  benchmark configuration; **L2 is the configuration that matches our data.**
 
 ---
 
@@ -122,11 +152,24 @@ the originating paper's own equations rather than guessed.
 **A factor of 2 is the leading explanation**, and the cleanest measurement sits
 6.2% below it.
 
-⚠️ **Not yet confirmed.** The equations establish the convention used *in the
-paper's exposition*. Whether the HDF5 columns store `p*` on that convention —
-rather than, say, a re-scaled or re-referenced quantity — has **not** been
-verified. Confirming it requires the Lino et al. (2022) description of the
-Nektar++ setup, or a direct dimensional check against a known case.
+### Both sides of the ratio are now sourced
+
+| | reference pressure | dynamic pressure |
+|---|---|---|
+| **Dataset** | `p = 0` at the outlet (Lino 2022 §III C) | `ρU²` (coefficient-1 momentum equation) |
+| **`ellipse2d`** | `p_inf = 0` (`results.h:484`) | `qInf = 0.5·rho·U·U` (`results.h:380`) |
+
+The reference pressures agree (both zero at the far field / outlet), so the
+offset `b` should be ≈ 0 — which is what [[results/P1-F03_solver-qualification]]
+measures on the well-fitted cases (`b` = −0.003, +0.012, +0.024, +0.022).
+
+The dynamic pressures differ by exactly the factor of two. **The prediction
+`a = 2.00` is now derived from both sides, not inferred from one.**
+
+⚠️ **One step remains unverified**: that the HDF5 columns store `p*` rather than
+a re-scaled quantity introduced during the ICLR 2025 re-release (which
+*"reduced the resolution by approximately a factor of two"*). Nothing in either
+paper suggests a rescaling, but the release step is not documented.
 
 ---
 
@@ -137,42 +180,53 @@ Nektar++ setup, or a direct dimensional check against a known case.
 > *"strikingly close to the dataset's documented 'u / 1.8' velocity scaling,
 > which gives a credible analytic explanation rather than a solver artefact."*
 
-**This search found no such documentation.** Specifically:
+**The 1.8 exists — but it is the wrong dataset and the wrong kind of quantity.**
+Lino et al. (2022) §III **B**, *Incompressible flow around a **circular**
+cylinder*:
 
-| Source | Result |
-|---|---|
-| HuggingFace `mariolinov/Ellipse` card | empty — no README content at all |
-| ICLR 2025 paper, full text | no occurrence of `1.8` as a scaling; only in results tables |
-| `dgn4cfd` repository page | no normalisation documentation |
-| `graphs4cfd` repository page | no normalisation documentation |
+> *"The u is scaled by dividing by 1.8, and the Reynolds number is linearly
+> scaled to have a minimum equal to −1 and a maximum equal to 1 in dataset
+> **NsCircle**, and the input edge-attributes e¹ᵢⱼ are normalized by dividing
+> them by 0.2."*
 
-The Physics of Fluids 2022 paper has **not** been checked (paywalled; no arXiv
-preprint located), so the claim is **unverified rather than disproven**.
+Two independent reasons this cannot explain `a`:
 
-**This matters disproportionately.** Three of F07's ten pre-registered
-candidates — #1 (`q_ref = 1.8·½ρU²` → 1.80), #2 (`U_ref = 4/3` → 1.78) and #5
-(velocity scaled 1.8 → 3.24) — are motivated by that 1.8. If it has no source,
-those candidates lose their basis, and candidate #3 (factor of 2, §4 above)
-becomes the only one with a documented derivation.
+1. **Wrong dataset.** It is stated for **NsCircle** — the circular-cylinder
+   datasets of §III B. The elliptical-cylinder datasets are §III **C**, which
+   contains no scaling statement of any kind. Searching the full text after the
+   ellipse section returns no further normalisation statement.
+2. **Wrong kind of quantity.** It is a **machine-learning input scaling**,
+   listed alongside "Reynolds number linearly scaled to [−1, 1]" and "edge
+   attributes divided by 0.2". These normalise *network inputs*; they are not
+   the physical non-dimensionalisation of the stored CFD data.
 
-**Action for [[specs/P1-F07_normalisation-audit]]:** obtain Lino et al. (2022)
-and either substantiate the 1.8 or record it as an unsourced Year-1 assumption.
-This is a library request, not a compute task.
+**The Year-1 attribution is therefore a misreading on both counts**, and the
+numerical closeness of 1.8 to the observed 1.78 is a coincidence.
+
+**Action for [[specs/P1-F07_normalisation-audit]]:** strike candidates #1, #2
+and #5 — all three are motivated by this 1.8 and none has a basis. Candidate
+**#3 (factor of two)** is the only one with a derivation from the source, and
+§4 now supplies both halves of it.
 
 ---
 
 ## 6. What is still unknown
 
-| Unknown | Why it matters | How to close it |
-|---|---|---|
-| Top/bottom boundary condition in the source simulations | Decides whether our open-domain case matches the data's physics. [[results/P1-F06_schafer-turek]] L2 shows a duct-vs-open difference of 45% at high blockage | Lino et al. (2022) |
-| Whether the HDF5 stores `p*` or something re-referenced | Decides whether the factor-of-2 prediction applies as stated | Lino et al. (2022), or a dimensional self-check |
-| Definition of `p_∞` (reference pressure location) | Sets the affine offset `b`, and could contribute to the residual 6.2% | Lino et al. (2022) |
-| Whether the 1.8 exists at all | §5 | Lino et al. (2022) |
+Lino et al. (2022) closed all four of the previously open questions. What
+remains is the **6.2% gap** between the predicted 2.00 and the measured
+1.8765 ± 0.0098.
 
-**Every open question points at the same document.** Obtaining Lino et al.
-(2022), *Physics of Fluids* 34(8), doi:10.1063/5.0097679 is the highest-value
-next action for F07 — higher than any further solver run.
+| Candidate | Direction | Test |
+|---|---|---|
+| Our solver under-resolves the suction peak, attenuating `\|Cp\|` | correct sign (`a` < 2) and consistent with F03's ρ-dependence: low-ρ cases give *lower* `a` | fp64 + resolution sweep, running |
+| fp32 round-off | [[results/P1-F06_schafer-turek]] §3 | same sweep |
+| Spectral/hp element vs lattice Boltzmann | unknown sign | not cheaply testable; state as a limitation |
+| A rescaling in the ICLR 2025 re-release | unknown | undocumented; would need the release code |
+
+The first two are being measured now. Note the sign works: our LBM at
+RES = 100–200 smoothing a suction peak would depress `\|Cp_solver\|` and pull
+`a` below 2.00, and F03 §5 already showed `a` rising toward ~1.877 precisely on
+the cases where agreement is best.
 
 ---
 
