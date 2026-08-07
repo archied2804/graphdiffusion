@@ -114,6 +114,34 @@ regenerated whichever convention is adopted.
 800 training points for the within-train reference, so its published numbers
 differ slightly. The comparison above is internally consistent.)*
 
+### 5.1 Superseded — authoritative regeneration, 2026-08-06
+
+The table above was computed with a **proxy** for the corrected encoder
+(dividing the legacy descriptor by `sqrt(N)`), before the fix was implemented.
+It is superseded by `scripts/paper1/p1_b01_retrieval_index.py`, which uses the
+real production encoder — forward normalisation **and** chordwise quadrature
+abscissae — and F01's own 800-point within-train subsampling:
+
+| | indist | highre | lowre | thin | aoa10 | thick |
+|---|--:|--:|--:|--:|--:|--:|
+| legacy (`ortho`) | 0.93× | 2.27× | 2.51× | 4.15× | 6.38× | 17.04× |
+| **corrected** | **0.85×** | **2.01×** | **2.94×** | **12.10×** | **12.34×** | **37.13×** |
+
+**The ladder ordering is unchanged** — `indist < highre < lowre < thin < aoa10
+< thick` under both conventions. The proxy above wrongly predicted a
+`thin`/`aoa10` swap; in the real encoder they do not swap, they converge to
+near-equality (12.10 vs 12.34).
+
+What does change is the **dynamic range**: 18× under the legacy encoder,
+**44×** under the corrected one. The corrected ladder separates the rungs
+better, which strengthens rather than weakens
+[[../specs/P1-G03_dct-ood-ladder]].
+
+`indist` sits at **0.85×** — below the within-train nearest-neighbour distance,
+so held-out in-distribution targets are *closer* to training data than training
+points are to each other. F01's "interpolation, not extrapolation" reading is
+reinforced.
+
 **What is blocked until the convention is decided:**
 
 - [[../specs/P1-B01_retrieval-baseline]] — indexes training shapes by the DCT-Cp
