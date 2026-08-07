@@ -4,16 +4,16 @@ spec: "../specs/P1-F06_schafer-turek.md"
 title: "Schäfer–Turek absolute benchmark"
 date_run: 2026-08-06
 date_reported: 2026-08-06
-status: partial
+status: complete (2D-1)
 verdict: supported (solver qualified for drag and pressure scale)
 git_sha: 5ec4fe4
 ---
 
 # P1-F06 — results
 
-> **Spec:** [[../specs/P1-F06_schafer-turek]] · **Status:** 🟡 **partial.** L0
-> (library and build) is complete in both precisions and produces a decisive
-> finding. L1/L2 are running.
+> **Spec:** [[../specs/P1-F06_schafer-turek]] · **Status:** ✅ **complete** for
+> 2D-1. L0, L1 and L2 all ran in both precisions. 2D-2 (Re=100, unsteady) is
+> not yet run.
 >
 > **Headline so far:** the solver reproduces the benchmark drag to **0.02%**, so
 > the build and the library are sound. But the production build is **single
@@ -28,12 +28,12 @@ git_sha: 5ec4fe4
 |---|---|
 | 1. L0 at stock resolution, confirm published values | ✅ complete, both precisions |
 | 2. Parabolic-inlet option in `lattice.h` | ✅ implemented, flag-gated |
-| 3. L1 at 3 resolutions | 🔄 running |
-| 4. L2, uniform-inlet delta | 🔄 running |
-| 5. Report Δp explicitly | ✅ for L0; pending L1/L2 |
+| 3. L1 at 3 resolutions | ✅ complete, fp32 and fp64 |
+| 4. L2, uniform-inlet delta | ✅ complete |
+| 5. Report Δp explicitly | ✅ L0 direct; L1 from the surface Cp curve |
 
-**No verdict is recorded yet.** The decision rule needs L1, and the reference
-bounds need transcribing (§6).
+**Verdict: the solver is qualified for drag and pressure scale, not for lift.**
+See §6 for the graded comparison against the transcribed bounds.
 
 ## 2. L0 — the build is sound
 
@@ -193,9 +193,32 @@ reproduces the benchmark drag *within the published interval*. Its `ΔP`,
 computed from the surface Cp curve at `x/c = 0` and `1`, lands 1–4% below the
 interval across the ladder.
 
-L1's `cL` fails badly — but L1 ran on the **fp32** binary, and L0 fp32 also
-fails `cL` by −34.6%. An fp64 L1 ladder is running to separate case defect from
-precision; until it reports, **the lift failure is not attributable**.
+### L1's lift failure is the case, not precision — settled 2026-08-07
+
+The fp64 L1 ladder resolves the ambiguity. It barely moves anything:
+
+| L1 build | N | `cD` | `cL` | `ΔP` |
+|---|--:|--:|--:|--:|
+| fp32 | 80 | 5.57002 ✅ | 0.00079 | 0.11496 |
+| **fp64** | 80 | 5.55080 (−0.3%) | 0.00608 (−41.5%) | 0.11589 |
+| fp32 | 40 | 5.50913 | 0.01742 | 0.11273 |
+| **fp64** | 40 | 5.50745 | 0.01837 | 0.11245 |
+
+Double precision leaves `cD` and `ΔP` unchanged to three figures and does **not**
+recover `cL`. So unlike L0 — where fp64 restored lift outright — **L1's lift
+failure is a property of the case**, not of round-off.
+
+The candidates are already tabulated in [[../SOLVER_CASE]] §4: Bouzidi versus
+the benchmark's bounce-back body treatment, the `H + physDeltaX` domain height,
+and the 200-gon discretisation. Not diagnosed further here.
+
+**Consequence, and it is limited.** The production case reproduces benchmark
+**drag inside the published interval** and **pressure scale to 1–4%**, but does
+not reproduce **lift**. Every pOnEllipse configuration is at AoA = 0 where
+`Cl ≈ 0`, and grading is on Cp and drag, so this does not affect any Paper 1
+result — but it is a real bound on the instrument and belongs in §4.1 and
+Appendix A. It also means [[../specs/P1-G02_aoa10-ood]], the one experiment
+where lift would matter, must rely on Cp rather than on `Cl`.
 
 L2's −31% on `cD` is not a defect: per [[../DATASET_PROVENANCE]] §2 the uniform
 inlet is what the *training data* used. L2 is the configuration that matches our
