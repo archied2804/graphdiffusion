@@ -220,7 +220,78 @@ to rest on something, `Cd` is a better foundation than `a`.
 **No case diverged. The stability envelope is clean over the tested range**, at
 all four resolution multipliers including 0.5× the rule.
 
-## 10. Reproduction
+## 10. Regrade — the factor of two, 2026-08-07
+
+**The `a` values throughout this file were computed before the dataset's units
+convention was identified.** [[../DATASET_PROVENANCE]] §4 established that the
+stored reference is `p* = p/(rho U^2)` while the solver reports
+`Cp = p/(0.5 rho U^2)`, so a factor of 2 was folded into every slope.
+
+`cp_metrics.read_reference_cp` now applies it. Regraded values:
+
+| quantity | as first reported | regraded |
+|---|--:|--:|
+| `a`, all 15 cases | 1.739 | **0.8695** |
+| `a`, well-fitted (rho >= 0.99) | 1.8765 ± 0.0098 | **0.9383 ± 0.0049** |
+| CV | 6.93% | 6.93% (unchanged) |
+| drift with Re over span | 11.28% | 11.28% (unchanged) |
+| rho (all) | 0.9504 | 0.9504 (unchanged) |
+
+**ρ is unchanged to every digit**, as affine invariance requires — the pass on
+mean ρ ≥ 0.95 and the whole shape-fidelity half of this experiment stand
+untouched. The percentages are ratios, so the falsifier verdict is also
+unchanged: `a` still drifts 11.28% with Re, and the resolution spread is still
+11–26%.
+
+**What changes is the interpretation.** There is no 74% magnitude discrepancy.
+After removing the units convention the solver agrees with the dataset to
+**6.2% ± 0.5pp** on the cases where the affine model actually fits. That is a
+validation result, not a defect.
+
+## 11. fp64 follow-up — precision is not the cause
+
+[[P1-F06_schafer-turek]] found that single precision destroys the lift
+coefficient under refinement, which made fp32 round-off the leading candidate
+for §4's resolution spread. **It is not.** The identical sweep in double
+precision:
+
+| case | fp32 spread | fp64 spread |
+|---|--:|--:|
+| re0501 | 21.5% | **25.9%** |
+| re0751 | 16.1% | **22.6%** |
+| re0998 | 25.9% | **27.9%** |
+
+The spread survives, slightly larger. §4's conclusion stands on its own:
+**`a`'s resolution dependence is discretisation error, not round-off.**
+
+### The direction is the informative part
+
+fp64 `a` against the multiple of the stability rule:
+
+| case | 0.5× | 1.0× | 1.5× | 2.0× |
+|---|--:|--:|--:|--:|
+| re0501 | **0.994** | 0.833 | 0.886 | 0.769 |
+| re0751 | **0.982** | 0.939 | 0.857 | 0.781 |
+| re0998 | **0.980** | 0.871 | 0.741 | 0.846 |
+
+**The coarsest grid agrees best — to within 1–2% — and refinement degrades
+agreement.** That is backwards for a convergence study, and it contradicts the
+"our solver under-resolves the suction peak" reading offered in the first draft
+of this file, which predicted the opposite.
+
+**Working hypothesis, not a conclusion.** `a` measures agreement with *a
+particular reference simulation*, not with truth. The released dataset is
+described by [[../DATASET_PROVENANCE]] §1 as *"low-resolution versions … reduced
+by approximately a factor of two"*. If the reference itself carries numerical
+dissipation characteristic of a coarse grid, our best agreement should occur
+where our dissipation matches theirs — and refining our grid moves us toward
+the true solution and away from the reference.
+
+That is consistent with every number above, but it is an inference. Testing it
+requires a reference at known resolution, which this dataset does not provide.
+**Stated as a limitation, not resolved.**
+
+## 12. Reproduction
 
 | | |
 |---|---|

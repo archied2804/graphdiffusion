@@ -14,10 +14,12 @@ import pytest
 import torch
 
 from graph_diffusion.postprocessing.cp_metrics import (
+    DATASET_P_STAR_TO_CP,
     cp_agreement,
     polygon_validity,
     read_cp_csv,
     read_force_csv,
+    read_reference_cp,
     split_branches,
 )
 
@@ -253,3 +255,52 @@ def test_read_force_csv_rejects_empty(tmp_path: Path) -> None:
     p.write_text("Cd_mean,Cd_std,Cl_mean,Cl_std,n_samples,t_start,t_end\n")
     with pytest.raises(ValueError, match="no data row"):
         read_force_csv(p)
+
+
+# ---------------------------------------------------------------------------
+# Dataset p* -> Cp conversion
+# ---------------------------------------------------------------------------
+
+
+def test_dataset_scale_is_two() -> None:
+    """The dataset stores p/(rho U^2); Cp uses 0.5 rho U^2, so Cp = 2 p*."""
+    assert DATASET_P_STAR_TO_CP == 2.0
+
+
+def test_read_reference_cp_applies_the_factor(tmp_path) -> None:
+    p = tmp_path / "ref.csv"
+    p.write_text("x_over_c,cp_ref\n0.0,0.5\n0.5,-0.25\n1.0,0.1\n")
+    x, cp = read_reference_cp(p)
+    assert np.allclose(cp, [1.0, -0.5, 0.2])
+    x_raw, cp_raw, _ = read_cp_csv(p)
+    assert np.allclose(cp, cp_raw * 2.0)
+
+
+def test_read_reference_cp_scale_one_reproduces_legacy(tmp_path) -> None:
+    """scale=1.0 must reproduce a pre-2026-08-07 comparison exactly."""
+    p = tmp_path / "ref.csv"
+    p.write_text("x_over_c,cp_ref\n0.0,0.5\n1.0,0.1\n")
+    _, cp = read_reference_cp(p, scale=1.0)
+    _, cp_raw, _ = read_cp_csv(p)
+    assert np.allclose(cp, cp_raw)
+
+
+def test_factor_of_two_removes_the_historical_slope() -> None:
+    """A curve differing only by the units convention must grade at a = 1.
+
+    This is the regression guarding the Year-1 finding: grading solver Cp
+    against unscaled dataset p* yields a ~ 2, and against scaled p* yields
+    a ~ 1.
+    """
+    torch.manual_seed(0)
+    x = np.linspace(0.0, 1.0, 96)
+    p_star = 0.5 - 1.5 * np.sin(np.pi * x) ** 2  # dataset units
+    cp_solver = 2.0 * p_star  # same curve, Cp units
+
+    unscaled = cp_agreement(x, p_star, x, cp_solver, mode="collapsed")
+    scaled = cp_agreement(
+        x, p_star * DATASET_P_STAR_TO_CP, x, cp_solver, mode="collapsed"
+    )
+    assert unscaled.a == pytest.approx(2.0, abs=1e-6)
+    assert scaled.a == pytest.approx(1.0, abs=1e-6)
+    assert unscaled.rho == pytest.approx(scaled.rho, abs=1e-12)

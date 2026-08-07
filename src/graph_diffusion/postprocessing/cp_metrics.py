@@ -64,12 +64,42 @@ __all__ = [
     "polygon_validity",
     "read_cp_csv",
     "read_force_csv",
+    "read_reference_cp",
     "split_branches",
+    "DATASET_P_STAR_TO_CP",
 ]
 
 # Default chordwise resampling resolution.  128 is well above the maximum node
 # count in the corpus (100), so resampling never loses information.
 DEFAULT_N_GRID = 128
+
+#: Conversion from the dataset's stored pressure to an aerodynamic Cp.
+#:
+#: The pOnEllipse simulations are non-dimensionalised with the incompressible
+#: convention in which the momentum equation carries a unit pressure-gradient
+#: coefficient (Lino, Pfaff & Thuerey, ICLR 2025, Appendix C):
+#:
+#:     du/dt + u.grad(u) = -grad(p*) + (1/Re) laplacian(u)
+#:
+#: which fixes p* = p / (rho U^2).  The solver reports the aerodynamic
+#: coefficient Cp = p / (0.5 rho U^2), so
+#:
+#:     Cp = 2 p*
+#:
+#: Both reference p = 0 at the outlet (Lino et al., Physics of Fluids 34(8),
+#: 2022, section III C; and ``results.h:484``), so no offset accompanies the
+#: factor.
+#:
+#: Confirmed independently of any curve fit: at the leading-edge stagnation
+#: point the dataset reads ~0.68 where the solver reads ~1.29, a ratio of 1.886.
+#: Both sit ~30% above their textbook values (0.5 and 1.0) because pressure is
+#: referenced at the outlet, so the channel pressure drop lifts both equally and
+#: cancels in the ratio.
+#:
+#: Failing to apply this factor is what produced the "affine slope a ~ 1.74"
+#: reported throughout Year 1.  See
+#: ``DGN_Docs/paper1/DATASET_PROVENANCE.md`` section 4.
+DATASET_P_STAR_TO_CP = 2.0
 
 # Chordwise band edges used to localise the residual.  A whole-curve rho
 # conflates a leading-edge error with a wake error; these separate them.
@@ -222,6 +252,34 @@ def read_cp_csv(path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
             cps.append(float(row[1]))
             rms.append(float(row[2]) if len(row) > 2 else math.nan)
     return np.asarray(xs), np.asarray(cps), np.asarray(rms)
+
+
+def read_reference_cp(
+    path: Path, scale: float = DATASET_P_STAR_TO_CP
+) -> tuple[np.ndarray, np.ndarray]:
+    """Read a dataset reference curve and convert it to aerodynamic Cp.
+
+    ``sim_<idx>_ref_cp.csv`` stores the dataset's pressure **as held in the
+    HDF5**, i.e. ``p* = p / (rho U^2)``.  Comparing it directly against the
+    solver's ``Cp = p / (0.5 rho U^2)`` introduces a factor of two, which is
+    exactly the historical "``a`` ~ 1.74".
+
+    Use this in preference to :func:`read_cp_csv` whenever the file is a
+    *dataset reference*; :func:`read_cp_csv` is for solver output, which is
+    already in Cp.
+
+    Args:
+        path (Path): Reference CSV, ``x_over_c,cp_ref``.
+        scale (float): Conversion applied to the stored values. Defaults to
+            :data:`DATASET_P_STAR_TO_CP`. Pass ``1.0`` to reproduce a
+            pre-2026-08-07 comparison.
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]: ``(x_over_c, cp)`` with ``cp`` in
+            aerodynamic Cp units.
+    """
+    x, cp, _ = read_cp_csv(path)
+    return x, cp * scale
 
 
 def read_force_csv(path: Path) -> ForceCoefficients:

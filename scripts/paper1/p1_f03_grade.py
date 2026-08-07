@@ -36,6 +36,7 @@ from graph_diffusion.postprocessing.cp_metrics import (  # noqa: E402
     cp_agreement,
     read_cp_csv,
     read_force_csv,
+    read_reference_cp,
 )
 
 _ROOT = Path(__file__).resolve().parents[2]
@@ -84,7 +85,9 @@ def grade_run(name: str, idx: int) -> dict | None:
         return None
 
     x_m, cp_m, _ = read_cp_csv(meas)
-    x_r, cp_r, _ = read_cp_csv(ref)
+    # The reference is dataset p*; read_reference_cp converts it to Cp so `a`
+    # measures disagreement rather than a units convention.
+    x_r, cp_r = read_reference_cp(ref)
     agr = cp_agreement(x_r, cp_r, x_m, cp_m, mode="collapsed")
 
     out: dict[str, object] = {
