@@ -13,11 +13,31 @@ cost: {train_runs: 0, solver_runs: 24, effort: "~2 days"}
 
 # P1-G04 — Magnitude-creep attribution
 
+> ⚠️ **Reframed 2026-08-07, before first run.** Two findings changed the
+> premise, neither of which removes the experiment:
+>
+> 1. [[../DATASET_PROVENANCE]] §4 — the historical `a ≈ 1.74` was a **units
+>    convention**, not a discrepancy. The dataset stores `p* = p/(rho U^2)`,
+>    the solver reports `Cp = p/(0.5 rho U^2)`. With the factor applied,
+>    **`a = 1` is perfect magnitude agreement** and dataset shapes grade at
+>    **0.938 ± 0.005**.
+> 2. [[../results/P1-F03_solver-qualification]] — `a` carries an 11–26%
+>    sensitivity to numerical resolution, so any claimed creep must clear that,
+>    and cross-condition magnitude comparison is not supported.
+>
+> **The experiment survives because the creep is a ratio.** Generated-versus-
+> dataset is unaffected by a units convention applied to both. All quantities
+> below are restated in the corrected units; the *relative* effect Year-1
+> observed (≈1.44×) is unchanged.
+
 ## Question
 
-Generated shapes grade at an affine slope `a ≈ 2.5–3.5` while solver-validated
-dataset shapes grade at `a ≈ 1.74`. Is that discrepancy model-side, solver-side, or
-grading-side?
+Generated shapes grade at an affine slope of roughly **1.25–1.75** where
+solver-validated dataset shapes grade at **0.938 ± 0.005** — a relative
+magnitude excess of about **1.4×**. Is that discrepancy model-side,
+solver-side, or grading-side?
+
+*(Year-1 numbers were `a ≈ 2.5–3.5` against `1.74`; the ratio is identical.)*
 
 ## Hypothesis *(pre-registered)*
 
@@ -26,16 +46,28 @@ systematically thinner and more sharply curved than the target implies, which th
 solver correctly reads as a larger pressure magnitude. The proximate cause is the
 guidance weight — see C03, which predicts `a` monotone in `w`.
 
-Predicted: the creep survives every solver-side control (resolution, node density,
-averaging window), and `w = 0` samples show `a` substantially closer to 1.74 than
-`w = 3` samples do.
+Predicted: the excess survives every solver-side control (resolution, node
+density, averaging window), and `w = 0` samples show `a` substantially closer to
+the dataset's 0.938 than `w = 3` samples do.
 
 ## Falsifier
 
-The creep shrinks below `2σ` under any solver-side control — for instance if it
+The excess shrinks below `2σ` under any solver-side control — for instance if it
 disappears when generated shapes are resampled to the dataset's node density. Then
 it is a discretisation artefact of how generated shapes are exported to the solver,
 not a property of the model, and the Year-1 finding is withdrawn.
+
+**Additional falsifier, added with the reframing.** The excess fails to clear the
+11–26% resolution sensitivity measured in
+[[../results/P1-F03_solver-qualification]] §4 when generated and dataset shapes
+are graded at *matched* resolution. A 1.4× effect should clear a 26% band
+comfortably; if it does not, it is not separable from grid dependence.
+
+## Scope restriction *(from F03's fail branch)*
+
+**Within-condition comparisons only.** Generated and dataset shapes must be
+graded at the same Re, the same `H`, and the same `RESOLUTION`. Cross-condition
+magnitude attribution is not supported by the instrument.
 
 ## Method
 
