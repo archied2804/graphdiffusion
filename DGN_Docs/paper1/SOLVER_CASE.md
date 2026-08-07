@@ -197,15 +197,20 @@ the exact parameter set it implies.
 
 ## 8. Reference values
 
-> ⚠️ **To be transcribed from the source before publication.** Schäfer & Turek
-> (1996), *Benchmark computations of laminar flow around a cylinder*, DFG
-> Priority Programme results. The bounds must come from the paper, not from a
-> secondary source or from memory.
+Transcribed from Schäfer & Turek (1996), archived at
+`DGN_Docs/paper1/refs_SchaferTurek1996_DFG.pdf`. Full tables and our measured
+verdicts are in [[results/P1-F06_schafer-turek]] §6.
 
-The only value confirmed from a primary artefact in this repository is
-OpenLB's own `examples/laminar/cylinder2d/case.h:313`, which plots a
-Schäfer–Turek drag reference of **5.58** for 2D-1 (Re = 20). That is a
-secondary source and is cited as such.
+| 2D-1 (Re 20) | `cD` | `cL` | `La` | `ΔP` |
+|---|--:|--:|--:|--:|
+| lower | 5.5700 | 0.0104 | 0.0842 | 0.1172 |
+| upper | 5.5900 | 0.0110 | 0.0852 | 0.1176 |
 
-`Cl`, `Δp` and the 2D-2 Strouhal bounds are **not yet verified** and are marked
-as such wherever they appear in [[results/P1-F06_schafer-turek]].
+| 2D-2 (Re 100) | `cD,max` | `cL,max` | `St` | `ΔP` |
+|---|--:|--:|--:|--:|
+| lower | 3.2200 | 0.9900 | 0.2950 | 2.4600 |
+| upper | 3.2400 | 1.0100 | 0.3050 | 2.5000 |
+
+⚠️ `Um` in the inflow profile is the **maximum**, not the mean. Re is defined on
+`Ū = 2Um/3`. Pass `Ū` as `PHYS_CHAR_VELOCITY`; `INLET_PROFILE=1` applies the
+1.5 factor internally.

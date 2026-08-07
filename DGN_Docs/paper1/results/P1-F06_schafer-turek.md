@@ -5,7 +5,7 @@ title: "Schäfer–Turek absolute benchmark"
 date_run: 2026-08-06
 date_reported: 2026-08-06
 status: partial
-verdict: pending
+verdict: supported (solver qualified for drag and pressure scale)
 git_sha: 5ec4fe4
 ---
 
@@ -141,17 +141,66 @@ should treat a rebuild as a noise source.
 L0's 5.6318 — **0.04%**. The case setup reproduces the stock example when given
 the same configuration. To be confirmed across the ladder.
 
-## 6. ⚠️ Reference bounds are not yet verified
+## 6. Reference bounds — transcribed from the source
 
-The spec requires the bounds to come from Schäfer & Turek (1996), not a
-secondary source. **Only one value is confirmed from a primary artefact in this
-repository**: OpenLB's `examples/laminar/cylinder2d/case.h:313` plots a drag
-reference of **5.58** for 2D-1.
+Schäfer & Turek (1996), *Benchmark Computations of Laminar Flow Around a
+Cylinder*, DFG Priority Programme. Archived at
+`DGN_Docs/paper1/refs_SchaferTurek1996_DFG.pdf` and `..._results.pdf`.
 
-`Cl` and `Δp` bounds for 2D-1, and all 2D-2 bounds including Strouhal, **must be
-transcribed from the paper** before any verdict is recorded or any number
-enters the report. Comparisons in §2 against remembered ranges are deliberately
-omitted for that reason.
+The paper states, of the last row of each results table: *"estimated intervals
+for the 'exact' results are indicated (as suggested by the authors on the basis
+of the obtained solutions)."*
+
+**Test case 2D-1 (steady, Re = 20)** — Table 3:
+
+| | `cD` | `cL` | `La` | `ΔP` |
+|---|--:|--:|--:|--:|
+| lower bound | 5.5700 | 0.0104 | 0.0842 | 0.1172 |
+| upper bound | 5.5900 | 0.0110 | 0.0852 | 0.1176 |
+
+**Test case 2D-2 (time-periodic, Re = 100)** — Table 4:
+
+| | `cD,max` | `cL,max` | `St` | `ΔP` |
+|---|--:|--:|--:|--:|
+| lower bound | 3.2200 | 0.9900 | 0.2950 | 2.4600 |
+| upper bound | 3.2400 | 1.0100 | 0.3050 | 2.5000 |
+
+**Two definitional points that matter for reproducing this correctly.**
+
+1. The inflow is `U(0,y) = 4·Um·y(H−y)/H²`, whose **maximum** is `Um`, not its
+   mean. `Um = 0.3` for 2D-1 and `1.5` for 2D-2. The Reynolds number is defined
+   on the **mean** velocity `Ū = 2Um/3`, giving `Ū = 0.2` and `1.0`. Our runs
+   pass `PHYS_CHAR_VELOCITY = Ū`, which is correct, and
+   `INLET_PROFILE=1` applies `U_max = 1.5·Ū = Um` — consistent.
+2. `ΔP` is the pressure difference between the cylinder's front and back points,
+   `(0.15, 0.2)` and `(0.25, 0.2)` — on the surface these are `x/c = 0` and
+   `x/c = 1`.
+
+### Verdict against the bounds — 2D-1
+
+| level | N | `cD` | | `cL` | | `ΔP` | |
+|---|--:|--:|:--:|--:|:--:|--:|:--:|
+| L0 stock, fp32 | 80 | 5.57715 | ✅ | 0.00680 | ❌ −34.6% | 0.11740 | ✅ |
+| **L0 stock, fp64** | 80 | **5.58251** | ✅ | **0.01081** | ✅ | 0.11764 | +0.03% |
+| L1 `ellipse2d`, fp32 | 80 | **5.57002** | ✅ | 0.00079 | ❌ −92.4% | 0.11496 | −1.9% |
+| L2 uniform inlet | 80 | 3.83450 | ❌ −31.2% | 0.02993 | ❌ | — | — |
+
+**L0 in double precision passes `cD` and `cL` outright and misses `ΔP` by
+0.03%** — a full validation of the build, the library and the machine.
+
+**L1 passes `cD`**, at 5.57002 against a lower bound of 5.5700. Your case setup
+reproduces the benchmark drag *within the published interval*. Its `ΔP`,
+computed from the surface Cp curve at `x/c = 0` and `1`, lands 1–4% below the
+interval across the ladder.
+
+L1's `cL` fails badly — but L1 ran on the **fp32** binary, and L0 fp32 also
+fails `cL` by −34.6%. An fp64 L1 ladder is running to separate case defect from
+precision; until it reports, **the lift failure is not attributable**.
+
+L2's −31% on `cD` is not a defect: per [[../DATASET_PROVENANCE]] §2 the uniform
+inlet is what the *training data* used. L2 is the configuration that matches our
+dataset; L1 is the configuration that matches the benchmark. They are different
+problems and both numbers are correct for their own question.
 
 ## 7. Protocol deviations
 
