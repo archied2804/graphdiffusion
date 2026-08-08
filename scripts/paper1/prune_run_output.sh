@@ -29,8 +29,17 @@ human() { numfmt --to=iec --suffix=B "${1:-0}" 2>/dev/null || echo "${1}B"; }
 prune_one() {
   local d="$1"
   [ -d "$d" ] || return 0
-  # Complete == at least one cp CSV and one force CSV, both non-empty.
-  if ! ls "$d"/tmp/*_cp.csv >/dev/null 2>&1 || ! ls "$d"/tmp/*_force.csv >/dev/null 2>&1; then
+  # Complete == the CSVs the grading pipeline reads, OR -- for the stock
+  # cylinder2d example, which reports through stdout only -- a run.log carrying
+  # the end-of-run timer. Either way the run finished and its fields are
+  # regenerable.
+  local ok=1
+  if ls "$d"/tmp/*_cp.csv >/dev/null 2>&1 && ls "$d"/tmp/*_force.csv >/dev/null 2>&1; then
+    ok=0
+  elif grep -q "measured time" "$d/run.log" 2>/dev/null; then
+    ok=0
+  fi
+  if [ "$ok" -ne 0 ]; then
     echo "  skip (incomplete, keeping diagnostics): $(basename "$d")"
     return 0
   fi
@@ -49,7 +58,7 @@ FREED=0
 if [ "${1:-}" = "--all" ]; then
   mapfile -t dirs < <(
     find "$ROOT/cfd/ellipse2d/runs" "$ROOT/outputs/paper1" \
-      -mindepth 1 -maxdepth 3 -type d -name tmp 2>/dev/null | xargs -r -n1 dirname
+      -mindepth 1 -type d -name tmp 2>/dev/null | xargs -r -n1 dirname
   )
   echo "scanning ${#dirs[@]} run directories"
   for d in "${dirs[@]}"; do prune_one "$d"; done
