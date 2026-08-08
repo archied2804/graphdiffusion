@@ -64,7 +64,10 @@ for name in "${CASES[@]}"; do
     ( cd "$d" && "$BIN" body.dat \
         --REYNOLDS "$re" --CHANNEL_HEIGHT "$h" --RESOLUTION "$res" \
         --MAX_PHYS_T 50 --AVG_WINDOW_CHORDS 25 > run.log 2>&1 )
-    if ls "$d"/tmp/*force.csv >/dev/null 2>&1; then say "    OK"; else
+    if ls "$d"/tmp/*force.csv >/dev/null 2>&1; then
+      say "    OK"
+      "$(dirname "$0")/prune_run_output.sh" "$d" >> "$LOG" 2>&1
+    else
       reason=$(grep -i "launch timed out" "$d/run.log" >/dev/null 2>&1 \
                && echo "GPU-WATCHDOG" || echo "see run.log")
       say "    FAILED -- $reason"

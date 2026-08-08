@@ -91,6 +91,8 @@ run_one() {
     "$RUNNER" "$shapes" "$res" 50 >> "$LOG" 2>&1
     if complete "$name"; then
       say "  $name OK"
+      # Drop the VTK dumps now: ~99% of the bytes, none of it read downstream.
+      "$(dirname "$0")/prune_run_output.sh" "$RUNS/$name" >> "$LOG" 2>&1
       return 0
     fi
     reason=$(classify "$name")

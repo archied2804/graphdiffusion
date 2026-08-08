@@ -86,7 +86,10 @@ for level in L1 L2; do
         --RESOLUTION "$N" --MAX_PHYS_T "$MAXT" \
         --INLET_PROFILE "$INLET" --WALL_NOSLIP "$WALL" \
         "${GEOM[@]}" > run.log 2>&1 )
-    if [ -s "$d/tmp/ellipse2d_force.csv" ]; then say "    OK"; else
+    if [ -s "$d/tmp/ellipse2d_force.csv" ]; then
+      say "    OK"
+      "$(dirname "$0")/prune_run_output.sh" "$d" >> "$LOG" 2>&1
+    else
       say "    FAILED: $(grep -iE 'exception|error' "$d/run.log" | head -1 | cut -c1-80)"
     fi
   done
