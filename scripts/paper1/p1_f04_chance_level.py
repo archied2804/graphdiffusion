@@ -115,12 +115,16 @@ def main() -> None:
         }
 
     chance = float(np.median(pair_a))
-    print(f"\n  Chance level (median rho between two unrelated dataset shapes): "
-          f"{chance:.4f}")
+    print(
+        f"\n  Chance level (median rho between two unrelated dataset shapes): "
+        f"{chance:.4f}"
+    )
     for headline in (0.86, 0.92, 0.95, 0.99):
         frac = (headline - chance) / (1.0 - chance)
-        print(f"    a headline rho of {headline:.2f} sits {frac:>6.1%} of the way "
-              f"from chance to perfect")
+        print(
+            f"    a headline rho of {headline:.2f} sits {frac:>6.1%} of the way "
+            f"from chance to perfect"
+        )
     out["chance_level"] = chance
     (_OUT / "chance_level.json").write_text(json.dumps(out, indent=2))
     print(f"\n  -> {(_OUT / 'chance_level.json').relative_to(_ROOT)}\n")

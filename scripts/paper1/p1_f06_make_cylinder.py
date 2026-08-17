@@ -76,12 +76,18 @@ def main() -> None:
     print(f"  chord (x-extent)                    : {2 * r:.6f}")
     print("\ncase parameters for Schaefer-Turek:")
     print(f"  --CHANNEL_HEIGHT   {CHANNEL_HEIGHT}")
-    print(f"  --BODY_Y_OFFSET    {y_offset:+.4f}   "
-          f"(centre {CENTRE_Y} vs centreline {CHANNEL_HEIGHT / 2})")
-    print(f"  --UPSTREAM_CHORDS  {(CENTRE_X - r) / DIAMETER:.2f}   "
-          f"(inlet to leading edge {CENTRE_X - r:.2f})")
-    print(f"  --DOWNSTREAM_CHORDS {(2.2 - CENTRE_X - r) / DIAMETER:.2f}   "
-          f"(trailing edge to outlet {2.2 - CENTRE_X - r:.2f})")
+    print(
+        f"  --BODY_Y_OFFSET    {y_offset:+.4f}   "
+        f"(centre {CENTRE_Y} vs centreline {CHANNEL_HEIGHT / 2})"
+    )
+    print(
+        f"  --UPSTREAM_CHORDS  {(CENTRE_X - r) / DIAMETER:.2f}   "
+        f"(inlet to leading edge {CENTRE_X - r:.2f})"
+    )
+    print(
+        f"  --DOWNSTREAM_CHORDS {(2.2 - CENTRE_X - r) / DIAMETER:.2f}   "
+        f"(trailing edge to outlet {2.2 - CENTRE_X - r:.2f})"
+    )
     print("  --INLET_PROFILE    1")
     print("  --WALL_NOSLIP      1")
     print("  --SPONGE_CHORDS    0")
