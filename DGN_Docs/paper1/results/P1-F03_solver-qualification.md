@@ -5,13 +5,21 @@ title: "Solver instrument qualification"
 date_run: 2026-08-05
 date_reported: 2026-08-06
 status: complete
-verdict: falsified
+verdict: marginal
+verdict_history: [falsified 2026-08-06, marginal 2026-08-17]
 git_sha: 69bdca8
 ---
 
 # P1-F03 — results
 
-> **Spec:** [[../specs/P1-F03_solver-qualification]] · **Verdict:** ❌
+> [!important] Superseded in part — see §13 (2026-08-17)
+> P1-F04 found that 62 of these 82 runs contain **dead surface probes**: samples
+> whose probe landed inside the body, reading `Cp = −cpInf` with a time-RMS of
+> exactly zero. Regrading with those points filtered moves **every** headline
+> number in this file. The verdict changes from ❌ falsified to ⚠️ **marginal**.
+> §§1–12 are the original report and are kept verbatim; **§13 is current.**
+
+> **Spec:** [[../specs/P1-F03_solver-qualification]] · **Verdict (original):** ❌
 > **falsified.** The affine slope `a` drifts 11.3% across the Re envelope,
 > above the ±10% falsifier. But the more consequential finding is underneath:
 > **`a` moves more under a change of numerical resolution at fixed Re (21.5%)
@@ -301,3 +309,65 @@ requires a reference at known resolution, which this dataset does not provide.
 | Archived results | `.../envelope/`, `.../resolution/` |
 | Metric | `cp_metrics.cp_agreement(mode="collapsed")`, per [[P1-F02_grading-metric]] |
 | CI method | Bootstrap, 10,000 resamples, seed 0 |
+
+---
+
+## 13. Regrade after the dead-probe fix — 2026-08-17
+
+**This section supersedes §§1–12 wherever they conflict.**
+
+P1-F04 found that the solver's surface probe, placed 0.5 Δx outside the body and
+then snapped to the *nearest* lattice node, lands back **inside** the body for
+3–4% of surface nodes — reading exactly zero pressure and emitting a fabricated
+sample. 62 of this experiment's 82 runs are affected (250 / 8052 points), with the
+worst at 12% of nodes. Full diagnosis and both fixes:
+[[P1-F04_noise-floor]] §2.
+
+Nothing about the pre-registered decision rule changed. The same rule was applied
+to the same runs, with invalid samples removed.
+
+### Verdict
+
+| Criterion | Threshold | Original | **Regraded** | |
+|---|---|--:|--:|:--:|
+| mean ρ | ≥ 0.95 | 0.9504 | **0.9990** | ✅ |
+| systematic drift in `a` | < ±10% | 11.28% | **6.54%** | ✅ |
+| Δρ on doubling resolution | < 0.01 | +0.034, −0.024, −0.000 | **+0.0004, −0.0000, −0.0003** | ✅ |
+
+**Verdict: ⚠️ MARGINAL** — every threshold now passes, but the bootstrap CI on
+the Re slope still excludes zero (`[4.28×10⁻⁵, 1.83×10⁻⁴]`), so a real but small
+Re dependence remains. Passing the ±10% bar is not the same as having no drift.
+
+### What each original finding becomes
+
+| § | Original finding | Status after regrade |
+|:--:|---|---|
+| 3 | Re drift confounded with resolution by construction | **Stands.** Part A still varies resolution with Re via the stability rule. The confound is structural, not numerical. |
+| 4 | "`a` is numerically unconverged — 21.5% under resolution" | **Withdrawn.** The 21.5% was dead probes. Regraded, 1.0× → 2.0× resolution moves `a` by **+3.7%, −2.8%, +2.0%**. `a` *is* reasonably converged. |
+| 5 | `a` ≈ 1.877 where ρ is high | **Superseded** by the factor-of-two correction (§10) and this regrade: `a` = **0.907 ± 0.033** across the envelope. |
+| 6 | Structured residual (runs test) | **Stands, and strengthens.** Median \|z\| = 7.75 on clean data. The affine model is still a misfit; that was never a probe artefact. |
+| 11 | fp64 changes nothing | **Stands.** Precision was never the cause — the probe placement was. |
+
+### The number that matters
+
+`a` = **0.907 ± 0.033** (mean ± sd, 15 envelope cases, ρ ≥ 0.998 throughout).
+
+The solver reproduces dataset Cp to **9.3%** in magnitude and to ρ = 0.999 in
+shape. The residual 9.3% is a real, unexplained discrepancy — smaller than the
+6.2% ± 0.5pp quoted in §10 was optimistic, and it now has a clean CI. **F07** is
+what closes it.
+
+### Consequences
+
+- **The instrument is qualified for shape** (ρ = 0.999 across the envelope) and
+  **conditionally for magnitude** (a small but real Re dependence remains).
+- G04's rescoping to "within-condition comparison only" — triggered by the
+  original >10% drift — **is no longer forced by this experiment.** Re-read
+  [[../specs/P1-G04_creep-attribution]] before running it; the fail branch that
+  was invoked no longer applies.
+- §8's conclusion that the solver "cannot support cross-condition magnitude
+  claims" is withdrawn. It can, with a stated ±6.5% systematic across the Re
+  span.
+
+Regraded with `scripts/paper1/p1_f03_grade.py` at git `24370b2` + the dead-probe
+guard; data in `outputs/paper1/P1-F03_solver-qualification/grading.json`.

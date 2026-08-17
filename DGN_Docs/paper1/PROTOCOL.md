@@ -99,6 +99,40 @@ both interpolated onto a common 128-point chordwise grid:
 **Report ρ and a together, always.** ρ alone hides magnitude creep — which is
 precisely how the Year-1 creep finding nearly went unnoticed.
 
+> [!warning] ρ is **not** the headline metric — amended 2026-08-17
+> **P1-F04** measured the chance level of ρ on this corpus: two *unrelated*
+> dataset shapes correlate at **ρ = 0.9954**, and a predictor that ignores its
+> input and always returns the corpus mean scores **0.9969**
+> ([[results/P1-F04_noise-floor]] §4). Matched cross-grading gives a
+> discrimination signal of **+0.0023, or 2.1σ** — marginal by this document's
+> own §6 rule — with 10.5% of *wrong* pairings beating the median correct one.
+>
+> ρ answers "is this a plausible ellipse Cp curve", not "is this the *correct*
+> one". Three rules follow, binding on every experiment:
+>
+> 1. **The discriminative metric is rank / top-k**, not ρ: grade each generated
+>    shape against *every* target and report where its own target ranks. Chance
+>    is `1/N`. Measured on F03's envelope: top-1 33.3% against 6.7% chance.
+> 2. **Never plot or quote ρ on a 0 → 1 axis.** State the 0.9954 chance floor
+>    beside it. Its entire usable range is 0.9967 → 0.9990.
+> 3. **`Cd` is the preferred scalar** where one is needed: 40% dynamic range
+>    across the envelope against a 5% noise floor, where ρ has 0.2%.
+>
+> This restriction is corpus-relative — it says ρ cannot discriminate *within
+> the design space this dataset spans*, which is the regime every Paper 1 claim
+> lives in. It is not a general claim about correlation as a metric. Using ρ to
+> assess *fit quality against a known curve* (F03, F06) remains valid.
+
+### 2.1a Dead surface probes — mandatory filter
+
+Solver Cp curves produced before 2026-08-17 contain samples whose probe landed
+inside the body: `Cp = −cpInf` exactly, `Cp_rms = 0.0` exactly, 3–4% of surface
+nodes and up to 12% on some shapes. `read_cp_csv` drops them by default via
+`dead_probe_mask`, and graders must report the count per run. The solver-side
+fix is in `results.h`; filtered old runs and re-run new ones agree to within a
+fifth of σ, so **regrading is sufficient — existing runs need not be repeated**.
+Full diagnosis: [[results/P1-F04_noise-floor]] §2.
+
 **The affine model must be checked, not assumed.** `ε_aff` reports the residual
 magnitude but says nothing about its *structure*. If the residual has systematic
 chordwise structure, `Cp_meas ≈ a·Cp_ref + b` is the wrong model and both ρ and `a`
@@ -316,14 +350,36 @@ Anything that cannot be matched is declared in the results file under
 
 ## 6. Significance — the noise floor rule
 
-**P1-F04** measures the solver's own repeatability and produces a pooled σ for ρ
-and for a. Call these `σ_ρ` and `σ_a`.
+**P1-F04** measures the solver's own repeatability and produces a pooled σ per
+metric. **Measured 2026-08-17 and frozen** — see
+[[results/P1-F04_noise-floor]].
+
+| Metric | **σ** | **2σ** — below this, no detectable difference | **3σ** — above this, a result |
+|---|--:|--:|--:|
+| **ρ** | 0.00108 | **0.00215** | **0.00323** |
+| **a** | 0.03521 | **0.07042** | **0.10563** |
+| **Cd** | 0.04742 | **0.09483** | **0.14225** |
+| **Cl** | 0.01542 | **0.03084** | **0.04625** |
+
+Pooled *within* shape across 27 runs varying resolution, node phase, averaging
+window and physical time on a fixed geometry. The between-shape spread is
+physics and is excluded by construction.
 
 | Observed difference | Reported as |
 |---|---|
 | `< 2σ` | **"no detectable difference"** — not a win, not a tie-break |
 | `2σ – 3σ` | "a difference of Δ, marginally above measurement uncertainty" |
 | `> 3σ` | A result |
+
+Two consequences worth carrying into every later experiment:
+
+- **Node phase contributes σ_ρ = 2×10⁻⁵**, two orders below every other factor.
+  Any node-placement or node-count effect measured downstream is the model's,
+  not the instrument's. This is what makes the C2 claim measurable at all.
+- **Statistical convergence dominates.** `MAX_PHYS_T` moves `Cd` more than
+  resolution does, and the within-run unsteadiness exceeds the between-run
+  scatter by only 1.4–1.8×. **Any experiment whose primary metric is `Cd` or
+  `Cl` must use `MAX_PHYS_T ≥ 60`** — this applies to B04 and G01.
 
 This rule is what lets the paper write "outside measurement uncertainty" honestly,
 and it is the answer to the reviewer question *"n=2, no error bars — is 0.964 vs
