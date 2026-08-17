@@ -61,6 +61,7 @@ __all__ = [
     "PolygonValidity",
     "SurfaceBranches",
     "cp_agreement",
+    "dead_probe_mask",
     "polygon_validity",
     "read_cp_csv",
     "read_force_csv",
@@ -225,11 +226,52 @@ class PolygonValidity:
 # ---------------------------------------------------------------------------
 
 
-def read_cp_csv(path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def dead_probe_mask(cp: np.ndarray, cp_rms: np.ndarray) -> np.ndarray:
+    """Flag surface samples whose probe never read the fluid.
+
+    The solver places each surface probe half a lattice spacing outside the
+    body along the node normal, then snaps it to the *nearest* lattice node
+    (``results.h``, the ``getLatticeR`` fallback).  Where the surface runs at a
+    shallow angle to the grid, that snap lands the probe back **inside** the
+    body.  The time-averaged pressure functor returns exactly ``0`` on a solid
+    cell and still reports success, so the writer emits a sample whose value is
+    ``-cpInf`` -- the negated free-stream offset -- identically at every such
+    node, with a time-RMS of exactly zero.
+
+    A genuine time-averaged probe in an unsteady flow cannot have a zero
+    fluctuation, and the affected points sit at ``Cp ~ 0`` in the middle of a
+    suction peak, so they are the single largest residual on the curve.
+    Measured incidence is 3-4% of surface nodes, reaching 12% on some shapes.
+
+    Two signatures are caught:
+
+    * ``cp_rms`` exactly zero -- the solid-cell case above.  Only applied when
+      the column is present; a dataset reference curve carries no RMS column
+      and arrives as all-NaN, which is not a defect.
+    * ``cp`` non-finite -- the probe returned NaN, seen in the coarsest
+      resolution runs.
+
+    Args:
+        cp (np.ndarray): Surface Cp in file order.
+        cp_rms (np.ndarray): Time-RMS of Cp, all-NaN if the column is absent.
+
+    Returns:
+        np.ndarray: Boolean mask, ``True`` where the sample is invalid.
+    """
+    dead = ~np.isfinite(cp)
+    have_rms = np.isfinite(cp_rms)
+    return np.asarray(dead | (have_rms & (cp_rms == 0.0)), dtype=bool)
+
+
+def read_cp_csv(
+    path: Path, drop_dead: bool = True
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Read ``ellipse2d_cp.csv`` written by the OpenLB case.
 
     Args:
         path (Path): CSV with header ``x_over_c,Cp,Cp_rms``.
+        drop_dead (bool): Remove samples flagged by :func:`dead_probe_mask`.
+            Defaults to ``True``; pass ``False`` to inspect the raw file.
 
     Returns:
         tuple[np.ndarray, np.ndarray, np.ndarray]: ``(x_over_c, cp, cp_rms)``
@@ -251,7 +293,11 @@ def read_cp_csv(path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
             xs.append(float(row[0]))
             cps.append(float(row[1]))
             rms.append(float(row[2]) if len(row) > 2 else math.nan)
-    return np.asarray(xs), np.asarray(cps), np.asarray(rms)
+    x, cp, r = np.asarray(xs), np.asarray(cps), np.asarray(rms)
+    if drop_dead and x.size:
+        keep = ~dead_probe_mask(cp, r)
+        x, cp, r = x[keep], cp[keep], r[keep]
+    return x, cp, r
 
 
 def read_reference_cp(
