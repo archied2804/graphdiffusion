@@ -16,6 +16,7 @@ import torch
 from graph_diffusion.postprocessing.cp_metrics import (
     DATASET_P_STAR_TO_CP,
     cp_agreement,
+    dead_probe_mask,
     polygon_validity,
     read_cp_csv,
     read_force_csv,
@@ -304,3 +305,38 @@ def test_factor_of_two_removes_the_historical_slope() -> None:
     assert unscaled.a == pytest.approx(2.0, abs=1e-6)
     assert scaled.a == pytest.approx(1.0, abs=1e-6)
     assert unscaled.rho == pytest.approx(scaled.rho, abs=1e-12)
+
+
+def test_dead_probe_mask_flags_solid_cell_samples() -> None:
+    """Exactly-zero time-RMS and non-finite Cp are the two failure signatures."""
+    cp = np.array([1.0, 0.06, -0.5, math.nan, 0.06])
+    rms = np.array([0.03, 0.0, 0.05, 0.02, 0.0])
+    mask = dead_probe_mask(cp, rms)
+    assert mask.dtype == bool
+    assert mask.tolist() == [False, True, False, True, True]
+
+
+def test_dead_probe_mask_keeps_reference_curves_without_rms() -> None:
+    """A dataset reference has no RMS column and must not be filtered away."""
+    cp = np.array([1.0, 0.5, -0.5])
+    rms = np.full(3, math.nan)
+    assert not dead_probe_mask(cp, rms).any()
+
+
+def test_read_cp_csv_drops_dead_probes_by_default(tmp_path: Path) -> None:
+    p = tmp_path / "ellipse2d_cp.csv"
+    p.write_text(
+        "x_over_c,Cp,Cp_rms\n"
+        "0.0,1.0,0.03\n"
+        "0.25,0.06,0.0\n"  # probe landed in the body
+        "0.5,-0.5,0.05\n"
+    )
+    x, cp, rms = read_cp_csv(p)
+    assert x.size == 2
+    assert np.allclose(x, [0.0, 0.5])
+    assert np.allclose(cp, [1.0, -0.5])
+    assert np.allclose(rms, [0.03, 0.05])
+
+    x_raw, cp_raw, _ = read_cp_csv(p, drop_dead=False)
+    assert x_raw.size == 3
+    assert np.allclose(cp_raw, [1.0, 0.06, -0.5])
