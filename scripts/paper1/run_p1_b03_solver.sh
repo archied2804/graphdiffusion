@@ -43,6 +43,11 @@ say() { echo "[$(date -Is)] $*" | tee -a "$LOG"; }
 [ -x "$BIN" ]    || { say "ERROR: $BIN not built"; exit 1; }
 [ -d "$SHAPES" ] || { say "ERROR: run p1_b03_make_reconstructions.py first"; exit 1; }
 
+# The display watchdog kills long CUDA kernels intermittently -- at RES>~190 it
+# took 2 of 6 runs on the first pass while the other 4 completed at identical
+# settings. It is a race against whatever else is using the GPU, not a property
+# of the case, so a retry is the correct response. Anything else is reported and
+# left alone.
 run() {
   local tag="$1" dat="$2" res="$3" re="$4" h="$5"
   local d="$WORK/$tag"
@@ -51,20 +56,30 @@ run() {
   free=$(df -BG --output=avail "$ROOT" | tail -1 | tr -dc '0-9')
   [ "$free" -lt "$MIN_FREE_GB" ] && { say "ABORT: only ${free}G free"; exit 1; }
 
-  rm -rf "$d"; mkdir -p "$d"
-  cp "$dat" "$d/body.dat"
-  say "  $tag (RES=$res Re=$re H=$h)"
-  ( cd "$d" && "$BIN" body.dat --REYNOLDS "$re" --CHANNEL_HEIGHT "$h" \
-      --RESOLUTION "$res" --MAX_PHYS_T "$MAXT" --AVG_WINDOW_CHORDS "$AVG" \
-      > run.log 2>&1 )
-  if ls "$d"/tmp/*_force.csv >/dev/null 2>&1; then
-    say "    OK"
-    "$(dirname "$0")/prune_run_output.sh" "$d" >> "$LOG" 2>&1
-  else
-    local why="see run.log"
-    grep -qi "launch timed out" "$d/run.log" 2>/dev/null && why="GPU-WATCHDOG"
-    say "    FAILED -- $why"
-  fi
+  local attempt
+  for attempt in 1 2 3; do
+    rm -rf "$d"; mkdir -p "$d"
+    cp "$dat" "$d/body.dat"
+    [ "$attempt" -eq 1 ] \
+      && say "  $tag (RES=$res Re=$re H=$h)" \
+      || say "  $tag retry $attempt/3"
+    ( cd "$d" && "$BIN" body.dat --REYNOLDS "$re" --CHANNEL_HEIGHT "$h" \
+        --RESOLUTION "$res" --MAX_PHYS_T "$MAXT" --AVG_WINDOW_CHORDS "$AVG" \
+        > run.log 2>&1 )
+    if ls "$d"/tmp/*_force.csv >/dev/null 2>&1; then
+      say "    OK$([ "$attempt" -gt 1 ] && echo " (attempt $attempt)")"
+      "$(dirname "$0")/prune_run_output.sh" "$d" >> "$LOG" 2>&1
+      return 0
+    fi
+    if grep -qi "launch timed out" "$d/run.log" 2>/dev/null; then
+      say "    GPU-WATCHDOG on attempt $attempt"
+      sleep 20
+      continue
+    fi
+    say "    FAILED -- see run.log"
+    return 0
+  done
+  say "    FAILED -- GPU-WATCHDOG after 3 attempts"
 }
 
 say "=========================================================="
