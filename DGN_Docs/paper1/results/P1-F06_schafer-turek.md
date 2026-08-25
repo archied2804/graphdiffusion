@@ -4,7 +4,7 @@ spec: "../specs/P1-F06_schafer-turek.md"
 title: "Schäfer–Turek absolute benchmark"
 date_run: 2026-08-06
 date_reported: 2026-08-06
-status: complete (2D-1)
+status: complete (2D-1); regraded 2026-08-25
 verdict: supported (solver qualified for drag and pressure scale)
 git_sha: 5ec4fe4
 ---
@@ -263,3 +263,91 @@ committing to anything.
 | Geometry | `scripts/paper1/p1_f06_make_cylinder.py` |
 | Case reference | [[../SOLVER_CASE]] |
 | Double build | `/home/m22729ad/Software/OpenLB-1.9-0-double/` (see [[../SOLVER_CASE]] §5 — stale `.o` files must be deleted or the rebuild silently keeps float) |
+
+---
+
+## 10. Dead-probe regrade — 2026-08-25
+
+[[P1-F04_noise-floor]] §6 listed one outstanding item against this experiment:
+any F06 figure or table computed from **surface Cp** rather than from the
+integrated force coefficients had to be regraded after the dead-probe defect.
+That item is now discharged. **No number in §§1–9 changes.**
+
+### Incidence on the cylinder is far worse than on the ellipse
+
+| Run | Nodes | Dead | Share |
+|---|--:|--:|--:|
+| `L1_2d1_N20` | 200 | 59 | **29.5%** |
+| `L1_2d1_N40` | 200 | 77 | **38.5%** |
+| `L1_2d1_N80` | 200 | 85 | **42.5%** |
+
+Identical counts in the `L1_fp64` and `L2` ladders — the defect is geometric,
+so precision and inlet profile leave it untouched. For comparison, the pOnEllipse
+runs lost 3–4% ([[P1-F04_noise-floor]] §2).
+
+Two things about this table are worth stating in §4.1.
+
+**It is an order of magnitude worse on a circle.** The ellipse presents most of
+its surface at a shallow angle to the grid only near the nose and tail; a circle
+presents every angle equally, and the 200-gon's facets are much finer than `Δx`.
+
+**It gets worse with refinement, not better.** The probe offset is `0.5·Δx`, so
+it shrinks with the grid — refinement moves the probe closer to the wall in
+lockstep and never escapes the snap. This is the clearest evidence that the
+original scheme was not merely under-resolved but structurally wrong: no
+resolution would have fixed it.
+
+### The Δp points were live, which is why the verdict holds
+
+Δp is read at `x/c = 0` and `x/c = 1` — the fore and aft stagnation points. On a
+body symmetric about the flow axis those two normals are exactly grid-aligned, so
+the nearest-node snap lands them correctly. They are live in all three runs. The
+dead probes are all on the shoulders, where the surface runs oblique.
+
+The §7 Δp figures are therefore unaffected, and the "1–4% below the interval"
+finding stands as reported.
+
+### Verification on the fixed solver
+
+`L1_2d1_N40` re-run on the outward-walk build (`cfd/ellipse2d/results.h`),
+identical arguments:
+
+| | Old (0.5·Δx snap) | New (outward walk) |
+|---|--:|--:|
+| Dead probes | 77 / 200 (38.5%) | **0 / 200** |
+| `Cp(x/c=0)` | +4.1078 | +4.1078 |
+| `Cp(x/c=1)` | −1.5286 | −1.5286 |
+| `Δp` | 0.11273 | 0.11273 |
+| `Cd` | 5.50913 | 5.50913 |
+
+Three conclusions:
+
+1. **The fix generalises.** It recovers every probe on the geometry where the
+   defect was worst — a stronger test than the ellipse it was developed on.
+2. **Δp and `Cd` are bit-identical**, confirming both that the surviving samples
+   were never touched and that the force coefficients never passed through the
+   probe at all. `Cd` and `Cl` come from the momentum-exchange functor, so the
+   whole §8 precision argument is independent of this defect.
+3. **The fabricated samples sat at `Cp = −2.302`**, equal to that run's
+   `cpInf` offset to six figures — the same signature as [[P1-F04_noise-floor]] §2.
+
+### What this does and does not touch
+
+**Unchanged:** every verdict, the drag qualification, the Δp qualification, the
+lift failure and its precision analysis (§8). The lift failure is a property of
+the case and remains undiagnosed.
+
+**Changed:** any *plot* of the full cylinder Cp curve drawn before today showed
+39% of its points at a fabricated constant across both shoulders — the region
+where the suction peak lives. No such plot appears in this results file. If one
+is drawn for Appendix A, regenerate it from the fixed solver.
+
+**Not a re-run.** The regrade is complete; the ladder is not re-run, because the
+only numbers it feeds are unchanged and verified so.
+
+### Protocol deviation
+
+- **2026-08-25** — Regrade performed under [[../PROTOCOL]] §2.1a after the
+  dead-probe defect. Decision rule unchanged, verdict unchanged. One verification
+  run (`L1_2d1_N40`, fixed solver) was executed outside the registered ladder to
+  confirm the fix on this geometry; it reproduces the original to the digit.

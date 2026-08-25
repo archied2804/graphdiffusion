@@ -250,8 +250,10 @@ and are now clear on that count.
 
 **Requires regrading** — every experiment already reported that consumed solver
 Cp. Done for **F03** (see its results file; verdict moved FALSIFIED → MARGINAL).
-Still to do: any figure or table in **F06** that used surface Cp rather than the
-integrated coefficients.
+Done for **F06** (2026-08-25, see its §10): incidence on the cylinder is 29–42%,
+far worse than the ellipse, but the two Δp sample points are grid-aligned and were
+live, so no F06 number changes. A verification run on the fixed solver recovers
+**200/200** probes and reproduces Δp and `Cd` to the digit.
 
 **Unaffected.** **F01** (partition), **F02** (metric definitions), **D01**
 (conditioning, analytic), **B03** part 1 (PCA on shapes, no solver), **F05**
