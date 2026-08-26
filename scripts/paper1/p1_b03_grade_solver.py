@@ -195,41 +195,72 @@ def main() -> None:
         f"(sigma_rho = {SIGMA_RHO}, 2sigma = {2 * SIGMA_RHO:.5f}):\n"
     )
     print(
-        f"  {'variant':<12}{'mean |d_rho|':>14}{'max |d_rho|':>14}"
-        f"{'in sigma':>11}{'mean |d_Cd|':>14}{'in sigma_Cd':>14}  verdict"
+        f"  {'variant':<12}{'max|d_rho|':>12}{'rho sig':>10}"
+        f"{'max|d_Cd|':>12}{'Cd sig':>9}{'worst shape':>14}  verdict"
     )
 
     summary: dict[str, dict] = {}
     for v in VARIANTS:
         if v == "orig":
             continue
-        dr = np.array([abs(r["d_rho"]) for r in rows if r["variant"] == v])
-        dc = np.array([abs(r["d_Cd"]) for r in rows if r["variant"] == v])
-        dc = dc[np.isfinite(dc)]
+        sub = [r for r in rows if r["variant"] == v]
+        dr = np.array([abs(r["d_rho"]) for r in sub])
+        dc_all = np.array([abs(r["d_Cd"]) for r in sub])
+        ok = np.isfinite(dc_all)
+        dc = dc_all[ok]
         if dr.size == 0:
             continue
-        n_sig = float(dr.mean() / SIGMA_RHO)
-        n_sig_cd = float(dc.mean() / SIGMA_CD) if dc.size else float("nan")
-        detect = "DETECTABLE" if dr.max() > 2 * SIGMA_RHO else "invisible"
+        # The decision rule is a per-shape test, so the worst shape decides.
+        n_sig = float(dr.max() / SIGMA_RHO)
+        n_sig_cd = float(dc.max() / SIGMA_CD) if dc.size else float("nan")
+        worst = (
+            sub[int(np.argmax(np.where(ok, dc_all, -np.inf)))]["label"]
+            if dc.size
+            else "-"
+        )
+        detect = (
+            "DETECTABLE"
+            if (dr.max() > 2 * SIGMA_RHO or (dc.size and dc.max() > 2 * SIGMA_CD))
+            else "invisible"
+        )
         summary[v] = {
             "mean_abs_d_rho": float(dr.mean()),
             "max_abs_d_rho": float(dr.max()),
-            "sigma_multiples": n_sig,
+            "sigma_multiples_rho": n_sig,
             "mean_abs_d_Cd": float(dc.mean()) if dc.size else float("nan"),
+            "max_abs_d_Cd": float(dc.max()) if dc.size else float("nan"),
             "sigma_multiples_Cd": n_sig_cd,
+            "worst_shape_Cd": worst,
             "detectable": detect == "DETECTABLE",
             "registered": v in REGISTERED,
         }
         print(
-            f"  {v:<12}{dr.mean():>14.5f}{dr.max():>14.5f}{n_sig:>10.2f}s"
-            f"{(dc.mean() if dc.size else np.nan):>14.5f}{n_sig_cd:>13.2f}s"
-            f"  {detect}"
+            f"  {v:<12}{dr.max():>12.5f}{n_sig:>9.2f}s"
+            f"{(dc.max() if dc.size else np.nan):>12.5f}{n_sig_cd:>8.2f}s"
+            f"{worst:>14}  {detect}"
         )
 
     print(
-        "\n  'invisible' means every shape's change stayed inside 2 sigma of the\n"
-        "  measurement floor -- the instrument cannot tell the reconstruction\n"
-        "  from the original, which is the tolerance the spec asked for.\n"
+        "\n  Reported on the WORST shape, not the mean -- the decision rule is a\n"
+        "  per-shape test, and averaging four shapes hides the one that moved.\n"
+        "  'invisible' means no shape moved past 2 sigma on either metric.\n"
+    )
+
+    print("  Metric sensitivity (P1-F04 section 4 -- rho has almost no range):\n")
+    span_rho = max(r["rho"] for r in rows) - min(r["rho"] for r in rows)
+    cds = [r["Cd"] for r in rows if np.isfinite(r["Cd"])]
+    span_cd = max(cds) - min(cds)
+    print(
+        f"    rho spans {span_rho:.5f} over all 24 runs = "
+        f"{span_rho / SIGMA_RHO:.1f} sigma"
+    )
+    print(
+        f"    Cd  spans {span_cd:.4f} ({span_cd / float(np.mean(cds)):.1%} of mean) = "
+        f"{span_cd / SIGMA_CD:.1f} sigma"
+    )
+    print(
+        "    Cd is the discriminating metric here; read the rho column as"
+        " corroboration.\n"
     )
 
     # The control decides whether the registered levels mean anything.
