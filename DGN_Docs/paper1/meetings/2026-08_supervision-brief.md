@@ -23,7 +23,7 @@ changed.*
 
 ## 1. Where the suite stands
 
-**9 of 29 reported.** Stage 0 (protocol) and Stage 1 (reference) are complete.
+**10 of 29 reported.** Stage 0 (protocol) and Stage 1 (reference) are complete.
 
 | ID | Asked | Outcome | Consequence |
 |---|---|---|---|
@@ -36,7 +36,7 @@ changed.*
 | [[../results/P1-F07_normalisation-audit\|F07]] | Where does `a ≈ 1.74` come from? | ⚠️ partial | Factor of two **sourced**; 9.35% residual remains |
 | [[../results/P1-D01_conditioning-invariance\|D01]] | Node-count independent conditioning? | ❌ falsified | Deviated 41.2%; **fixed to 0.49%** |
 | [[../results/P1-B03_basis-reachability\|B03]] | How many modes does the data need? | ❌ falsified | **One mode, and it is inside the noise floor** |
-| B01 | Does it beat a lookup table? | 🔵 running | 35 solver runs, launched 26 Aug |
+| [[../results/P1-B01_retrieval-baseline\|B01]] | Does it beat a lookup table? | ⏸ partial | **Retrieval is at the grading ceiling**; comparison awaits G01 |
 
 Of the nine, four were falsified outright and three more failed part of their
 pre-registered rule. **Eight of those nine were about instruments, not the
@@ -111,6 +111,52 @@ nothing to do with reach.
 
 A second casualty: **B02 is near-pointless as scoped.** It was designed as a
 10-mode PCA straw man, and `M = 10` is indistinguishable from the original body.
+
+---
+
+## 3a. B01: retrieval reaches the ceiling — reported 26 August
+
+The retrieval baseline landed while this brief was being written, and it
+sharpens §3 considerably.
+
+| | ρ |
+|---|--:|
+| Chance level (unrelated dataset shapes) | 0.99540 |
+| **Retrieval, held-out targets (median, n = 20)** | **0.99905** |
+| F04 correct-pairing median — *the solver grading its own shape* | 0.99896 |
+| A perfect score | 1.00000 — **0.88σ away** |
+
+**A nearest-neighbour lookup over 5,701 training shapes scores as well as the
+solver grading the correct shape against itself.** Whatever G01 measures for the
+model, there is **less than one σ of headroom** to beat this in-distribution.
+
+The cause is saturation, not a clever baseline. A held-out target's nearest
+training neighbour sits at **1.20×** the within-train nearest-neighbour distance
+— in the space the model is conditioned on, the held-out set is barely outside
+the training set. That is B03's one-dimensional manifold seen from the other
+side.
+
+**And retrieval survives four of the five OOD rungs**, staying above chance on
+`thick` at 23.5× the within-train distance:
+
+| set | median ρ | vs chance | NN distance |
+|---|--:|--:|--:|
+| `highre` | 0.99959 | +3.88σ | 2.7× |
+| `thin` | 0.99858 | +2.94σ | 15.2× |
+| `thick` | 0.99842 | +2.79σ | 23.5× |
+| `lowre` | 0.99705 | +1.53σ | 2.4× |
+| **`aoa10`** | **0.96962** | **−23.87σ** | 15.6× |
+
+Only `aoa10` breaks it — and `aoa10` confounds a rotation (B03 §4), a different
+node count (80, not 96) and a different flow condition, all at once.
+
+Retrieval is not merely producing plausible curves: cross-graded, top-1 is
+**35.0% against 5.0% chance**.
+
+**Why this matters for Q1.** G03 is C1's last route, and its ladder rungs are
+these same sets. Retrieval already handles four of them. G03's argument now has
+to rest on the model degrading *more gracefully* than retrieval somewhere on
+that ladder — a narrower target than it looked a week ago.
 
 ---
 
@@ -219,7 +265,7 @@ part-time.
 
 | Order | Cost | Why here |
 |---|---|---|
-| 🔵 **B01** retrieval *(running)* | 0 train · 35 solver | Zero training. B03 says the manifold is 1-D with 5,701 training samples, so retrieval may match the model outright — **know that before spending 91 h training** |
+| ~~B01~~ retrieval ✅ | 0 train · 35 solver | **Done 26 Aug.** Retrieval is at the ceiling — see §3a |
 | **G03** OOD ladder | 0 train · ~45 solver | C1's last route. Promoted from Stage 5 |
 | **A01** no-edge | 3 train · ~12 solver | Cheapest architecture control |
 | **A02 · A03** | 6 train · ~24 solver | Completes the trio |
