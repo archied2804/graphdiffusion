@@ -20,7 +20,7 @@ the paper without being regenerated under this protocol.**
 
 ## Where things stand — 26 August 2026
 
-**9 of 29 reported.** The audit tier (F) is finished and the measurement protocol
+**10 of 29 reported** (B01 partial). The audit tier (F) is finished and the measurement protocol
 is frozen. The model's central claims have not been tested yet.
 
 | ID | Verdict | One line |
@@ -34,9 +34,13 @@ is frozen. The model's central claims have not been tested yet.
 | [F07](results/P1-F07_normalisation-audit.md) | ⚠️ partial | Factor of two sourced; **9.35% ± 0.91pp residual** remains |
 | [D01](results/P1-D01_conditioning-invariance.md) | ❌ falsified | Conditioning deviated 41.2%; fixed to 0.49% |
 | [B03](results/P1-B03_basis-reachability.md) | ❌ falsified | **One PCA mode is inside the noise floor** — against C1's interest |
+| [B01](results/P1-B01_retrieval-baseline.md) | ⏸ partial | Retrieval is **at the grading ceiling**; comparison awaits G01 |
 
-🔵 **B01 is running** (2026-08-26) — 35 solver runs against the frozen evaluation
-target set, `data/splits/paper1_eval_targets.json`.
+**B01 reported** (2026-08-26, partial): **retrieval sits at the solver's own
+self-grading ceiling in-distribution** — median ρ 0.99905 against a 0.99896
+ceiling, within 0.88σ of a perfect score. It survives four of five OOD rungs.
+Only `aoa10` breaks it, and `aoa10` is confounded three ways. No verdict: the
+spec's rule is a comparison and G01 has not run.
 
 **On the metric question.** B01, A01–A03, D02 and G03 all have decision rules
 written in ρ, which F04 demoted. They are *not* blocked: run them, apply the
@@ -147,7 +151,7 @@ later stages use earlier ones as their comparator.
 |:--:|---|---|
 | ✅ **0 — Protocol** | F01 F02 **F06** F03 F04 **F07** | Nothing is measurable until the split, the metric, the instrument, the noise floor and **the reference scale** are frozen |
 | ✅ **1 — Reference** | F05 | The single model every later result is a delta from |
-| ◐ **2 — Story-breaking** | ~~B03~~ · **B01** · G03 A01 A02 A03 | These can invalidate the framing. Cheap. Run them before writing anything. G03 promoted here 08-26 — it is C1's last route |
+| ◐ **2 — Story-breaking** | ~~B03~~ ~~B01~~ · G03 A01 A02 A03 | These can invalidate the framing. Cheap. Run them before writing anything. G03 promoted here 08-26 — it is C1's last route |
 | 🚦 | **← WE ARE HERE · AUGUST GATE** | Decide the paper's framing and venue. Log in [[../publication/PUBLICATION_DIARY]] |
 | **3 — Headline** | G01 D01 D02 B02 | The results the paper is actually about |
 | **4 — Ablations** | C01 C02 C03 A04 S01 S02 S03 | Contribution-targeted ablations (viva point 2) |
