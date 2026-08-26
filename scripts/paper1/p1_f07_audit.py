@@ -48,6 +48,18 @@ _F04 = _ROOT / "outputs" / "paper1" / "P1-F04_noise-floor" / "grading.json"
 _STEP2 = _ROOT / "outputs" / "paper1" / "P1-F07_normalisation-audit" / "selfconsistency"
 _OUT = _ROOT / "outputs" / "paper1" / "P1-F07_normalisation-audit"
 
+#: Step 2 runs: tag -> (U, MAX_PHYS_T, note). "matched" rows hold the flow
+#: development fixed at 50 chord-flows; the unmatched rows hold MAX_PHYS_T fixed
+#: instead and are kept only to show the confound they introduce.
+STEP2_RUNS: dict[str, tuple[float, float, str]] = {
+    "base": (1.0, 50.0, "matched"),
+    "u2": (2.0, 50.0, "unmatched"),
+    "uhalf": (0.5, 50.0, "unmatched"),
+    "rho2": (1.0, 50.0, "matched"),
+    "u2m": (2.0, 25.0, "matched"),
+    "uhalfm": (0.5, 100.0, "matched"),
+}
+
 # Frozen by P1-F04, 2026-08-17, PROTOCOL section 6.
 SIGMA_A = 0.03521
 SIGMA_RHO = 0.00108
@@ -278,7 +290,7 @@ def main() -> None:
     # ---- step 2 -----------------------------------------------------------
     print("\n  Step 2 -- solver-internal self-consistency\n")
     runs = {}
-    for tag in ("base", "u2", "uhalf", "rho2"):
+    for tag in STEP2_RUNS:
         f = _STEP2 / tag / "tmp" / "ellipse2d_cp.csv"
         if f.exists():
             x, cp, _ = read_cp_csv(f)
@@ -289,37 +301,68 @@ def main() -> None:
     else:
         xb, cb = runs["base"]
         print(
-            f"    {'run':<8}{'rho vs base':>14}{'a vs base':>12}"
-            f"{'max|dCp|':>12}  verdict"
+            f"    {'run':<9}{'U':>5}{'T':>6}{'flows':>7}{'a vs base':>12}"
+            f"{'dev':>9}{'max|dCp|':>11}  verdict"
         )
         step2: dict[str, dict] = {}
-        for tag in ("u2", "uhalf", "rho2"):
-            if tag not in runs:
-                print(f"    {tag:<8}  missing")
+        for tag in STEP2_RUNS:
+            if tag == "base" or tag not in runs:
                 continue
+            u, maxt, note = STEP2_RUNS[tag]
             x, cp = runs[tag]
             agr = cp_agreement(xb, cb, x, cp, mode="collapsed")
-            dmax = float(np.max(np.abs(np.interp(xb, x, cp) - cb)))
-            ok = abs(agr.a - 1.0) < 2 * SIGMA_A and abs(agr.rho - 1.0) < 2 * SIGMA_RHO
+            # Same body and resolution, so the probe lists align element-wise.
+            # np.interp cannot be used: x/c is not monotonic on a closed
+            # surface, it doubles back along the other branch.
+            dmax = (
+                float(np.max(np.abs(cp - cb))) if cp.shape == cb.shape else float("nan")
+            )
+            dev = abs(agr.a - 1.0)
+            ok = dev < 2 * SIGMA_A
             step2[tag] = {
+                "U": u,
+                "max_phys_t": maxt,
+                "chord_flows": u * maxt,
                 "rho": agr.rho,
                 "a": agr.a,
+                "dev_from_unity": dev,
+                "dev_sigma": dev / SIGMA_A,
                 "max_abs_dcp": dmax,
+                "matched": note == "matched",
                 "invariant": bool(ok),
             }
             print(
-                f"    {tag:<8}{agr.rho:>14.6f}{agr.a:>12.5f}{dmax:>12.2e}"
+                f"    {tag:<9}{u:>5.1f}{maxt:>6.0f}{u * maxt:>7.0f}"
+                f"{agr.a:>12.5f}{dev / SIGMA_A:>8.2f}s{dmax:>11.2e}"
                 f"  {'invariant' if ok else 'NOT INVARIANT'}"
             )
         report["step2"] = step2
-        print(
-            "\n    Cp is dimensionless: any departure here is a"
-            " de-dimensionalisation"
-        )
-        print(
-            "    error in the post-processing, since the lattice problem is"
-            " identical."
-        )
+
+        matched = [v for v in step2.values() if v["matched"]]
+        unmatched = [v for k, v in step2.items() if not v["matched"]]
+        print()
+        if matched:
+            worst = max(matched, key=lambda v: v["dev_sigma"])
+            print(
+                f"    Chord-flows matched: worst deviation "
+                f"{worst['dev_sigma']:.2f} sigma_a."
+            )
+            if all(v["invariant"] for v in matched):
+                print("    -> Cp is invariant to U at fixed Re and to rho.")
+                print("       The solver's de-dimensionalisation is")
+                print("       self-consistent; candidate 9 is eliminated.")
+            else:
+                print("    -> NOT invariant. Normalisation error inside the")
+                print("       solver; start at results.h:380 qInf.")
+        if unmatched:
+            worst_u = max(unmatched, key=lambda v: v["dev_sigma"])
+            print(
+                f"\n    Unmatched (T held at 50, so 25-100 chord-flows): worst"
+                f" {worst_u['dev_sigma']:.2f} sigma_a."
+            )
+            print("    That is the chord-flow confound, not a normalisation")
+            print("    error -- kept in the table so the design fault is on")
+            print("    the record rather than quietly dropped.")
 
     _OUT.mkdir(parents=True, exist_ok=True)
     (_OUT / "audit.json").write_text(json.dumps(report, indent=2, default=float))

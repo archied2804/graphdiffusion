@@ -13,12 +13,24 @@
 # qInf (results.h:380) and the values the converter applies to
 # SuperLatticePhysPressure2D.
 #
-#   base     U = 1.0  rho = 1.0      the production setting
-#   u2       U = 2.0  rho = 1.0      spec step 2
-#   uhalf    U = 0.5  rho = 1.0      the other direction, to catch a one-sided bug
-#   rho2     U = 1.0  rho = 2.0      spec candidate 9, "caught by step 2"
+#   base     U = 1.0  rho = 1.0  T = 50    the production setting
+#   u2       U = 2.0  rho = 1.0  T = 50    spec step 2, naive
+#   uhalf    U = 0.5  rho = 1.0  T = 50    the other direction
+#   rho2     U = 1.0  rho = 2.0  T = 50    spec candidate 9, "caught by step 2"
+#   u2m      U = 2.0  rho = 1.0  T = 25    step 2, chord-flows matched
+#   uhalfm   U = 0.5  rho = 1.0  T = 100   step 2, chord-flows matched
 #
-# Four runs of the six the spec budgets.
+# The last two exist because the first pass was confounded. MAX_PHYS_T is raw
+# physical time, while the flow's development is measured in chord-flows,
+# U*t/chord -- so holding MAX_PHYS_T at 50 while rescaling U puts the three runs
+# at 25, 50 and 100 chord-flows of development. F04 found MAX_PHYS_T the
+# DOMINANT noise factor (sigma_a = 0.0502), so that difference alone moves `a`
+# by more than the effect being looked for.
+#
+# AVG_WINDOW_CHORDS needs no such correction: results.h:135 already scales it by
+# tConvect = chord/U.
+#
+# Six runs, the spec's full budget.
 #
 # Usage:
 #   scripts/paper1/run_p1_f07_selfconsistency.sh
@@ -35,7 +47,6 @@ MIN_FREE_GB=20
 RE=750.0
 H=5.5
 RES=150
-MAXT=50
 AVG=25
 
 mkdir -p "$WORK"
@@ -45,7 +56,7 @@ say() { echo "[$(date -Is)] $*" | tee -a "$LOG"; }
 [ -f "$DAT" ] || { say "ERROR: $DAT missing"; exit 1; }
 
 run() {
-  local tag="$1" u="$2" rho="$3"
+  local tag="$1" u="$2" rho="$3" maxt="$4"
   local d="$WORK/$tag"
   if ls "$d"/tmp/*_force.csv >/dev/null 2>&1; then say "  skip $tag (done)"; return 0; fi
   local free
@@ -57,10 +68,10 @@ run() {
     rm -rf "$d"; mkdir -p "$d"
     cp "$DAT" "$d/body.dat"
     [ "$attempt" -eq 1 ] \
-      && say "  $tag (U=$u rho=$rho Re=$RE RES=$RES)" \
+      && say "  $tag (U=$u rho=$rho T=$maxt chord-flows=$(awk -v u="$u" -v t="$maxt" 'BEGIN{printf "%.0f", u*t}'))" \
       || say "  $tag retry $attempt/3"
     ( cd "$d" && "$BIN" body.dat --REYNOLDS "$RE" --CHANNEL_HEIGHT "$H" \
-        --RESOLUTION "$RES" --MAX_PHYS_T "$MAXT" --AVG_WINDOW_CHORDS "$AVG" \
+        --RESOLUTION "$RES" --MAX_PHYS_T "$maxt" --AVG_WINDOW_CHORDS "$AVG" \
         --PHYS_CHAR_VELOCITY "$u" --PHYS_CHAR_DENSITY "$rho" \
         > run.log 2>&1 )
     if ls "$d"/tmp/*_force.csv >/dev/null 2>&1; then
@@ -80,9 +91,12 @@ say "=========================================================="
 say "P1-F07 step 2 -- normalisation self-consistency"
 say "git: $(git -C "$ROOT" rev-parse --short HEAD)"
 
-run base   1.0 1.0
-run u2     2.0 1.0
-run uhalf  0.5 1.0
-run rho2   1.0 2.0
+run base   1.0 1.0 50
+run u2     2.0 1.0 50
+run uhalf  0.5 1.0 50
+run rho2   1.0 2.0 50
+# Chord-flows held at 50 across all three velocities.
+run u2m    2.0 1.0 25
+run uhalfm 0.5 1.0 100
 
 say "P1-F07 step 2 complete -- grade with scripts/paper1/p1_f07_audit.py"
