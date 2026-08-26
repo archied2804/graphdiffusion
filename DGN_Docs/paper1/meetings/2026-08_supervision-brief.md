@@ -1,23 +1,29 @@
 ---
 title: "Supervision brief — August 2026"
 date: 2026-08-17
+updated: 2026-08-26
 tags: [paper1, supervision, status, plan]
 status: active
 ---
 
-# Supervision brief — 17 August 2026
+# Supervision brief — August 2026
 
 > Web version (shareable): <https://claude.ai/code/artifact/5d92827c-1fb0-48ad-bda4-8d39e7108bf5>
 >
 > **The one-line state of play.** The audit phase is finished and the measurement
-> protocol froze today. It found six defects that invalidate parts of the Year-1
-> report, and it has not yet tested the model's central claim once.
+> protocol is frozen. It found six defects that invalidate parts of the Year-1
+> report — and it has now also falsified the premise of the paper's central
+> contribution.
+
+*Updated 26 August: B03's solver half, F06's regrade and F07 have reported since
+the 17 August version. §3 is substantially rewritten; the questions in §5 have
+changed.*
 
 ---
 
 ## 1. Where the suite stands
 
-Eight of 29 reported; three more became runnable today.
+**9 of 29 reported.** Stage 0 (protocol) and Stage 1 (reference) are complete.
 
 | ID | Asked | Outcome | Consequence |
 |---|---|---|---|
@@ -27,192 +33,227 @@ Eight of 29 reported; three more became runnable today.
 | [[../results/P1-F04_noise-floor\|F04]] | What is the measurement uncertainty? | ✅ supported | **Protocol frozen.** Found the probe defect |
 | [[../results/P1-F05_reference-model\|F05]] | Does the recipe reproduce cleanly? | ✅ supported | `P1-REF`, 5 seeds — but seed CV is 49% |
 | [[../results/P1-F06_schafer-turek\|F06]] | Does it hit published bounds? | ⚠️ partial | Qualified for drag and pressure, **not lift** |
-| [[../results/P1-D01_conditioning-invariance\|D01]] | Node-count independent conditioning? | ❌ falsified | Deviated 41.2%; fixed to 0.49% |
-| [[../results/P1-B03_basis-reachability\|B03]] | How many modes does the data need? | ❌ falsified | **One mode = 99.60%.** Against our own interest |
-| B01 · D02 · G03 | retrieval, node transfer, OOD ladder | ⬜ ready | Unblocked as of today |
+| [[../results/P1-F07_normalisation-audit\|F07]] | Where does `a ≈ 1.74` come from? | ⚠️ partial | Factor of two **sourced**; 9.35% residual remains |
+| [[../results/P1-D01_conditioning-invariance\|D01]] | Node-count independent conditioning? | ❌ falsified | Deviated 41.2%; **fixed to 0.49%** |
+| [[../results/P1-B03_basis-reachability\|B03]] | How many modes does the data need? | ❌ falsified | **One mode, and it is inside the noise floor** |
+| B01 | Does it beat a lookup table? | 🔵 running | 35 solver runs, launched 26 Aug |
 
-**The pattern is the point.** Of the eight reported, four were falsified outright
-and two more failed part of their pre-registered rule — and not one of those
-failures was about the model. They were about the split, the metric, the
-conditioning descriptor, the solver and the dataset's normalisation.
+Of the nine, four were falsified outright and three more failed part of their
+pre-registered rule. **Eight of those nine were about instruments, not the
+model** — the split, the metric, the conditioning descriptor, the solver, the
+reference scale. The ninth is the problem.
 
 ---
 
-## 2. What today's experiment found
+## 2. What has been fixed since 17 August
 
-### The frozen thresholds
+**F06 regraded.** The dead-probe defect hit the Schäfer–Turek cylinder far harder
+than the ellipse — **29–42%** of surface points against 3–4% — and got *worse*
+with refinement, because the probe offset scales with `Δx`. No F06 number
+changed: Δp is read at the fore and aft stagnation points, whose normals are
+grid-aligned, so those probes were always live. A verification run on the fixed
+solver recovers **200/200** probes and reproduces Δp and `Cd` to the digit.
 
-| Metric | σ | 2σ | 3σ |
-|---|--:|--:|--:|
-| ρ | 0.00108 | 0.00215 | 0.00323 |
-| `a` | 0.03521 | 0.07042 | 0.10563 |
-| `Cd` | 0.04742 | 0.09483 | 0.14225 |
-| `Cl` | 0.01542 | 0.03084 | 0.04625 |
+**F07 closed the `a ≈ 1.74` action item**, open since EXP-040.
 
-### A solver defect that touched every graded number
-
-The raw sweep failed its own falsifier, and failed in a way that made no physical
-sense — a ±25% resolution change moved ρ by 0.07, non-monotonically. Chasing that
-rather than accepting the verdict found the cause.
-
-The solver samples surface pressure at a probe half a lattice spacing outside the
-body, then snaps it to the *nearest* lattice node. Where the surface runs at a
-shallow angle to the grid, the snap lands the probe **inside the body**. The
-pressure functor returns exactly zero on a solid cell and still reports success,
-so the file records a fabricated sample — sitting at `Cp ≈ 0` in the middle of a
-suction peak, the largest error on the curve.
-
-| Affected | Runs | Points | Worst run |
-|---|--:|--:|--:|
-| F04 | 23/27 | 3.9% | 6.7% |
-| F03 | 62/82 | 3.1% | 12% |
-
-**Every graded surface-pressure number produced before today is affected.** Both
-fixes are in — a filter in the grading module, an outward probe walk in the
-solver.
-
-**The good news:** a case re-run on the fixed solver agrees with the same case
-filtered on the metric side to within a fifth of σ on every metric. The ~85
-existing runs are recoverable by regrading, not re-running.
-
-### What regrading changed
-
-| F03 criterion | Before | After |
-|---|--:|--:|
-| mean ρ | 0.9504 | **0.9990** |
-| drift in `a` with Re | 11.28% | **6.54%** |
-| Δρ on doubling resolution | ±0.034 | **±0.0004** |
-
-F03 moves falsified → marginal, and its headline finding — `a` moving 21.5% under
-refinement, which I reported as evidence of numerical non-convergence — **is
-withdrawn**. That was the probe defect; the true figure is 2–4%.
-
-### ρ cannot be the headline metric
-
-Two **unrelated** dataset shapes correlate at **ρ = 0.9954**. A predictor that
-ignores its input and returns the corpus mean scores **0.9969**.
-
-| Grading each run against every target | median ρ |
+| | |
 |---|--:|
-| against its own target | 0.99896 |
-| against another shape's target | 0.99669 |
-| **discrimination signal** | **+0.00226 (2.1σ)** |
+| Observed factor, raw | **1.81298** [1.7773, 1.8486] |
+| After the sourced factor of two, `a` | 0.90649 |
+| **Residual** | **9.35% ± 0.91pp** (10.3 SEM) |
 
-Marginal by this suite's own rule. ρ answers "is this a plausible ellipse Cp
-curve", not "is this the correct one". Replacement: **rank / top-k** (top-1
-33.3% against 6.7% chance) and **Cd** (40% dynamic range against a 5% floor).
+The residual is real but it is **constant** — χ²/dof = 0.885 for a constant
+model, so the entire envelope spread sits inside the measurement floor. Because
+it is constant it cancels in every comparison the paper makes. It is a
+presentation problem, not a validity one. It is provably not a solver pressure
+error (F06), not a de-dimensionalisation error (a 4× range in `U` and 2× in `ρ`
+move `a` by ≤0.28σ), and not introduced downstream.
 
-### One result that helps
-
-Node phase — rolling the node list so the body is bit-identical but every node
-moves — contributes **σ_ρ = 2×10⁻⁵**, two orders below every other factor. The
-instrument is blind to where the nodes sit, which is what makes the
-discretisation claim measurable at all.
+**A note on how F07 was reported.** The two candidate mechanisms that land
+*inside* the confidence interval (1.80, 1.78) are the two struck before the run
+for resting on a scaling stated for a **different dataset** — and the one
+candidate derived from first principles predicts 2.00 and sits outside it. The
+pre-registered candidate table was written to stop exactly this, so the
+coincidence is recorded and **not acted on**.
 
 ---
 
-## 3. Five decisions I need
+## 3. The problem: C1 has no supported argument
 
-### Q1 — Accept the metric change from ρ to rank/top-k plus Cd?
+This is the item for the meeting.
 
-ρ underpins the Year-1 report, the outline and every draft figure, and it cannot
-carry a discrimination claim on this corpus. Risk in changing: rank metrics are
-unfamiliar to a fluids audience. Risk in not changing: a reviewer computes the
-chance level themselves.
+**C1** claims generative design at the level of the boundary discretisation,
+reaching designs a hand-designed low-dimensional parameterisation cannot.
 
-**Recommendation:** change it, and make the chance-level analysis a *figure*
-rather than a footnote. Far better coming from us than from a reviewer.
+**B03 falsified its premise, twice over.**
 
-### Q2 — B03 says the manifold is 1-D. Does C1 survive?
+1. **Analytically** — one PCA mode explains **99.60%** of shape variance in
+   pOnEllipse; two explain 99.998%.
+2. **Physically**, as of 26 August — four held-out shapes on a 2×2 (thickness,
+   Reynolds) factorial, reconstructed and pushed through the solver. **Every
+   truncation level is invisible to the instrument, `M = 1` included**: worst
+   shape 1.10σ on ρ and 1.26σ on `Cd`, against a 2σ rule.
 
-One PCA mode explains 99.60% of shape variance; two explain 99.998%. C1 argues
-node-native generation reaches designs a low-dimensional basis cannot. **On this
-dataset that premise is unsupported.** Routes:
+A one-mode reconstruction is **inside the solver's measurement uncertainty**. On
+this dataset a low-dimensional basis is not "nearly sufficient" — it is
+sufficient.
 
-1. Report it and reframe C1 around discretisation-independence (C2), which the
-   data does support; state the limitation in §5.
-2. Enrich the dataset beyond the ellipse family — real scope growth, Paper 2.
-3. Argue C1 on *reach* via the OOD ladder rather than in-distribution accuracy —
-   what the B03 spec's own fail branch directs.
+**And the registered fallback is gone.** B03's spec anticipated this outcome and
+named the escape route: *"argue C1 on reach (AoA10, G03) rather than on
+in-distribution accuracy."* B03 §4 then found the AoA10 contrast is a
+**rotation, not a reach limitation** — `r(θ)` is orientation-locked, so a 10°
+rotation moves a shape 759× outside a train-fitted basis for reasons that have
+nothing to do with reach.
 
-**Recommendation:** 1 combined with 3. But this is a framing decision about the
-paper's central contribution, so it is yours.
+> **C1 has exactly one untested route left: G03, the DCT-space OOD ladder.**
+> It has been promoted to the gate tier. 0 training runs, ~45 solver runs, and
+> the ladder is already regenerated.
 
-### Q3 — Is the full suite realistic by December on one laptop GPU?
+A second casualty: **B02 is near-pointless as scoped.** It was designed as a
+10-mode PCA straw man, and `M = 10` is indistinguishable from the original body.
 
-Twenty remain: ~64 training runs (~91 h) and ~658 solver runs (~22 h), serial, on
-the machine I also work on. Training is the bottleneck. Four months, and writing
-has not started. The suite is tiered so cutting is pre-planned; the support tier
-is S01, S03, A04.
+---
 
-**What I need:** either a decision to cut to gate + core now, while it is a plan
-rather than a retreat, or CSF/Condor access for the training sweeps. The SLURM
-script already exists.
+## 4. Does this ruin the results, and should we still publish?
 
-### Q4 — How hard do we chase the remaining 9.3% magnitude gap?
+**It does not ruin them, and it does not prohibit publication.** It changes what
+the paper is, and that decision is better made now than in November.
 
-After the factor-of-two correction (dataset stores `p/(ρU²)`, solver reports
-`p/(½ρU²)` — the origin of the long-standing `a ≈ 1.74`), solver and dataset
-agree to `0.907 ± 0.033`. The residual 9.3% is real and unexplained. F07 is
-scoped to close it (~6 runs).
+**Fixed instrument defects help you.** F02's disagreeing graders, the dead
+probes, F07's factor of two. Every one would have been fatal if a reviewer had
+found it first. Found internally and fixed, they are evidence the evaluation is
+honest.
 
-**Recommendation:** run F07 as scoped, then stop. If unresolved, report it as a
-stated systematic with a bound — every claim is a comparison between conditions
-sharing the offset, so it cancels. It is a presentation problem, not a validity
-one.
+**Bounded limitations are statable.** F06's unqualified lift (every pOnEllipse
+configuration is AoA = 0, where `Cl ≈ 0`). F07's constant residual. F03's Re
+drift, which is confounded with resolution and the same size as the resolution
+factor F04 measured directly.
+
+**What is actually supported today**
+
+| | Status |
+|---|---|
+| **C2** — conditioning independent of the discretisation | ✅ D01 fixed to 0.49%; F04 showed the instrument is blind to node phase (σ_ρ = 2×10⁻⁵), which is what makes the claim measurable at all |
+| **C3** — grading by an independent first-principles solver | ✅ Qualified absolutely against Schäfer–Turek |
+| **C1** — node-native beats a low-dimensional basis | ❌ Premise falsified on this dataset; one route left |
+| **C4** — failure taxonomy | ⬜ Not yet measured |
+
+**An unplanned contribution.** The audit produced results useful regardless of
+whether the model works: the chance level of ρ on an aerofoil-pressure corpus, a
+noise floor with per-factor decomposition, a discretisation-invariant
+conditioning descriptor, and a surface-probe defect any LBM code could share.
+
+**My read.** You currently have a strong **evaluation-methodology** paper and a
+weak **generative-modelling** paper. Both are publishable — pre-registered
+falsifications are a legitimate contribution and increasingly valued — but they
+are different papers at different venues. The limitation is the **dataset**, not
+the method: a two-parameter ellipse family cannot demonstrate a
+parameterisation-bottleneck claim, and that is a scoping decision made before
+Paper 1 started.
+
+---
+
+## 5. Five decisions I need
+
+### Q1 — Given B03, does C1 survive at all?
+
+The paper's identity depends on this and everything else follows from it. Three
+routes:
+
+1. **Report and reframe.** Lead on C2 and C3, which the data supports; state
+   C1's premise as a measured limitation in §5. Safe, honest, less ambitious.
+2. **Wait for G03.** ~45 solver runs, no training. If performance degrades
+   sharply along the DCT ladder where retrieval cannot follow, C1 has an
+   extrapolation argument.
+3. **Enrich the dataset** beyond the ellipse family. Real scope growth — Paper 2.
+
+**Recommendation:** run G03 first (it is cheap and it is the last route), then
+decide between 1 and 2 with the number in hand.
+
+### Q2 — Methodology paper or modelling paper?
+
+This follows from Q1 and it determines the venue. [[../REPORT_OUTLINE]] currently
+targets *Machine Learning: Science and Technology*. If the answer to Q1 is route
+1, the instrument work becomes the lead contribution and the venue question
+reopens.
+
+### Q3 — Seeds versus compute
+
+`P1-REF` has **49% seed CV**, a 3.2× spread across five seeds. With three seeds,
+A01–A03 will very likely return "no detectable difference" whether or not a real
+effect exists — **and that is not evidence of no effect.** Either budget more
+seeds, multiplying an already-tight training cost, or state the minimum
+detectable effect size up front and accept it.
+
+Twenty experiments remain: ~64 training runs (~91 h) and ~658 solver runs
+(~22 h), serial, on the laptop I also work on. The GPU display watchdog killed
+runs in both of the last two sweeps.
+
+**What I need:** CSF/Condor access, or a decision to cut to gate + core now while
+it is a plan rather than a retreat. The SLURM script already exists.
+
+### Q4 — The metric change, now a reporting decision rather than a blocker
+
+ρ cannot carry a discrimination claim here: unrelated shapes correlate at
+**0.9954**, and a corpus-mean predictor scores **0.9969**. Independently
+confirmed on B03's 24 runs, where ρ spans 2.0σ in total and `Cd` spans 7.8σ.
+
+Five unrun specs state their rule in ρ. They are **not blocked**: run them, apply
+the registered rule, report its verdict, and report rank/top-k and `Cd`
+alongside. That adds information without editing a spec.
+
+**Recommendation:** approve that, and make the chance-level analysis a *figure*
+rather than a footnote. Far better from us than from a reviewer.
 
 ### Q5 — Does the instrument work belong in the paper as a contribution?
 
-The audit produced things useful independently of whether the model works: the
-chance level of ρ on an aerofoil-pressure corpus, a quantified noise floor with
-per-factor decomposition, a discretisation-invariant conditioning descriptor, and
-a solver defect any LBM surface-sampling code could share. Currently supporting
-apparatus in §3/§4.1; could be a stated contribution.
-
-**My view:** worth raising. If the model results come back weak, this is the part
-of the work that is unambiguously solid. But it changes the paper's identity and
-possibly its venue — better asked now than realised in November.
+Currently supporting apparatus in §3 and §4.1. If Q1 lands on route 1, this is
+the part of the work that is unambiguously solid, and it should be promoted.
 
 ---
 
-## 4. Route to December
+## 6. Plan to December
 
-| Window | Work | Cost | Decides |
-|---|---|--:|---|
-| Now → early Sep | B01, A01, A02, A03, B03 solver half | 12 train, ~79 solver | **The August gate** — does it beat a lookup table, and does message passing contribute? |
-| Sep | F07, G01, D02 | ~166 solver | The headline number, honestly measured for the first time |
-| Oct | C01–C04, S02, B02 | ~23 train | Whether the design choices are justified or inherited |
-| Nov | G02, G03, G04, B04 | ~133 solver | §4.6 and the limitations section |
+**Before the gate** — ~116 solver runs and 12 training runs, roughly two weeks
+part-time.
 
-Nothing after the gate is worth running until the framing survives it.
+| Order | Cost | Why here |
+|---|---|---|
+| 🔵 **B01** retrieval *(running)* | 0 train · 35 solver | Zero training. B03 says the manifold is 1-D with 5,701 training samples, so retrieval may match the model outright — **know that before spending 91 h training** |
+| **G03** OOD ladder | 0 train · ~45 solver | C1's last route. Promoted from Stage 5 |
+| **A01** no-edge | 3 train · ~12 solver | Cheapest architecture control |
+| **A02 · A03** | 6 train · ~24 solver | Completes the trio |
+
+Then the gate: framing and venue, per Q1 and Q2.
+
+| Window | Work | Decides |
+|---|---|---|
+| Sep | G01, D02 | The headline number, honestly measured for the first time |
+| Oct | C01–C04, S02, B02 | Whether the design choices are justified or inherited |
+| Nov | G02, G04, B04 | §4.6 and limitations |
 
 ### Safe to write now
 
-Per [[../WRITING_ORDER]] — a section is safe when no pending experiment can reverse
-its claims, only add to them.
+Per [[../WRITING_ORDER]] — a section is safe when no pending experiment can
+reverse its claims.
 
-- 🟢 **§3 Method** — the largest block of finished work, and now the most defensible.
-- 🟢 **§4.1 Instrument qualification** — F02, F03, F04, F06. Complete as of today.
+- 🟢 **§3 Method** — the largest block of finished work.
+- 🟢 **§4.1 Instrument qualification** — F02, F03, F04, F06, F07. Complete.
 - 🟢 **§5 Limitations** — deliberately early, while the falsifications are fresh.
-- 🔴 **§4.2, §4.3** — do not start. A pending experiment can invert either.
+- 🔴 **§4.2, §4.3** — do not start. B03 makes §4.3 the section most at risk of
+  being written to a predetermined answer.
 
-### Live risks
-
-1. **The gate may not survive.** If A01 shows message passing adds nothing within
-   2σ, the honest report is "no detectable benefit" — publishable, but it changes
-   the paper.
-2. **Seed variance is high.** `P1-REF` best-val has CV 49% across five seeds, a
-   3.2× spread. Model comparisons need enough seeds to see past that.
-3. **Lift is not qualified.** F06 cleared drag and pressure but not lift, and that
-   survives fp64 — a property of the case, not round-off.
-4. **Compute.** See Q3.
+⚠️ **[[../WRITING_ORDER]] §4.1 was rewritten on 26 August.** Its earlier drafting
+spine quoted four numbers that the dead-probe fix has since withdrawn. If any
+prose was drafted from it before that date, check every figure against the
+withdrawn list.
 
 ---
 
-## 5. Vocabulary — worth a minute in the meeting
+## 7. Vocabulary — worth a minute in the meeting
 
 Paper 1 earns **"discretisation-native"** and nothing more. Not "direct node
 movement" (nodes move radially, 1 DOF, fixed ring — Paper 2). Not "mesh-native"
 (a 96-node boundary ring, no interior nodes — Paper 3). Two of the ten
-anticipated reviewer questions are about exactly this wording, so it is worth
-agreeing before the prose accumulates. Table in [[../REPORT_OUTLINE]].
+anticipated reviewer questions are about exactly this wording. Table in
+[[../REPORT_OUTLINE]].
