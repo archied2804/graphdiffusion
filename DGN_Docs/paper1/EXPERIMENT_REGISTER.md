@@ -34,7 +34,7 @@ appear in the paper · `support` strengthens it, cut first if time runs out.
 | [P1-F04](specs/P1-F04_noise-floor.md) | Grading noise floor | **gate** | What is the measurement uncertainty of ρ and a? | F02 F03 | 0 | 27 | ✅ **[reported](results/P1-F04_noise-floor.md)** — supported; **protocol frozen** |
 | [P1-F05](specs/P1-F05_reference-model.md) | Reference model, clean protocol | **gate** | Does the EXP-022 recipe reproduce on a clean split, and what is its true held-out performance? | F01 (F02 for grading only) | 5 | 0 | ✅ **[reported](results/P1-F05_reference-model-attempt3.md)** — supported; attempt 3 is P1-REF |
 | [P1-F06](specs/P1-F06_schafer-turek.md) | **Schäfer–Turek absolute benchmark** | **gate** | Does the solver reproduce published `Cd`, `Cl`, Δp, St bounds — i.e. is it *absolutely* correct, not just self-consistent? | F02 | 0 | ~12 | ✅ **[reported](results/P1-F06_schafer-turek.md)** — 2D-1 complete; qualified for drag + pressure, not lift *(regraded 08-25; unchanged)* |
-| [P1-F07](specs/P1-F07_normalisation-audit.md) | **Cp normalisation audit** — source of `a ≈ 1.74` | **gate** | Where does the affine magnitude factor come from? | F02 F04 F06 | 0 | ~6 | planned |
+| [P1-F07](specs/P1-F07_normalisation-audit.md) | **Cp normalisation audit** — source of `a ≈ 1.74` | **gate** | Where does the affine magnitude factor come from? | F02 F04 F06 | 0 | 6 | ⚠️ **[reported](results/P1-F07_normalisation-audit.md)** — partial; factor of 2 sourced, **9.35% ± 0.91pp residual** |
 
 ### A — Architecture necessity → paper §4.2 (C1)
 

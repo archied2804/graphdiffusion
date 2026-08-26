@@ -60,6 +60,9 @@ STEP2_RUNS: dict[str, tuple[float, float, str]] = {
     "uhalfm": (0.5, 100.0, "matched"),
 }
 
+#: The matched runs that vary U. rho2 is also matched but tests density only.
+U_MATCHED = ("u2m", "uhalfm")
+
 # Frozen by P1-F04, 2026-08-17, PROTOCOL section 6.
 SIGMA_A = 0.03521
 SIGMA_RHO = 0.00108
@@ -306,7 +309,10 @@ def main() -> None:
         )
         step2: dict[str, dict] = {}
         for tag in STEP2_RUNS:
-            if tag == "base" or tag not in runs:
+            if tag == "base":
+                continue
+            if tag not in runs:
+                print(f"    {tag:<9}  not yet run")
                 continue
             u, maxt, note = STEP2_RUNS[tag]
             x, cp = runs[tag]
@@ -338,10 +344,17 @@ def main() -> None:
             )
         report["step2"] = step2
 
-        matched = [v for v in step2.values() if v["matched"]]
+        # The U-invariance claim needs the U-varying matched runs. rho2 is
+        # matched too but only speaks to density, so it cannot stand in.
+        matched = [v for k, v in step2.items() if v["matched"] and k in U_MATCHED]
         unmatched = [v for k, v in step2.items() if not v["matched"]]
         print()
-        if matched:
+        if len(matched) < len(U_MATCHED):
+            print(
+                f"    U-invariance: incomplete "
+                f"({len(matched)}/{len(U_MATCHED)} matched runs) -- no verdict."
+            )
+        elif matched:
             worst = max(matched, key=lambda v: v["dev_sigma"])
             print(
                 f"    Chord-flows matched: worst deviation "
