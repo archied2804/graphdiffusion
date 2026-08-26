@@ -46,7 +46,7 @@ under-appreciated. Everything it describes is now sourced or measured.
 | Partition & splits | [[results/P1-F01_data-partition]] | Frozen, hashed, leakage audited |
 | Conditioning descriptor | [[CONDITIONING_MATHS]] | Derivation, validity bound, numerical validation all complete |
 | Solver & grading | [[SOLVER_CASE]], [[results/P1-F02_grading-metric]] | Case documented, metric consolidated and tested |
-| Reference model | [[results/P1-F05_reference-model-attempt3]] | P1-REF frozen, 5 seeds |
+| Reference model | [[results/P1-F05_reference-model]] | P1-REF frozen, 5 seeds |
 
 **Write §3.3 (conditioning) first.** It is the section with the cleanest
 narrative — a claim that was asserted, a measurement that falsified it, a

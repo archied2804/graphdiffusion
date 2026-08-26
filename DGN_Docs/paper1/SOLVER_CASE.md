@@ -198,7 +198,7 @@ the exact parameter set it implies.
 ## 8. Reference values
 
 Transcribed from Schäfer & Turek (1996), archived at
-`DGN_Docs/paper1/refs_SchaferTurek1996_DFG.pdf`. Full tables and our measured
+`DGN_Docs/paper1/refs/SchaferTurek1996_DFG.pdf`. Full tables and our measured
 verdicts are in [[results/P1-F06_schafer-turek]] §6.
 
 | 2D-1 (Re 20) | `cD` | `cL` | `La` | `ΔP` |

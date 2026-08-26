@@ -1,7 +1,7 @@
 ---
 title: "Paper 1 — experiment suite"
 date: 2026-08-02
-updated: 2026-08-02
+updated: 2026-08-26
 tags: [paper1, experiments, preregistration, protocol]
 status: active
 ---
@@ -18,18 +18,69 @@ Everything here supersedes the exploratory `EXP-0xx` series in
 pilot phase that motivated these designs — but **no Year-1 number is carried into
 the paper without being regenerated under this protocol.**
 
+## Where things stand — 26 August 2026
+
+**9 of 29 reported.** The audit tier (F) is finished and the measurement protocol
+is frozen. The model's central claims have not been tested yet.
+
+| ID | Verdict | One line |
+|---|:--:|---|
+| [F01](results/P1-F01_data-partition.md) | ❌ falsified | No clean split; the Year-1 headline was measured on training samples |
+| [F02](results/P1-F02_grading-metric.md) | ❌ falsified | Four graders disagreed; one canonical module now |
+| [F03](results/P1-F03_solver-qualification.md) | ⚠️ marginal | ρ = 0.999 across the envelope — **read §13**, §§1–12 are superseded |
+| [F04](results/P1-F04_noise-floor.md) | ✅ supported | **Protocol frozen.** Found the dead-probe defect |
+| [F05](results/P1-F05_reference-model.md) | ✅ supported | `P1-REF`, 5 seeds — but seed CV is 49% |
+| [F06](results/P1-F06_schafer-turek.md) | ⚠️ partial | Qualified for drag and pressure, **not lift** |
+| [F07](results/P1-F07_normalisation-audit.md) | ⚠️ partial | Factor of two sourced; **9.35% ± 0.91pp residual** remains |
+| [D01](results/P1-D01_conditioning-invariance.md) | ❌ falsified | Conditioning deviated 41.2%; fixed to 0.49% |
+| [B03](results/P1-B03_basis-reachability.md) | ❌ falsified | **One PCA mode is inside the noise floor** — against C1's interest |
+
+**Blocked, not idle.** B01, A01–A03, D02 and G03 are all runnable on dependencies
+but have decision rules written in ρ, which F04 demoted. Running one now
+pre-registers a metric the protocol no longer trusts. They wait on the
+supervision decision in [meetings/](meetings/).
+
+Current status board: [EXPERIMENT_REGISTER.md](EXPERIMENT_REGISTER.md).
+
+---
+
+## Map
+
+**Start here**
+
 | Document | What it is |
 |---|---|
-| [PROTOCOL.md](PROTOCOL.md) | The rules every experiment obeys — splits, seeds, metrics, grading pipeline, significance test. **Read this first.** |
-| [METRICS.md](METRICS.md) | **Menu, not mandate.** Every metric assessed: what claim it carries, what it cannot do, what it costs, how a reviewer attacks it. Recommended minimum / full / stretch sets |
-| [EXPERIMENT_REGISTER.md](EXPERIMENT_REGISTER.md) | Master table of all 29 experiments, dependency graph, execution order, status board |
-| [REPORT_OUTLINE.md](REPORT_OUTLINE.md) | Paper skeleton, which experiment feeds which figure, and writing guidance |
-| [specs/](specs/) | One file per experiment — the pre-registration |
-| [results/](results/) | One file per experiment — filled in after running |
+| [PROTOCOL.md](PROTOCOL.md) | The rules every experiment obeys — splits, seeds, metrics, grading, significance. §6 carries the frozen σ. **Read this first.** |
+| [EXPERIMENT_REGISTER.md](EXPERIMENT_REGISTER.md) | Master table of all 29, dependency graph, execution order, status |
+| [specs/](specs/) | One file per experiment — the pre-registration. Read before touching an experiment |
+| [results/](results/) | One file per experiment — written after running |
+
+**Reference**
+
+| Document | What it is |
+|---|---|
+| [METRICS.md](METRICS.md) | **Menu, not mandate.** Every metric: what claim it carries, what it cannot do, how a reviewer attacks it |
+| [DATASET_PROVENANCE.md](DATASET_PROVENANCE.md) | Where pOnEllipse comes from and what its numbers mean. §§4–5 are F07's archaeology |
+| [SOLVER_CASE.md](SOLVER_CASE.md) | The OpenLB case — geometry, materials, boundary treatment, build |
+| [CONDITIONING_MATHS.md](CONDITIONING_MATHS.md) | The DCT conditioning descriptor, derived |
+| [refs/](refs/) | Source papers — Lino 2022/2025, Schäfer–Turek 1996 |
+
+**Writing**
+
+| Document | What it is |
+|---|---|
+| [REPORT_OUTLINE.md](REPORT_OUTLINE.md) | Paper skeleton, which experiment feeds which figure, permitted vocabulary |
+| [WRITING_ORDER.md](WRITING_ORDER.md) | Which sections are safe to write now and which a pending experiment can still invert |
+| [meetings/](meetings/) | Supervision briefs |
+
+**Housekeeping.** `results/superseded/` holds results files replaced by a later
+attempt; they are kept, not deleted, because the record of what failed is part of
+the audit trail. `results/_template.md` is the skeleton for a new results file.
 
 Planning context: [[../publication/PUBLICATION_PLAN]] · [[../publication/RESEARCH_PROGRAMME]] · [[../publication/PUBLICATION_DIARY]]
 
 ---
+
 
 ## 1. Naming scheme
 
@@ -86,10 +137,10 @@ later stages use earlier ones as their comparator.
 
 | Stage | Experiments | Why here |
 |:--:|---|---|
-| **0 — Protocol** | F01 F02 **F06** F03 F04 **F07** | Nothing is measurable until the split, the metric, the instrument, the noise floor and **the reference scale** are frozen |
-| **1 — Reference** | F05 | The single model every later result is a delta from |
-| **2 — Story-breaking** | B01 B03 A01 A02 A03 | These can invalidate the framing. Cheap. Run them before writing anything |
-| 🚦 | **AUGUST GATE** | Decide the paper's framing and venue. Log in [[../publication/PUBLICATION_DIARY]] |
+| ✅ **0 — Protocol** | F01 F02 **F06** F03 F04 **F07** | Nothing is measurable until the split, the metric, the instrument, the noise floor and **the reference scale** are frozen |
+| ✅ **1 — Reference** | F05 | The single model every later result is a delta from |
+| ◐ **2 — Story-breaking** | ~~B03~~ · B01 A01 A02 A03 | These can invalidate the framing. Cheap. Run them before writing anything |
+| 🚦 | **← WE ARE HERE · AUGUST GATE** | Decide the paper's framing and venue. Log in [[../publication/PUBLICATION_DIARY]] |
 | **3 — Headline** | G01 D01 D02 B02 | The results the paper is actually about |
 | **4 — Ablations** | C01 C02 C03 A04 S01 S02 S03 | Contribution-targeted ablations (viva point 2) |
 | **5 — Failure modes** | G02 G03 G04 C04 B04 | The C4 payoff |

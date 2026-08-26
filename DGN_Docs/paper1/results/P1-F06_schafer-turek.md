@@ -145,7 +145,7 @@ the same configuration. To be confirmed across the ladder.
 
 Schäfer & Turek (1996), *Benchmark Computations of Laminar Flow Around a
 Cylinder*, DFG Priority Programme. Archived at
-`DGN_Docs/paper1/refs_SchaferTurek1996_DFG.pdf` and `..._results.pdf`.
+`DGN_Docs/paper1/refs/SchaferTurek1996_DFG.pdf` and `..._results.pdf`.
 
 The paper states, of the last row of each results table: *"estimated intervals
 for the 'exact' results are indicated (as suggested by the authors on the basis

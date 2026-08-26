@@ -1,130 +1,150 @@
 ---
 id: P1-F05
 spec: "../specs/P1-F05_reference-model.md"
-title: "Reference model under the clean protocol"
-date_run: 2026-08-03
-date_reported: 2026-08-04
+title: "Reference model under the clean protocol — attempt 3"
+date_run: 2026-08-06
+date_reported: 2026-08-06
 status: complete
 verdict: supported (training half)
-git_sha: 1030982
+supersedes: P1-F05_reference-model.md
+git_sha: 5ec4fe4
 ---
 
-# P1-F05 — results
+# P1-F05 — results, attempt 3
 
 > **Spec:** [[../specs/P1-F05_reference-model]] · **Verdict:** ✅ **training half
-> supported.** The held-out grading half is deferred to
-> [[../specs/P1-G01_holdout-inverse-design]] by design.
+> supported.** Five seeds, full 1000 epochs, on the frozen partition and the
+> **corrected conditioning descriptor** from
+> [[P1-D01_conditioning-invariance]] §6.1.
+>
+> Supersedes [[superseded/P1-F05_reference-model_attempt1-2]] (attempt 2), which is retained as the
+> record of the legacy-conditioning run and archived at
+> `outputs/paper1/_archive_P1-F05_attempt2_orthonorm/`.
 
-## 1. Verdict against the pre-registered decision rule
+## 1. Why there is a third attempt
 
-Pass criterion was *"val loss within the seed CI of EXP-022's, validity ≥ 95%"*.
-Five seeds trained the full 1000 epochs on the frozen partition and converged
-consistently. **P1-REF is adopted as the reference model.**
+| Attempt | Discarded because | Record |
+|:--:|---|---|
+| 1 | `early_stopping_patience: 100` gave seeds unequal training budgets | archived |
+| 2 | Conditioned on the `sqrt(N)`-scaling, spacing-blind descriptor that [[P1-D01_conditioning-invariance]] falsified | [[superseded/P1-F05_reference-model_attempt1-2]] |
+| **3** | — | **this file; P1-REF** |
 
-The spec's second prediction — held-out ρ ∈ [0.88, 0.94] — is **not tested here**.
-Grading is G01's job, deliberately, so the reference experiment cannot quietly
-become the headline result before the baselines report.
+Attempt 3 is not a re-seeding of attempt 2. The conditioning vector itself
+changed, so the two are **different methods**, not different runs (see §4).
 
 ## 2. Headline numbers
 
-| Seed | Epochs | best_val | at epoch | final_train |
+| Seed | best_val | at epoch | final_train | final_val |
 |:--:|--:|--:|--:|--:|
-| 0 | 1000 | 1.833e-4 | 921 | 4.257e-4 |
-| 1 | 1000 | 1.557e-4 | 986 | 3.794e-4 |
-| 2 | 1000 | 1.500e-4 | 990 | 3.773e-4 |
-| 3 | 1000 | 9.592e-5 | 952 | 1.687e-4 |
-| 4 | 1000 | 1.570e-4 | 989 | 3.386e-4 |
+| 0 | 1.558e−5 | 921 | 5.851e−5 | 5.921e−5 |
+| 1 | 1.817e−5 | 986 | 6.403e−5 | 4.615e−5 |
+| 2 | 1.152e−5 | 991 | 2.605e−5 | 2.242e−5 |
+| 3 | **3.706e−5** | 919 | 7.101e−5 | 7.630e−5 |
+| 4 | 1.786e−5 | 973 | 6.018e−5 | 8.563e−5 |
 
-**best_val = 1.484e-4, 95% CI [1.086e-4, 1.882e-4], CV = 21.6%, n = 5.**
+**best_val = 2.004e−5, CV = 49.3%, spread 3.22×, n = 5.**
 
 | | |
 |---|---|
 | Partition | 5131 train / 570 val, `paper1_partition.json` |
-| Score-network parameters | **147,585** (165,513 including the pressure head) |
-| Wall clock | 70–78 min per seed; 7.5 h total |
+| Conditioning | `cond_norm: forward`, K = 8 |
+| Wall clock | ~105 min per seed; 7.0 h total |
 
-**This CV is the model-side noise scale.** Every A/B/C/D/S comparison must clear
-it as well as F04's instrument-side floor. A 21.6% spread in val loss across seeds
-is large enough that single-seed model comparisons — which is what the entire
-Year-1 series ran — cannot distinguish recipes.
+## 3. Finding — seed variance roughly doubled, driven by one outlier
 
-## 3. Protocol deviation — attempt 1 discarded
+CV rose from **21.6%** (attempt 2) to **49.3%**. That is the opposite of what a
+cleaner conditioning signal might be expected to give, and it needs stating
+carefully because two different things could produce it.
 
-**Dated 2026-08-03.** The first attempt used `early_stopping_patience: 100`,
-inherited from EXP-022. Seeds received **unequal training budgets**: seed 0 stopped
-at epoch 281 (best at 181) while seeds 1–3 ran the full 1000 and never triggered
-it. Seed 0's best_val was **1.44e-3**, an order of magnitude worse, and the spread
-across seeds was **14.6×**.
+**It is one seed.** Excluding seed 3:
 
-Reported as-is that would have been recorded as seed variance. It was a budget
-artefact.
+| | mean | CV |
+|---|--:|--:|
+| all five | 2.004e−5 | **49.3%** |
+| excluding seed 3 | 1.578e−5 | **19.4%** |
 
-Fixed by raising patience above the epoch budget so it can never fire —
-deliberately not `null`, because in `train.py` the best-checkpoint save sits inside
-the early-stopping branch and would be disabled with it. Applied uniformly, and
-not chosen for its effect on results: unequal budgets are a defect whichever way
-they fall.
+Seed 3 is **2.35×** the mean of the other four. Excluding it recovers a CV of
+19.4%, statistically indistinguishable from attempt 2's 21.6%.
 
-**Effect:** seed spread fell from 14.6× to **1.91×**, and seed 0 moved from
-1.44e-3 to 1.83e-4, in line with the others. Attempt 1 is preserved at
-`outputs/paper1/_archive_P1-F05_attempt1_earlystop/`.
+**There is no pre-registered basis for excluding it**, and it is not excluded
+here — the headline CV is 49.3%. But the honest description is "four seeds
+agree to 19% and one is 2.4× worse", not "variance doubled uniformly". That
+distinction matters for [[../specs/P1-S01_capacity]] and every downstream
+comparison, which should treat 49.3% as the operative noise scale while
+recognising it is outlier-driven.
 
-## 4. Observation — the epoch budget may be under-specified
+Seed 3 is not otherwise anomalous: it reached its best at epoch 919, in line
+with the others, and its final train loss (7.101e−5) is only ~20% above the
+group. It is a worse optimum, not a diverged run.
 
-Every seed reached its best validation loss at **epoch 921–990 of 1000**. None had
-plateaued. The 1000-epoch budget, inherited from EXP-022, is very likely cutting
-training short.
+## 4. ⚠️ The loss values are not comparable across attempts
 
-**Logged, not acted on.** Changing the reference recipe to chase this would break
-the "reproduce EXP-022" premise and invalidate every comparison built on P1-REF.
-It is [[../specs/P1-S03_diffusion-schedule]]'s question. If S03 shows a longer
-budget helps materially, that is a finding to report — not a reason to
-retrospectively re-run the suite.
+Attempt 2's mean was 1.484e−4; attempt 3's is 2.004e−5, **7.4× lower**. This is
+**not** evidence that the corrected conditioning trains better.
 
-## 5. Metadata correction — the `git_dirty` flag
+The training objective is a sum of the diffusion noise-prediction MSE and an
+auxiliary pressure term weighted by `lambda_pressure: 0.1`. That auxiliary term
+regresses the conditioning vector, whose magnitude fell by roughly 7×
+([[P1-D01_conditioning-invariance]] §6.1: `|cond|` median 2.50–5.10 → 0.376–0.594).
+Its squared contribution therefore fell by roughly 50×, and the total loss with
+it.
 
-All five runs recorded `git_dirty: true` and were flagged unusable by the status
-board. **This was a defect in the metadata, not in the runs.**
+**Only the total loss is logged** (`loss_log.json` carries `train_loss` and
+`val_loss` and nothing else), so the two terms cannot be separated after the
+fact. Consequences:
 
-Verified: seven commits landed during the run window, and **none touched anything
-`train.py` imports** — they were `postprocessing/`, `tests/`, `scripts/` and docs.
-`train.py` does not import `postprocessing` at all. The training code path was
-unchanged from launch to completion.
+- **No cross-attempt loss comparison is valid**, in either direction.
+- CV is scale-invariant under a pure rescaling, but *not* under a change in the
+  mixture of two differently-scaled terms. So even the CV comparison in §3 is
+  weaker than it looks, and the 21.6% → 49.3% change cannot be attributed to
+  the conditioning with confidence.
+- **Recommended change:** log the two loss components separately. It costs
+  nothing and would have made this section unnecessary. Logged as a protocol
+  improvement, not applied retroactively.
 
-Two real defects in the `run_meta.json` implementation, both now fixed:
+The only defensible cross-attempt comparison is on **graded** quantities — ρ,
+`a`, validity — which is [[../specs/P1-G01_holdout-inverse-design]]'s job, not
+this experiment's.
 
-1. Git state was captured at the **end** of the run, so a run was attributed to
-   whatever had been committed by then rather than the commit it executed.
-2. The dirty check was **repo-wide**, so an Obsidian vault autosave during a
-   7-hour run marked it unusable.
+## 5. Observation — the epoch budget is still under-specified
 
-`git_dirty` is now evaluated at process start over code paths only (`train.py`,
-`src/`, `configs/`, `data/splits/`), with the full repo-wide list retained as
-`git_dirty_files`. See [[../PROTOCOL]] §7, amended 2026-08-04.
+Best validation loss occurred at epoch **919–991 of 1000** for all five seeds,
+exactly as in attempt 2. None had plateaued.
 
-**These five runs are retained**, on the verifiable grounds that no imported code
-changed during the window. The next reference-class run will carry correct
-metadata natively.
+Unchanged from attempt 2's finding, and still not acted on: changing the budget
+would break the "reproduce EXP-022" premise. It remains
+[[../specs/P1-S03_diffusion-schedule]]'s question. That it reproduced across a
+conditioning change makes it more clearly a property of the recipe than of the
+run.
 
-## 6. Reproduction
+## 6. What this changes
+
+**In the paper**
+- §3 states the reference recipe, 5 seeds, and the corrected descriptor.
+- §4.1 reports 49.3% CV as the model-side noise scale, with the outlier
+  structure stated.
+
+**In the plan**
+- **P1-REF is these checkpoints.** A01–A04, B02, B04, C01–C04, D02, G01–G04,
+  S01–S03 compare against them and must reuse seeds 0–4.
+- **B01, D02 and G03 are unblocked** — they were waiting on this.
+- A 49.3% CV means single-seed comparisons remain uninterpretable, and
+  three-seed comparisons are marginal. S01/S02/S03 should budget 5.
+- Add per-component loss logging before the next training experiment.
+
+## 7. Reproduction
 
 | | |
 |---|---|
-| Config | `configs/paper1/P1-F05_reference.yaml` (commit `1030982`) |
+| Config | `configs/paper1/P1-F05_reference.yaml` (`cond_norm: forward`) |
 | Outputs | `outputs/paper1/P1-F05_reference/seed{0..4}/` |
-| Partition | `data/splits/paper1_partition.json` |
 | Command | `scripts/paper1/run_p1_f05.sh` |
+| Partition | `data/splits/paper1_partition.json` |
 
-## 7. What this changes
-
-**In the paper**
-- §3 states the reference recipe, 5 seeds, and the 21.6% model-side CV.
-- §4.1 reports the seed spread as the scale against which every ablation is read.
-
-**In the plan**
-- **P1-REF is frozen.** A01–A04, B02, B04, C01–C04, D02, G01–G04, S01–S03 all
-  compare against these checkpoints and must reuse seeds 0–4.
-- The 21.6% CV means **single-seed comparisons are not interpretable** — this
-  retrospectively explains why the Year-1 EXP-02x recipe sweep produced no clear
-  winner. Worth one sentence in §5.
-- G01 can now run as soon as F03/F04 qualify the grading pipeline.
+**Protocol deviation, dated 2026-08-06.** The first launch of attempt 3 crashed
+immediately with `edge_attr = None`. Cause: a dataset cache built during a
+verification step *without* the `pre_transform`, which PyG then reused for
+training — it warned (`The pre_transform argument differs...`) and proceeded.
+The cache was deleted, rebuilt through `train.py`'s own code path, and verified
+(`edge_attr (720, 2)` present) before relaunching. No results were affected;
+the cost was one overnight slot.

@@ -144,7 +144,8 @@ within-train distance, nearest-neighbour retrieval should be very strong on
 | sim #4849 | ρ = 0.964 "in-distribution" | **TRAIN** |
 | sim #4066 | ρ = 0.966 "in-distribution" | **TRAIN** |
 
-Both confirmed as training samples, as [[holdout-leak-eval-targets]] recorded.
+Both confirmed as training samples by direct index lookup against the frozen
+partition.
 
 ## 7. Protocol deviations
 

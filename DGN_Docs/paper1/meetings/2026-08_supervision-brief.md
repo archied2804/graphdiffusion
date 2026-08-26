@@ -21,14 +21,14 @@ Eight of 29 reported; three more became runnable today.
 
 | ID | Asked | Outcome | Consequence |
 |---|---|---|---|
-| [[results/P1-F01_data-partition\|F01]] | Was there a clean split? | ❌ falsified | Year-1 headline was measured on **training samples** |
-| [[results/P1-F02_grading-metric\|F02]] | Do the four graders agree? | ❌ falsified | They differed; one canonical module now |
-| [[results/P1-F03_solver-qualification\|F03]] | Is the solver fit to grade? | ⚠️ marginal | ρ = 0.999 across the envelope; small real Re drift |
-| [[results/P1-F04_noise-floor\|F04]] | What is the measurement uncertainty? | ✅ supported | **Protocol frozen.** Found the probe defect |
-| [[results/P1-F05_reference-model-attempt3\|F05]] | Does the recipe reproduce cleanly? | ✅ supported | `P1-REF`, 5 seeds — but seed CV is 49% |
-| [[results/P1-F06_schafer-turek\|F06]] | Does it hit published bounds? | ⚠️ partial | Qualified for drag and pressure, **not lift** |
-| [[results/P1-D01_conditioning-invariance\|D01]] | Node-count independent conditioning? | ❌ falsified | Deviated 41.2%; fixed to 0.49% |
-| [[results/P1-B03_basis-reachability\|B03]] | How many modes does the data need? | ❌ falsified | **One mode = 99.60%.** Against our own interest |
+| [[../results/P1-F01_data-partition\|F01]] | Was there a clean split? | ❌ falsified | Year-1 headline was measured on **training samples** |
+| [[../results/P1-F02_grading-metric\|F02]] | Do the four graders agree? | ❌ falsified | They differed; one canonical module now |
+| [[../results/P1-F03_solver-qualification\|F03]] | Is the solver fit to grade? | ⚠️ marginal | ρ = 0.999 across the envelope; small real Re drift |
+| [[../results/P1-F04_noise-floor\|F04]] | What is the measurement uncertainty? | ✅ supported | **Protocol frozen.** Found the probe defect |
+| [[../results/P1-F05_reference-model\|F05]] | Does the recipe reproduce cleanly? | ✅ supported | `P1-REF`, 5 seeds — but seed CV is 49% |
+| [[../results/P1-F06_schafer-turek\|F06]] | Does it hit published bounds? | ⚠️ partial | Qualified for drag and pressure, **not lift** |
+| [[../results/P1-D01_conditioning-invariance\|D01]] | Node-count independent conditioning? | ❌ falsified | Deviated 41.2%; fixed to 0.49% |
+| [[../results/P1-B03_basis-reachability\|B03]] | How many modes does the data need? | ❌ falsified | **One mode = 99.60%.** Against our own interest |
 | B01 · D02 · G03 | retrieval, node transfer, OOD ladder | ⬜ ready | Unblocked as of today |
 
 **The pattern is the point.** Of the eight reported, four were falsified outright
@@ -188,7 +188,7 @@ Nothing after the gate is worth running until the framing survives it.
 
 ### Safe to write now
 
-Per [[WRITING_ORDER]] — a section is safe when no pending experiment can reverse
+Per [[../WRITING_ORDER]] — a section is safe when no pending experiment can reverse
 its claims, only add to them.
 
 - 🟢 **§3 Method** — the largest block of finished work, and now the most defensible.
@@ -215,4 +215,4 @@ Paper 1 earns **"discretisation-native"** and nothing more. Not "direct node
 movement" (nodes move radially, 1 DOF, fixed ring — Paper 2). Not "mesh-native"
 (a 96-node boundary ring, no interior nodes — Paper 3). Two of the ten
 anticipated reviewer questions are about exactly this wording, so it is worth
-agreeing before the prose accumulates. Table in [[REPORT_OUTLINE]].
+agreeing before the prose accumulates. Table in [[../REPORT_OUTLINE]].
