@@ -1,7 +1,7 @@
 ---
 title: "Paper 1 — report outline and writing guide"
 date: 2026-08-02
-updated: 2026-08-02
+updated: 2026-08-26
 tags: [paper1, writing, outline, structure]
 status: active
 ---
@@ -94,17 +94,33 @@ exist to turn each of those into a measured choice rather than an inherited one.
 
 | § | Title | Experiments | Headline artefact |
 |---|---|---|---|
-| 4.1 | Protocol and instrument qualification | F01 F02 F03 F04 | Table: partition sizes + solver noise floor σ_ρ, σ_a |
-| 4.2 | Does the graph earn its place? | A01 A02 A03 A04 | Figure: four architectures, matched params, ρ with CI vs the noise floor |
+| 4.1 | Protocol and instrument qualification | F01 F02 F03 F04 **F06 F07** | Table: partition sizes, frozen σ table, absolute benchmark, reference scale |
+| 4.2 | Does the graph earn its place? | A01 A02 A03 A04 | Figure: four architectures, matched params, **`Cd` error and top-k** with CI vs the noise floor |
 | 4.3 | Does node-native earn its place? | B01 B02 B03 B04 | Figure: performance vs basis dimension, with retrieval and node-native as horizontal lines |
-| 4.4 | Discretisation independence | D01 D02 (D03) | Figure: validity and ρ vs node count, 48→192 |
-| 4.5 | What the conditioning contributes | C01 C02 C03 | Table: ablation grid, Δρ and Δa vs reference |
-| 4.6 | Where it fails | G01 G02 G03 G04 C04 | Figure: ρ and a vs DCT distance, with the noise floor band shaded |
+| 4.4 | Discretisation independence | D01 D02 (D03) | Figure: validity and **`Cd` error** vs node count, 48→192 |
+| 4.5 | What the conditioning contributes | C01 C02 C03 | Table: ablation grid, **Δ`Cd`** and Δ`a` vs reference, each against 2σ |
+| 4.6 | Where it fails | G01 G02 G03 G04 C04 | Figure: **`Cd` error** and `a` vs DCT distance, noise-floor band shaded |
 | 4.7 | Scale and data efficiency | S01 S02 S03 | Figure: data-fraction curve |
 
-Present **ρ and a side by side everywhere**. ρ alone hides magnitude creep — that
-is how it nearly went unnoticed in Year 1, and showing both is what makes G04
-legible.
+#### Which metric carries which claim — revised after F04, 2026-08-17
+
+> [!warning] ρ cannot carry a discrimination claim on this corpus.
+> Two **unrelated** dataset shapes correlate at **ρ = 0.9954**, and a predictor
+> that ignores its input and returns the corpus mean scores **0.9969**
+> ([[results/P1-F04_noise-floor]] §4). Across B03's 24 runs ρ spans 2.0σ in
+> total while `Cd` spans 7.8σ. An earlier draft of this outline made ρ the
+> headline everywhere; that is now wrong.
+
+| Claim | Metric | Why |
+|---|---|---|
+| **Does A match B?** | **rank / top-k** | Discriminative by construction, with a defined chance level (top-1 33.3% vs 6.7%) |
+| **How large is the error?** | **`Cd` relative error** | 40% dynamic range across the envelope against a 5% floor; and it is the quantity a designer actually asks for |
+| **Is the shape right?** | `a`, ε_aff | `a` carries magnitude creep — the thing ρ hides |
+| Corroboration only | ρ | **Always on a chance-referenced axis**, never 0→1, and always with the 0.9954 floor stated beside it |
+
+Report ρ — do not hide it, a reviewer will compute it — but never as the
+headline, and never without its chance level. Present `a` beside every number:
+ρ alone hides magnitude creep, which is how it nearly went unnoticed in Year 1.
 
 ### §5 Discussion — ~1,300 words
 
@@ -112,10 +128,21 @@ Three things, in this order:
 
 1. **What the evidence supports** — restated at exactly the strength measured, no
    further.
-2. **Limitations, stated before a reviewer states them.** The honest list: the
-   design space is effectively two-dimensional; a low-dimensional basis may be
-   nearly sufficient here (B03); nodes move radially only; the ring is fixed-length
-   and fixed-topology; the solver is 2-D and moderate-Re.
+2. **Limitations, stated before a reviewer states them.** The honest list, updated
+   after B03 and F07 reported:
+   - **The shape manifold is one-dimensional.** One PCA mode explains 99.60% of
+     variance, and a one-mode reconstruction is *inside the solver's noise floor*
+     ([[results/P1-B03_basis-reachability]] §10). This is not "a low-dimensional
+     basis may be nearly sufficient" — on pOnEllipse it is demonstrably
+     sufficient, analytically and physically. **C1's premise does not hold on this
+     dataset.**
+   - **A constant 9.35% ± 0.91pp offset** between our solver and the dataset
+     remains unexplained after the sourced factor of two
+     ([[results/P1-F07_normalisation-audit]]). It is constant, so it cancels in
+     every comparison the paper makes, but it must be stated with its CI.
+   - Lift is not qualified ([[results/P1-F06_schafer-turek]] §7).
+   - Nodes move radially only; the ring is fixed-length and fixed-topology; the
+     solver is 2-D and moderate-Re.
 3. **Where the approach is expected to pay, and why it is not visible here** —
    richer, sparsely-sampled families where a low-dim basis is genuinely limiting
    and retrieval genuinely fails. This is the honest motivation for Paper 3.2 and

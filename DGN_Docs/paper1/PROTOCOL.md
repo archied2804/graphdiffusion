@@ -1,7 +1,7 @@
 ---
 title: "Paper 1 — experimental protocol"
 date: 2026-08-02
-updated: 2026-08-02
+updated: 2026-08-26
 tags: [paper1, protocol, methodology, reproducibility]
 status: frozen-on-F04
 ---
@@ -123,7 +123,16 @@ precisely how the Year-1 creep finding nearly went unnoticed.
 > lives in. It is not a general claim about correlation as a metric. Using ρ to
 > assess *fit quality against a known curve* (F03, F06) remains valid.
 
-### 2.1a Dead surface probes — mandatory filter
+#> [!tip] Running an experiment whose spec is written in ρ
+> Several unrun specs (B01, A01–A03, D02, G03) state their decision rule in ρ,
+> which §2.1 has since demoted. This does **not** block them and does **not**
+> license editing them. Run the experiment, apply the registered ρ rule, report
+> its verdict plainly — then report rank/top-k and `Cd` alongside it in the same
+> results file. That adds information without retrofitting a rule. If the two
+> disagree, the disagreement is itself a finding and belongs in the results file
+> under "Protocol deviations", dated.
+
+## 2.1a Dead surface probes — mandatory filter
 
 Solver Cp curves produced before 2026-08-17 contain samples whose probe landed
 inside the body: `Cp = −cpInf` exactly, `Cp_rms = 0.0` exactly, 3–4% of surface

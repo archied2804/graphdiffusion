@@ -1,6 +1,7 @@
 ---
 title: "What to write now — drafting order, format and style"
 date: 2026-08-07
+updated: 2026-08-26
 tags: [paper1, writing, guide]
 status: active
 ---
@@ -8,7 +9,7 @@ status: active
 # What to write now
 
 > Companion to [[REPORT_OUTLINE]], which fixes the structure and the vocabulary
-> rules. This file answers a narrower question: **given 8 of 29 experiments
+> rules. This file answers a narrower question: **given 9 of 29 experiments
 > reported, which sections are safe to draft today, which are not, and why.**
 >
 > No prose here is for the paper. Everything below is scaffolding, ordering and
@@ -67,19 +68,35 @@ Three things §3 must now state that earlier drafts would not have:
 
 Complete, and the strongest methodological content in the paper.
 
-Draft from [[results/P1-F03_solver-qualification]] and
-[[results/P1-F06_schafer-turek]]. The spine:
+> [!danger] Rewritten 2026-08-26. The previous spine on this page quoted four
+> numbers that have since been **withdrawn** — they were artefacts of the
+> dead-probe defect ([[results/P1-F04_noise-floor]] §2). If you drafted from
+> this section before that date, check every figure against the list below.
 
-- The solver reproduces Schäfer–Turek drag to **0.02%** (fp64, N=80) — cite
-  [[SOLVER_CASE]] §8 for the reference-value provenance caveat.
-- After the units convention is removed, it agrees with the dataset to
-  **6.2% ± 0.5pp** where the affine model fits.
-- `a` carries **11–26% sensitivity to grid resolution**, which survives fp64 —
-  so magnitude claims are **within-condition only**.
-- The affine residual is **structured in all 15 cases** (median |z| = 8.12).
+Draft from [[results/P1-F03_solver-qualification]] **§13**,
+[[results/P1-F06_schafer-turek]] and [[results/P1-F07_normalisation-audit]].
+The corrected spine:
 
-⚠️ Held back pending your transcription of the Schäfer–Turek bounds. Draft
-around it; leave the comparison table's reference column empty.
+- The solver reproduces Schäfer–Turek **drag inside the published interval**
+  (L1, `cD` = 5.57002 against a lower bound of 5.5700) and **Δp to 0.03%** in
+  double precision. This is the first *absolute* check in the project.
+- The surface-probe scheme was **structurally wrong** and is fixed: probes
+  snapped into the solid body on 3–4% of ellipse points and **29–42% of
+  cylinder** points, returning a fabricated constant. Regrading is equivalent
+  to re-running, verified to within a fifth of σ.
+- The measurement floor is **frozen**: σ_ρ = 0.00108, σ_a = 0.03521,
+  σ_Cd = 0.04742, σ_Cl = 0.01542 ([[PROTOCOL]] §6).
+- **The instrument is blind to node placement** — node phase contributes
+  σ_ρ = 2×10⁻⁵, two orders below every other factor. This is what makes the C2
+  discretisation claim measurable at all, and it belongs in §4.1 explicitly.
+- After the sourced factor of two, solver and dataset agree to **`a` = 0.9065**,
+  leaving a **constant 9.35% ± 0.91pp** residual (10.3 SEM). It is constant
+  across the envelope, so it cancels in every comparison the paper makes.
+- The affine residual is **structured in all 15 cases** (median |z| = 7.75).
+
+**Withdrawn — do not use:** "agrees to 6.2% ± 0.5pp"; "`a` carries 11–26%
+sensitivity to grid resolution" (the true figure is 2–4%, signs inconsistent);
+"ρ is non-monotonic under refinement"; median |z| = 8.12.
 
 ### 🟢 §5 Limitations — **draft now, and draft it early**
 
@@ -90,13 +107,22 @@ over-claiming, because you will already have written down what you cannot say.
 Ready to draft:
 
 - The shape manifold is effectively **one-dimensional** (1 PCA mode = 99.60%
-  variance) — this dataset **cannot** demonstrate C1's parameterisation
-  bottleneck. [[results/P1-B03_basis-reachability]]
+  variance), and B03's solver half now confirms this **physically**: a one-mode
+  reconstruction is *inside the noise floor* on every shape tested. This dataset
+  **cannot** demonstrate C1's parameterisation bottleneck.
+  [[results/P1-B03_basis-reachability]] §10
 - `r(θ)` is **orientation-locked**; a 10° rotation moves a shape 759× outside a
   train-fitted basis. Disclose it.
-- `a` is grid-dependent; ρ is non-monotonic under refinement.
+- A **constant 9.35% ± 0.91pp** offset between solver and dataset remains
+  unexplained after a sourced factor of two.
+  [[results/P1-F07_normalisation-audit]] §8
+- **ρ has almost no discriminating power on this corpus** — unrelated shapes
+  correlate at 0.9954. State the chance level wherever ρ appears.
+  [[results/P1-F04_noise-floor]] §4
+- **Lift is not qualified.** L0 recovers it in fp64, but the production case does
+  not — so the L1 failure is a property of the case, not of precision.
+  [[results/P1-F06_schafer-turek]] §8
 - Model-side seed CV is **49.3%** (19.4% excluding one outlier).
-- Single precision destroys lift at production resolutions.
 
 ### 🟡 §1 Introduction, §2 Related work — **skeleton only**
 
@@ -110,7 +136,8 @@ the graph earns its place.
 ### 🟡 §3.6 Baselines — skeleton now
 
 Describe the baselines and matching protocol (±5% parameters). B01's retrieval
-index exists; only the solver half is pending.
+index exists and its **solver half is running as of 2026-08-26** — 35 runs
+against the frozen evaluation target set in `data/splits/paper1_eval_targets.json`.
 
 ### 🔴 §4.2 Architecture necessity — **do not start**
 
@@ -118,10 +145,14 @@ A01–A04 have not run. The entire claim could invert.
 
 ### 🔴 §4.3 Basis necessity — **do not start the argument**
 
-B03 has already shown the premise fails on this dataset. B01 and B02 will
-likely confirm retrieval is competitive in-distribution. You may draft the
-*setup*, but the conclusion is genuinely open, and it is the section most at
-risk of being written to a predetermined answer.
+B03 has shown the premise fails on this dataset, **analytically and now
+physically** (§10: M = 1 is inside the noise floor). Worse for the framing, the
+spec's own registered fallback — *"argue C1 on reach (AoA10, G03)"* — is half
+gone: B03 §4 found the AoA10 contrast is a **rotation, not a reach limitation**.
+
+**C1 therefore has one untested route left, G03.** Draft the *setup* only. The
+conclusion is genuinely open and this is the section most at risk of being
+written to a predetermined answer.
 
 ### 🔴 §4.4–§4.7, §6 — not started
 

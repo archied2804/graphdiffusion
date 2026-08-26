@@ -1,7 +1,7 @@
 ---
 title: "Paper 1 — metric assessment and menu"
 date: 2026-08-02
-updated: 2026-08-02
+updated: 2026-08-26
 tags: [paper1, metrics, assessment, methodology]
 status: active
 ---
@@ -24,7 +24,7 @@ a specific claim) · ⬜ diagnostic (explains mechanisms; not a quality measure)
 
 | Metric | Measures | Carries | Tier | Marginal cost |
 |---|---|:--:|:--:|---|
-| **ρ** Pearson correlation | Cp shape fidelity | C1 C4 | 🟩 | free |
+| **ρ** Pearson correlation | Cp shape fidelity — ⚠️ **corroboration only**, see below | C1 C4 | 🟩 | free |
 | **`a`** affine slope | Cp magnitude | C4 | 🟩 | free |
 | `b` affine offset | Calibration offset | — | ⬜ | free |
 | **ε_aff** post-affine RMS | Residual shape error | C1 | 🟩 | free |
@@ -45,7 +45,7 @@ a specific claim) · ⬜ diagnostic (explains mechanisms; not a quality measure)
 | **Precision / recall (generative)** | Distributional quality | C1 | 🟩 | analysis only |
 | MMD | Single distributional distance | C1 | 🟨 | analysis only |
 | **Unconditional sample quality** | Did it learn the distribution at all? | C1 | 🟨 | 1 sampling run |
-| **Chance-level ρ** | What ρ scale *means here* | C3 | 🟩 | analysis only |
+| **Chance-level ρ** | What ρ scale *means here* — ✅ **measured: 0.9954** | C3 | 🟩 | analysis only |
 | **Achievability bound** | Model error vs target infeasibility | C1 C4 | 🟩 | free (reuses B01) |
 | Noise floor `σ_ρ σ_a σ_Cd` | Smallest detectable difference | protocol | 🟩 | F04 |
 | Sampling cost / valid design | The practical case | C1 | 🟨 | free |
@@ -75,6 +75,21 @@ Two weaknesses, both serious:
    ρ = 0.92 is far less impressive than it reads — and a reviewer who suspects this
    will ask. **Chance-level ρ (§2.5) must be computed before ρ is used as a
    headline.** This is the single highest-risk item in the metric set.
+
+> [!danger] Answered 2026-08-17, and it is worse than the hypothetical above.
+> [[results/P1-F04_noise-floor]] §4 measured it. Two **unrelated** dataset shapes
+> correlate at **ρ = 0.9954**. A predictor that ignores its input and returns the
+> corpus mean scores **0.9969**. Correct-versus-wrong pairing separates by
+> **+0.00226, which is 2.1σ — marginal by this suite's own rule**.
+>
+> Independently confirmed on B03's 24 runs: ρ spans **2.0σ in total** across the
+> whole experiment while `Cd` spans **7.8σ**.
+>
+> **ρ is demoted.** It answers "is this a plausible ellipse Cp curve", not "is
+> this the correct one". Report it — a reviewer will compute it — but on a
+> chance-referenced axis, never 0→1, and never as the headline. The
+> discriminating metrics are **rank / top-k** (top-1 33.3% against 6.7% chance)
+> and **`Cd`**. See [[PROTOCOL]] §2.1 and [[REPORT_OUTLINE]] §4.
 
 **`a` — carries the creep finding, and rests on an untested assumption.**
 

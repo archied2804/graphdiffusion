@@ -35,10 +35,18 @@ is frozen. The model's central claims have not been tested yet.
 | [D01](results/P1-D01_conditioning-invariance.md) | ❌ falsified | Conditioning deviated 41.2%; fixed to 0.49% |
 | [B03](results/P1-B03_basis-reachability.md) | ❌ falsified | **One PCA mode is inside the noise floor** — against C1's interest |
 
-**Blocked, not idle.** B01, A01–A03, D02 and G03 are all runnable on dependencies
-but have decision rules written in ρ, which F04 demoted. Running one now
-pre-registers a metric the protocol no longer trusts. They wait on the
-supervision decision in [meetings/](meetings/).
+🔵 **B01 is running** (2026-08-26) — 35 solver runs against the frozen evaluation
+target set, `data/splits/paper1_eval_targets.json`.
+
+**On the metric question.** B01, A01–A03, D02 and G03 all have decision rules
+written in ρ, which F04 demoted. They are *not* blocked: run them, apply the
+registered ρ rule, report its verdict, and **additionally** report rank/top-k and
+`Cd`. That adds information without editing a rule. See
+[REPORT_OUTLINE §4](REPORT_OUTLINE.md) for which metric carries which claim.
+
+**C1 has one route left.** B03 falsified its premise in-distribution *and*
+its registered AoA10 fallback. **G03 is the only surviving argument** and has
+been promoted to the gate tier.
 
 Current status board: [EXPERIMENT_REGISTER.md](EXPERIMENT_REGISTER.md).
 
@@ -139,11 +147,11 @@ later stages use earlier ones as their comparator.
 |:--:|---|---|
 | ✅ **0 — Protocol** | F01 F02 **F06** F03 F04 **F07** | Nothing is measurable until the split, the metric, the instrument, the noise floor and **the reference scale** are frozen |
 | ✅ **1 — Reference** | F05 | The single model every later result is a delta from |
-| ◐ **2 — Story-breaking** | ~~B03~~ · B01 A01 A02 A03 | These can invalidate the framing. Cheap. Run them before writing anything |
+| ◐ **2 — Story-breaking** | ~~B03~~ · **B01** · G03 A01 A02 A03 | These can invalidate the framing. Cheap. Run them before writing anything. G03 promoted here 08-26 — it is C1's last route |
 | 🚦 | **← WE ARE HERE · AUGUST GATE** | Decide the paper's framing and venue. Log in [[../publication/PUBLICATION_DIARY]] |
 | **3 — Headline** | G01 D01 D02 B02 | The results the paper is actually about |
 | **4 — Ablations** | C01 C02 C03 A04 S01 S02 S03 | Contribution-targeted ablations (viva point 2) |
-| **5 — Failure modes** | G02 G03 G04 C04 B04 | The C4 payoff |
+| **5 — Failure modes** | G02 G04 C04 B04 | The C4 payoff |
 | **6 — Conditional** | D03 | Only if D02 fails |
 
 Full dependency graph in [EXPERIMENT_REGISTER.md](EXPERIMENT_REGISTER.md).

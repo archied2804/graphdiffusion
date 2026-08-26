@@ -1,7 +1,7 @@
 ---
 title: "Paper 1 — experiment register"
 date: 2026-08-02
-updated: 2026-08-02
+updated: 2026-08-26
 tags: [paper1, experiments, register, status]
 status: active
 ---
@@ -49,7 +49,7 @@ appear in the paper · `support` strengthens it, cut first if time runs out.
 
 | ID | Title | Tier | Question | Depends | Train | Solver | Status |
 |---|---|:--:|---|---|:--:|:--:|:--:|
-| [P1-B01](specs/P1-B01_retrieval-baseline.md) | Nearest-neighbour retrieval | **gate** | Does generation beat a lookup table? | F01 F02 | 0 | ~35 | ready — P1-REF available |
+| [P1-B01](specs/P1-B01_retrieval-baseline.md) | Nearest-neighbour retrieval | **gate** | Does generation beat a lookup table? | F01 F02 | 0 | 35 | 🔵 **running** (2026-08-26) — targets frozen in `paper1_eval_targets.json` |
 | [P1-B02](specs/P1-B02_pca-generative.md) | Low-dim PCA generative baseline | **gate** | Does node-native reach designs a 10-mode basis cannot? | F05 B03 | 4 | ~16 | planned |
 | [P1-B03](specs/P1-B03_basis-reachability.md) | Basis reachability analysis | core | How many modes cover this dataset to within the noise floor? | F01 F04 | 0 | ~8 | ✅ **[reported](results/P1-B03_basis-reachability.md)** — falsified; solver half done 08-25, **M=1 is inside the noise floor** |
 | [P1-B04](specs/P1-B04_diversity-coverage.md) | Diversity & design-space coverage | core | Is this *exploration*, or one-to-one regression? | F05 B01 | 0 | ~40 | planned |
@@ -77,7 +77,7 @@ appear in the paper · `support` strengthens it, cut first if time runs out.
 |---|---|:--:|---|---|:--:|:--:|:--:|
 | [P1-G01](specs/P1-G01_holdout-inverse-design.md) | Held-out inverse design | **core** ★★ | How well does it hit targets it has never seen? **The headline.** | F05 F04 | 0 | ~100 | planned |
 | [P1-G02](specs/P1-G02_aoa10-ood.md) | AoA10 physical OOD | core | Does it transfer to a genuinely different physical regime? | F05 D02 | 0 | ~24 | planned |
-| [P1-G03](specs/P1-G03_dct-ood-ladder.md) | DCT-space OOD ladder | core | How does performance decay in the space the model is *conditioned* on? | F05 B03 | 0 | ~45 | ready — ladder regenerated (D01 §5.1); solver half awaits GPU |
+| [P1-G03](specs/P1-G03_dct-ood-ladder.md) | DCT-space OOD ladder | **gate** ⬆ | How does performance decay in the space the model is *conditioned* on? | F05 B03 | 0 | ~45 | ready — **promoted to gate 2026-08-26**: after B03 this is C1's only surviving route |
 | [P1-G04](specs/P1-G04_creep-attribution.md) | Magnitude-creep attribution | **core** | Is the creep model-side, solver-side, or grading-side? | F04 C03 **F07** | 0 | ~24 | planned |
 
 ### S — Scale & data efficiency → paper §4.7
@@ -124,6 +124,8 @@ flowchart TB
         A01["A01 no-edge"]
         A02["A02 1-D CNN"]
         A03["A03 spectral MLP"]
+        G03["G03 DCT OOD ladder
+        C1's last route"]
     end
     GATE{{"AUGUST GATE
     framing and venue"}}
@@ -144,7 +146,6 @@ flowchart TB
     end
     subgraph S5["Stage 5 — failure modes"]
         G02["G02 AoA10 OOD"]
-        G03["G03 DCT OOD ladder"]
         G04["G04 creep attribution"]
         C04["C04 DPS"]
         B04["B04 diversity"]
@@ -187,6 +188,8 @@ flowchart TB
     D02 --> G02
     D02 --> D03
     B03 --> G03
+    F05 --> G03
+    G03 --> GATE
     C03 --> G04
     F04 --> G04
     B01 --> B04
