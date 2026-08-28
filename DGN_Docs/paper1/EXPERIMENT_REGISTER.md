@@ -49,7 +49,7 @@ appear in the paper · `support` strengthens it, cut first if time runs out.
 
 | ID | Title | Tier | Question | Depends | Train | Solver | Status |
 |---|---|:--:|---|---|:--:|:--:|:--:|
-| [P1-B01](specs/P1-B01_retrieval-baseline.md) | Nearest-neighbour retrieval | **gate** | Does generation beat a lookup table? | F01 F02 | 0 | 35 | 🟡 **[partial](results/P1-B01_retrieval-baseline.md)** — retrieval is **at the grading ceiling**; comparison awaits G01 |
+| [P1-B01](specs/P1-B01_retrieval-baseline.md) | Nearest-neighbour retrieval | **gate** | Does generation beat a lookup table? | F01 F02 | 0 | 35 | ❌ **[reported](results/P1-B01_retrieval-baseline.md)** — **no: retrieval wins in-distribution** (G01 §3, paired, 4.3σ) |
 | [P1-B02](specs/P1-B02_pca-generative.md) | Low-dim PCA generative baseline | **gate** | Does node-native reach designs a 10-mode basis cannot? | F05 B03 | 4 | ~16 | planned |
 | [P1-B03](specs/P1-B03_basis-reachability.md) | Basis reachability analysis | core | How many modes cover this dataset to within the noise floor? | F01 F04 | 0 | ~8 | ✅ **[reported](results/P1-B03_basis-reachability.md)** — falsified; solver half done 08-25, **M=1 is inside the noise floor** |
 | [P1-B04](specs/P1-B04_diversity-coverage.md) | Diversity & design-space coverage | core | Is this *exploration*, or one-to-one regression? | F05 B01 | 0 | ~40 | planned |
@@ -75,7 +75,7 @@ appear in the paper · `support` strengthens it, cut first if time runs out.
 
 | ID | Title | Tier | Question | Depends | Train | Solver | Status |
 |---|---|:--:|---|---|:--:|:--:|:--:|
-| [P1-G01](specs/P1-G01_holdout-inverse-design.md) | Held-out inverse design | **core** ★★ | How well does it hit targets it has never seen? **The headline.** | F05 F04 | 0 | ~100 | planned |
+| [P1-G01](specs/P1-G01_holdout-inverse-design.md) | Held-out inverse design | **core** ★★ | How well does it hit targets it has never seen? **The headline.** | F05 F04 | 0 | 132 | ⚠️ **[reported](results/P1-G01_holdout-inverse-design.md)** — above prediction, but **below chance** and **loses to retrieval at 4.3σ** |
 | [P1-G02](specs/P1-G02_aoa10-ood.md) | AoA10 physical OOD | core | Does it transfer to a genuinely different physical regime? | F05 D02 | 0 | ~24 | planned |
 | [P1-G03](specs/P1-G03_dct-ood-ladder.md) | DCT-space OOD ladder | **gate** ⬆ | How does performance decay in the space the model is *conditioned* on? | F05 B03 | 0 | ~45 | ready — **promoted to gate 2026-08-26**: after B03 this is C1's only surviving route |
 | [P1-G04](specs/P1-G04_creep-attribution.md) | Magnitude-creep attribution | **core** | Is the creep model-side, solver-side, or grading-side? | F04 C03 **F07** | 0 | ~24 | planned |

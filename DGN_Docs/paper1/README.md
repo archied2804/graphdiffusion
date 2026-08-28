@@ -20,7 +20,7 @@ the paper without being regenerated under this protocol.**
 
 ## Where things stand — 26 August 2026
 
-**10 of 29 reported** (B01 partial). The audit tier (F) is finished and the measurement protocol
+**11 of 29 reported.** The audit tier (F) is finished and the measurement protocol
 is frozen. The model's central claims have not been tested yet.
 
 | ID | Verdict | One line |
@@ -34,13 +34,15 @@ is frozen. The model's central claims have not been tested yet.
 | [F07](results/P1-F07_normalisation-audit.md) | ⚠️ partial | Factor of two sourced; **9.35% ± 0.91pp residual** remains |
 | [D01](results/P1-D01_conditioning-invariance.md) | ❌ falsified | Conditioning deviated 41.2%; fixed to 0.49% |
 | [B03](results/P1-B03_basis-reachability.md) | ❌ falsified | **One PCA mode is inside the noise floor** — against C1's interest |
-| [B01](results/P1-B01_retrieval-baseline.md) | ⏸ partial | Retrieval is **at the grading ceiling**; comparison awaits G01 |
+| [B01](results/P1-B01_retrieval-baseline.md) | ❌ falsified | **No — retrieval beats generation** in-distribution |
+| [G01](results/P1-G01_holdout-inverse-design.md) | ⚠️ above prediction | ρ 0.994 — but **below chance**, and loses to retrieval at 4.3σ. No memorisation; creep gone |
 
-**B01 reported** (2026-08-26, partial): **retrieval sits at the solver's own
-self-grading ceiling in-distribution** — median ρ 0.99905 against a 0.99896
-ceiling, within 0.88σ of a perfect score. It survives four of five OOD rungs.
-Only `aoa10` breaks it, and `aoa10` is confounded three ways. No verdict: the
-spec's rule is a comparison and G01 has not run.
+**The August gate has its answer, and it is not the expected one.** G01 ran
+2026-08-28 on the same 20 targets B01 used. Paired, **the model loses to
+nearest-neighbour retrieval at 4.3σ, winning on 2 of 20 targets**. Its mean ρ
+sits *below* the 0.9954 chance level. Two findings go the other way: **no
+memorisation** (the generalisation gap is negative) and the **Year-1 magnitude
+creep is gone** once the export scale is fixed ([PROTOCOL §2.1b](PROTOCOL.md)).
 
 **On the metric question.** B01, A01–A03, D02 and G03 all have decision rules
 written in ρ, which F04 demoted. They are *not* blocked: run them, apply the
