@@ -234,23 +234,57 @@ def main() -> None:
     )
 
     # ---- the comparison that carries the gate ---------------------------
+    # P1-B01 ran retrieval on these exact targets, so this is a PAIRED design
+    # and must be tested as one. Comparing medians throws the pairing away and
+    # is far less powerful -- on this data the two tests disagree.
     if _B01.exists():
         b = json.loads(_B01.read_text())
-        ret = [r for r in b["runs"] if r["set"] == "indist"]
-        rret = float(np.median([r["rho"] for r in ret]))
-        print(f"\n  P1-B01 retrieval on the SAME targets: median rho {rret:.5f}")
-        print(
-            f"  P1-G01 model:                        median rho "
-            f"{float(np.nanmedian(rho)):.5f}"
-        )
-        d = float(np.nanmedian(rho)) - rret
-        print(f"  difference: {d:+.5f}  ({d / SIGMA_RHO:+.1f} sigma)")
-        if abs(d) < 2 * SIGMA_RHO:
-            print("  -> within 2 sigma: NO DETECTABLE DIFFERENCE")
-        elif d > 0:
-            print("  -> model better")
+        ret = {int(r["target_idx"]): r for r in b["runs"] if r["set"] == "indist"}
+        pairs = []
+        for lab in sorted({r["label"] for r in hold}):
+            sub = [r for r in hold if r["label"] == lab]
+            ti = int(sub[0]["target_idx"])
+            if ti in ret:
+                pairs.append(
+                    (lab, float(np.mean([r["rho"] for r in sub])), ret[ti]["rho"])
+                )
+        if pairs:
+            d = np.array([p[1] - p[2] for p in pairs])
+            sem = float(d.std(ddof=1) / np.sqrt(d.size))
+            tstat = float(d.mean() / sem) if sem else float("inf")
+            wins = int((d > 0).sum())
+            print(f"\n  MODEL vs RETRIEVAL -- paired, same {d.size} targets\n")
+            print(f"    model    median rho {float(np.nanmedian(rho)):.5f}")
+            print(
+                f"    retrieval median rho "
+                f"{float(np.median([p[2] for p in pairs])):.5f}"
+            )
+            print(
+                f"    paired mean difference {d.mean():+.5f} "
+                f"({d.mean() / SIGMA_RHO:+.2f} sigma)"
+            )
+            print(f"    paired t = {tstat:+.2f} on {d.size - 1} dof")
+            print(f"    model better on {wins}/{d.size} targets")
+            if abs(d.mean()) < 2 * SIGMA_RHO:
+                gate = "no detectable difference"
+            elif d.mean() > 0:
+                gate = "MODEL BETTER"
+            else:
+                gate = "RETRIEVAL BETTER"
+            print(f"\n    -> {gate}")
+            comparison = {
+                "n_targets": int(d.size),
+                "paired_mean_diff": float(d.mean()),
+                "paired_sem": sem,
+                "paired_t": tstat,
+                "sigma_multiples": float(d.mean() / SIGMA_RHO),
+                "model_wins": wins,
+                "verdict": gate,
+            }
         else:
-            print("  -> RETRIEVAL BETTER")
+            comparison = {}
+    else:
+        comparison = {}
 
     # ---- per-target distribution ----------------------------------------
     print("\n  Per-target (mean over seeds), sorted by rho:\n")
@@ -308,6 +342,7 @@ def main() -> None:
                 "runs": rows,
                 "per_target": per,
                 "n_invalid_geometry": n_invalid,
+                "vs_retrieval": comparison,
                 "verdict": verdict,
             },
             indent=2,
