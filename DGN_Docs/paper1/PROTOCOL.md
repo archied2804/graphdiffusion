@@ -148,6 +148,51 @@ chordwise structure, `Cp_meas ≈ a·Cp_ref + b` is the wrong model and both ρ 
 are contaminated by the misfit. F02 adds a residual-structure diagnostic (residual
 vs `x/c`, plus a runs test for randomness); F03 reports it across the envelope.
 
+## 2.1b Generated bodies must be exported at physical scale — mandatory
+
+`feature_mode="radial_norm"` trains on `r(θ)/mean(r)`, so **the model cannot
+predict absolute size** and the sampler returns a body whose *mean radius* is 1.
+Written straight to a `.dat` that gives a semi-major axis of 1.13–1.36 where the
+corpus is 0.50.
+
+**Every shape in the corpus has chord exactly 1.0** (verified across the
+training file, std = 0). So the export must rescale to chord 1.0 before the body
+reaches the solver. This is a corpus-wide constant, not the target's own size —
+supplying it restores information the representation discards by design and
+leaks nothing about the individual target.
+
+**Why it matters.** `CHANNEL_HEIGHT` is passed in absolute units, so an
+unrescaled body sits in the channel **2.1–2.8× oversized** and its blockage
+ratio is wrong by the same factor. A confined oversized body accelerates the
+surrounding flow, deepens the suction peak and inflates `|Cp|` — which is
+indistinguishable, in the graded numbers, from the model overshooting.
+
+⚠️ **Every Year-1 generated-shape run has this defect.** Measured chords:
+
+| shape set | n | chord |
+|---|--:|--:|
+| `generated` (EXP-041/042) | 6 | 2.09 |
+| `dps_sweep` | 4 | 2.48 |
+| `ood_sweep` | 5 | 2.12 |
+| `ood_systematic` | 16 | 2.77 |
+| `node_sweep` | 5 | 2.48 |
+| `baseline` *(dataset shapes)* | 3 | **1.00** ✅ |
+
+Paper 1 regenerates every number under this protocol, so **no Paper 1 result is
+affected**. But two consequences carry:
+
+1. **[[specs/P1-G04_creep-attribution|G04]] gains a fourth candidate its spec
+   does not list.** It asks whether the ~1.4× magnitude excess is model-side,
+   solver-side or grading-side. It may be **export-side**. G04 has not run, so
+   its spec can still be amended — that is a decision for the supervisor, not a
+   silent edit.
+2. Any Year-1 statement that magnitude creep is model-side is unsupported until
+   re-measured.
+
+Found 2026-08-28 during [[specs/P1-G01_holdout-inverse-design|G01]] setup, by a
+geometry sanity check before the runs were launched. Fix:
+`scripts/paper1/p1_g01_sample.py::to_physical`.
+
 ### 2.2 Chordwise-resolved error
 
 ρ is a single number over the whole curve, so it conflates a leading-edge error

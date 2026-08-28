@@ -79,18 +79,50 @@ YEAR1_TARGETS = (4849, 4066)
 #: The conditioning convention P1-D01 corrected to and P1-F05 was trained with.
 COND_NORM = "forward"
 
+#: Physical chord, restored after sampling.
+#:
+#: ``feature_mode="radial_norm"`` trains on ``r(theta)/mean(r)``, so the model
+#: cannot predict absolute size and the sampler returns a body whose *mean
+#: radius* is 1 -- a semi-major axis of 1.13-1.36 where the corpus is 0.50.
+#: Left uncorrected the body enters the channel roughly 2.5x oversized, and
+#: since CHANNEL_HEIGHT is passed in absolute units the blockage ratio is then
+#: 2.5x wrong. Cp and Cd would both be badly off, and it would read as the model
+#: failing at inverse design rather than the export dropping a constant.
+#:
+#: Every shape in the corpus has chord exactly 1.0 (verified over the training
+#: file, std = 0). So this is a **corpus-wide constant**, not the target's own
+#: size: supplying it restores information the representation discards by
+#: design, and leaks nothing about the individual target.
+CHORD = 1.0
+
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 
+def to_physical(xy: np.ndarray) -> np.ndarray:
+    """Centre a sampled body and restore the corpus chord.
+
+    Args:
+        xy (np.ndarray): Sampled boundary in mean-radius-normalised units,
+            shape ``(N, 2)``.
+
+    Returns:
+        np.ndarray: Same shape, centred on the origin with chord ``CHORD``.
+    """
+    xy = np.asarray(xy, dtype=float)
+    xy = xy - xy.mean(axis=0)
+    span = float(xy[:, 0].max() - xy[:, 0].min())
+    return xy * (CHORD / span) if span > 0 else xy
+
+
 def write_dat(path: Path, xy: np.ndarray, header: str) -> None:
-    """Write a generated boundary as a CCW closed polygon.
+    """Write a generated boundary as a CCW closed polygon at physical scale.
 
     Args:
         path (Path): Destination ``.dat``.
         xy (np.ndarray): Boundary points, shape ``(N, 2)``.
         header (str): First comment line, without the leading ``#``.
     """
-    poly = _ordered_polygon(np.asarray(xy, dtype=float))
+    poly = _ordered_polygon(to_physical(xy))
     with path.open("w") as fh:
         fh.write(f"# {header}\n# x y\n")
         for x, y in poly:
