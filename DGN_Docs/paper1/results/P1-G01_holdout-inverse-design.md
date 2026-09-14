@@ -19,8 +19,10 @@ git_sha: ab5a3ca
 > the same number sits *below* what an unrelated dataset shape scores — and
 > against retrieval on identical targets the model loses at **4.3σ**.
 >
-> Two genuinely good findings sit alongside it: **no memorisation**, and the
-> Year-1 magnitude creep is **gone**.
+> Four findings sit alongside it: the **conditioning demonstrably works**
+> (§4a, shape-to-request correlation 0.97), **target drag is matched inside the
+> noise floor** (§4b, 1.08σ), **no memorisation**, and the Year-1 magnitude creep
+> is **gone**.
 
 ## 1. Verdict against the pre-registered rule
 
@@ -127,6 +129,73 @@ This is direct evidence for the export-scale defect recorded in
 [[../PROTOCOL]] §2.1b: every Year-1 generated body entered the channel 2.1–2.8×
 oversized, and a confined oversized body deepens its own suction peak. **G04's
 central quantity may not exist**, and its spec should be revisited before it runs.
+
+## 4a. The conditioning works — added 2026-09-14
+
+§2 notes that the model's median ρ sits only **0.26σ above a corpus-mean
+predictor**, one that ignores its input entirely. Read alone that invites the
+conclusion that the model is barely conditioned at all. **It is not true**, and
+the test that settles it uses data this experiment already produced.
+
+Every generated body was resampled to a common 128-point `r(θ)/mean(r)` profile,
+then compared two ways:
+
+| | |
+|---|--:|
+| within-target spread — same target, 5 seeds | 0.10825 |
+| between-target spread — across 20 targets | 0.30736 |
+| **ratio** | **2.84×** |
+
+A model ignoring its conditioning would give a ratio near 1. And across all 190
+target pairs:
+
+> **corr(target-Cp distance, generated-shape distance) = +0.9665**
+
+Ask for two different pressure curves and you get two correspondingly different
+shapes, with a correlation of 0.97. **The model is strongly and correctly steered
+by its conditioning**, and C2's mechanism works end to end.
+
+**The 0.26σ figure was an artefact of ρ's compression, not evidence of a
+constant predictor.** It is precisely the failure mode
+[[P1-F04_noise-floor]] §4 warned about: every ellipse Cp curve looks alike, so ρ
+cannot see a difference the geometry shows at ρ = 0.97 in its own units. This is
+the strongest single argument in the suite for reporting ρ only against its
+chance level, and it is now a worked example rather than an assertion.
+
+**What this does and does not establish.** The model responds to the request
+correctly. It does **not** follow that the shape it returns is the most accurate
+available — retrieval is closer on both ρ (§3) and `Cd` (§4b). Those are separate
+claims and the paper must keep them separate.
+
+## 4b. `Cd` — the same verdict in the metric F04 elevated — added 2026-09-14
+
+ρ was demoted by F04, so the comparison in §3 must be repeated in `Cd`. It needs
+the target geometries' own solver runs, which §6 added.
+
+| | mean | RMS | vs σ_Cd |
+|---|--:|--:|--:|
+| model | −5.12% | 7.10% | 1.50σ |
+| retrieval | +0.14% | 1.87% | 0.39σ |
+
+Paired: the model's absolute error is **4.6pp larger**, *t* = **+4.74** on 19
+dof, retrieval closer on **15 of 20** targets. **Switching to the better metric
+does not change the answer** — it strengthens it (*t* = 4.74 against ρ's 3.05).
+
+Two readings must be kept apart:
+
+1. **The model hits target drag within the noise floor.** Mean error −5.12% is
+   **1.08σ_Cd**, and the suite's rule — applied symmetrically — calls anything
+   under 2σ no detectable difference. On its own terms, the architecture performs
+   the task.
+2. **Retrieval is more accurate.** But retrieval reaching 1.3% mean drag error is
+   a statement about **pOnEllipse**, not about the architecture's ceiling: with
+   5,701 samples on a one-dimensional manifold and held-out targets only 1.20×
+   further from training data than training points are from each other
+   ([[P1-B01_retrieval-baseline]] §2), a lookup is near-optimal by construction.
+
+**A saturated corpus cannot discriminate between methods that both reach its
+ceiling.** That is a limitation of the evaluation set, and it belongs in §5 as
+such rather than being reported as a property of the model.
 
 ## 5. Failure structure — rare and severe, not uniform and mild
 
