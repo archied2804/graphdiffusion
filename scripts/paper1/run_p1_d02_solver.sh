@@ -83,5 +83,5 @@ tail -n +2 "$SHAPES/manifest.csv" | while IFS=, read -r tag label nn zone seed t
   run "$tag" "$dat" "$rule" "$re" "$h"
 done
 
-say "P1-G01 solver runs complete -- grade with scripts/paper1/p1_d02_grade.py"
+say "P1-D02 solver runs complete -- grade with scripts/paper1/p1_d02_grade.py"
 say "free disk: $(df -h "$ROOT" | tail -1 | awk '{print $4}')"
