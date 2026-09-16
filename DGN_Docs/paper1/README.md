@@ -20,7 +20,7 @@ the paper without being regenerated under this protocol.**
 
 ## Where things stand — 26 August 2026
 
-**11 of 29 reported.** The audit tier (F) is finished and the measurement protocol
+**12 of 29 reported.** The audit tier (F) is finished and the measurement protocol
 is frozen. The model's central claims have not been tested yet.
 
 | ID | Verdict | One line |
@@ -35,7 +35,8 @@ is frozen. The model's central claims have not been tested yet.
 | [D01](results/P1-D01_conditioning-invariance.md) | ❌ falsified | Conditioning deviated 41.2%; fixed to 0.49% |
 | [B03](results/P1-B03_basis-reachability.md) | ❌ falsified | **One PCA mode is inside the noise floor** — against C1's interest |
 | [B01](results/P1-B01_retrieval-baseline.md) | ❌ falsified | **No — retrieval beats generation** in-distribution |
-| [G01](results/P1-G01_holdout-inverse-design.md) | ⚠️ above prediction | ρ 0.994 — but **below chance**, and loses to retrieval at 4.3σ. No memorisation; creep gone |
+| [G01](results/P1-G01_holdout-inverse-design.md) | ⚠️ above prediction | Conditioning works (0.97); drag inside the noise floor; loses to retrieval. **Template-biased thin** (see D02) |
+| [D02](results/P1-D02_node-count-transfer.md) | ⚠️ split | **Count-invariant** across 24–384 nodes, 100% valid. **Spacing-sensitive** — the template leaks shape |
 
 **The August gate has its answer, and it is not the expected one.** G01 ran
 2026-08-28 on the same 20 targets B01 used. Paired, **the model loses to

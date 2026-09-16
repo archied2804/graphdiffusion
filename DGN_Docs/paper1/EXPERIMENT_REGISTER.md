@@ -59,7 +59,7 @@ appear in the paper · `support` strengthens it, cut first if time runs out.
 | ID | Title | Tier | Question | Depends | Train | Solver | Status |
 |---|---|:--:|---|---|:--:|:--:|:--:|
 | [P1-D01](specs/P1-D01_conditioning-invariance.md) | Conditioning invariance under resampling | core | Is the DCT conditioning genuinely node-count independent? | F01 | 0 | 0 | ✅ **[reported](results/P1-D01_conditioning-invariance.md)** — falsified |
-| [P1-D02](specs/P1-D02_node-count-transfer.md) | Node-count transfer at sampling time | **core** ★ | Can a 96-node-trained model generate at 48 and 192? | F05 D01 | 0 | ~60 | ready — P1-REF available |
+| [P1-D02](specs/P1-D02_node-count-transfer.md) | Node-count transfer at sampling time | **core** ★ | Can a 96-node-trained model generate at 48 and 192? | F05 D01 | 0 | 144 | ⚠️ **[reported](results/P1-D02_node-count-transfer.md)** — **count-invariant** 24–384; **spacing-sensitive**; re-attributes G01 |
 | [P1-D03](specs/P1-D03_mixed-resolution.md) | Mixed-resolution training | conditional | If D02 fails, does training across node counts fix it? | D02 | 3 | ~20 | planned |
 
 ### C — Conditioning ablations → paper §4.5 (C2)

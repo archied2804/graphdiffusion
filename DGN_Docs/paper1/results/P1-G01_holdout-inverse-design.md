@@ -197,6 +197,27 @@ Two readings must be kept apart:
 ceiling.** That is a limitation of the evaluation set, and it belongs in §5 as
 such rather than being reported as a property of the model.
 
+## 4c. Template bias — re-attribution from D02, added 2026-09-17
+
+[[P1-D02_node-count-transfer]] §3 found that the model takes shape information
+from the sampling template's node spacing. **Every sample in this experiment was
+generated on `dataset[0]`'s template, whose spacing encodes an aspect ratio of
+0.511** — a thin ellipse.
+
+Across the twenty targets, generated aspect regressed on true aspect has slope
+**0.620**: the model tracks the target (correlation 0.933) but cannot produce
+anything thicker than 0.686 against a truth reaching 0.784.
+
+- **The measured numbers in §§2–4b stand.** They are what this pipeline produced.
+- **Their attribution changes.** The "median `b/a` 0.538, skews thin"
+  observation is the template. The two worst targets, `t039` and `t008`, are both
+  thick and both under-produced by ~0.10 in aspect. Part of the drag error and
+  part of the loss to retrieval are template-induced, and fixable at sampling
+  time.
+- Retrieval (§3) is unaffected: it returns stored geometry and has no template.
+
+A matched-template re-sample is proposed in D02 §7 to measure how much.
+
 ## 5. Failure structure — rare and severe, not uniform and mild
 
 The spec asks for this distinction explicitly, because the two imply different
