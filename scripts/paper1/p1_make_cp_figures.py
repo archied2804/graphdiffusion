@@ -20,6 +20,10 @@ its two surfaces and averaged onto a common chordwise grid.
   fig13  three targets -- best, median and worst by drag error
   fig14  summary of all twenty: where along the chord the pressure error sits,
          and generated against target drag
+  fig15  fig13's three targets, one generated sample each (seed 0) rather than
+         the five-seed mean -- what a single generation gives
+  fig16  one target Cp given to three independently trained networks (P1-REF
+         seeds 0-2), one per panel -- training variability, not sampling noise
 
 Usage:
     python scripts/paper1/p1_make_cp_figures.py
@@ -370,6 +374,170 @@ def fig14() -> None:
     print("  fig14_cp_summary.png / .pdf")
 
 
+def fig15(seed: int = 0) -> None:
+    """fig13's three targets with a single generated sample, not the seed mean.
+
+    The seed is fixed by rule rather than chosen per target, so the figure is
+    not a selection of flattering samples. The targets are fig13's, kept so the
+    two figures pair; each panel's drag error is that sample's own.
+
+    Args:
+        seed (int): The P1-REF seed shown for every target.
+    """
+    rows = per_target()
+    picks = [rows[round(q * (len(rows) - 1))][0] for q in (0.0, 0.5, 1.0)]
+    with plt.rc_context(STYLE):
+        fig, axes = plt.subplots(1, 3, figsize=(6.6, 2.5), sharex=True, sharey=True)
+        for i, (ax, lab) in enumerate(zip(axes, picks, strict=True)):
+            c = curves(lab)
+            run = _G01 / "solver" / f"{lab}_s{seed}"
+            cd_t = read_force_csv(
+                _G01 / "truth" / f"truth_{lab}" / "tmp" / "ellipse2d_force.csv"
+            ).cd
+            cd_s = read_force_csv(run / "tmp" / "ellipse2d_force.csv").cd
+            first = i == 0
+            ax.plot(
+                c["ds_x"],
+                c["ds_cp"],
+                color=BLUE,
+                lw=1.1,
+                ls=(0, (4, 2)),
+                zorder=2,
+                label="dataset, $C_p = 2p/\\rho U^2$" if first else None,
+            )
+            ax.plot(
+                GRID,
+                c["truth"],
+                color=INK,
+                lw=1.2,
+                zorder=3,
+                label="target geometry, same solver" if first else None,
+            )
+            ax.plot(
+                GRID,
+                collapsed(run),
+                color=ORANGE,
+                lw=1.3,
+                zorder=4,
+                label=f"generated, network seed {seed}" if first else None,
+            )
+            ax.set_xlim(0, 1)
+            ax.set_xlabel("$x/c$")
+            ax.text(
+                0.97,
+                0.06,
+                f"#{lab[-3:]}  ·  $\\Delta C_d$ {100 * (cd_s / cd_t - 1):+.1f}%",
+                transform=ax.transAxes,
+                ha="right",
+                va="bottom",
+                fontsize=7.4,
+                color=MUTED,
+            )
+        axes[0].invert_yaxis()  # shared y -- invert once, suction up
+        axes[0].set_ylabel("$C_p$")
+        fig.legend(
+            loc="lower center",
+            bbox_to_anchor=(0.5, 0.97),
+            ncol=3,
+            frameon=False,
+            handlelength=2.4,
+            columnspacing=1.4,
+        )
+        fig.tight_layout(w_pad=0.6)
+        for ext in ("png", "pdf"):
+            fig.savefig(
+                _OUT / f"fig15_cp_three_examples_single_sample.{ext}",
+                bbox_inches="tight",
+            )
+        plt.close(fig)
+    print("  fig15_cp_three_examples_single_sample.png / .pdf")
+
+
+def fig16(seeds: tuple[int, ...] = (0, 1, 2)) -> None:
+    """One target Cp, three independently trained networks -- one per panel.
+
+    Every panel is asked for the same pressure curve. Each P1-REF seed is a
+    separately TRAINED network, and the sampler fixes its noise seed at 0, so
+    the spread across panels is training variability, not the stochasticity of
+    repeated sampling from one network. The target is fig13's
+    median by drag error, and the seeds are the first three, both fixed by rule
+    so the panels are not a selection of flattering samples.
+
+    Args:
+        seeds (tuple[int, ...]): P1-REF seeds, one per panel.
+    """
+    rows = per_target()
+    lab = rows[round(0.5 * (len(rows) - 1))][0]
+    c = curves(lab)
+    cd_t = read_force_csv(
+        _G01 / "truth" / f"truth_{lab}" / "tmp" / "ellipse2d_force.csv"
+    ).cd
+    with plt.rc_context(STYLE):
+        fig, axes = plt.subplots(
+            1, len(seeds), figsize=(6.6, 2.5), sharex=True, sharey=True
+        )
+        for i, (ax, seed) in enumerate(zip(axes, seeds, strict=True)):
+            run = _G01 / "solver" / f"{lab}_s{seed}"
+            cd_s = read_force_csv(run / "tmp" / "ellipse2d_force.csv").cd
+            first = i == 0
+            ax.plot(
+                c["ds_x"],
+                c["ds_cp"],
+                color=BLUE,
+                lw=1.1,
+                ls=(0, (4, 2)),
+                zorder=2,
+                label="dataset, $C_p = 2p/\\rho U^2$" if first else None,
+            )
+            ax.plot(
+                GRID,
+                c["truth"],
+                color=INK,
+                lw=1.2,
+                zorder=3,
+                label="target geometry, same solver" if first else None,
+            )
+            ax.plot(
+                GRID,
+                collapsed(run),
+                color=ORANGE,
+                lw=1.3,
+                zorder=4,
+                label="generated, one network" if first else None,
+            )
+            ax.set_xlim(0, 1)
+            ax.set_xlabel("$x/c$")
+            ax.text(
+                0.97,
+                0.06,
+                f"network seed {seed}  ·  "
+                f"$\\Delta C_d$ {100 * (cd_s / cd_t - 1):+.1f}%",
+                transform=ax.transAxes,
+                ha="right",
+                va="bottom",
+                fontsize=7.4,
+                color=MUTED,
+            )
+        axes[0].invert_yaxis()  # shared y -- invert once, suction up
+        axes[0].set_ylabel("$C_p$")
+        fig.legend(
+            loc="lower center",
+            bbox_to_anchor=(0.5, 0.97),
+            ncol=3,
+            frameon=False,
+            handlelength=2.4,
+            columnspacing=1.4,
+        )
+        fig.tight_layout(w_pad=0.6)
+        for ext in ("png", "pdf"):
+            fig.savefig(
+                _OUT / f"fig16_cp_same_target_three_samples.{ext}",
+                bbox_inches="tight",
+            )
+        plt.close(fig)
+    print(f"  fig16_cp_same_target_three_samples.png / .pdf   (target #{lab[-3:]})")
+
+
 def main() -> None:
     _OUT.mkdir(parents=True, exist_ok=True)
     print(f"\nCp figures -> {_OUT.relative_to(_ROOT)}\n")
@@ -377,6 +545,8 @@ def main() -> None:
     fig12()
     fig13()
     fig14()
+    fig15()
+    fig16()
     print()
 
 
