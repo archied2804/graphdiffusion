@@ -193,6 +193,55 @@ Found 2026-08-28 during [[specs/P1-G01_holdout-inverse-design|G01]] setup, by a
 geometry sanity check before the runs were launched. Fix:
 `scripts/paper1/p1_g01_sample.py::to_physical`.
 
+## 2.1c Vortex-shedding onset is uncontrolled — OPEN, found 2026-09-18
+
+**Found, not fixed.** The averaging window is fixed at `t = MAX_PHYS_T − 25` to
+`MAX_PHYS_T` (t = 25–50 at the standard settings). It is **not** triggered by the
+flow reaching a statistically steady state. Shedding onset — the first time
+`|Cl| > 0.05` in the logged history — ranges from t ≈ 8 to t ≈ 47.
+
+**It differs systematically by shape source.** A smooth dataset body at zero
+incidence is symmetric and waits for round-off to break the symmetry. A
+generated body carries the ~1% per-node jitter of
+[[results/P1-D02_node-count-transfer]] §5 — built-in asymmetry — and sheds early.
+Runs whose `Cl` amplitude at least **doubles** inside the averaging window:
+
+| experiment | shapes | median onset | amplitude still ×2 in window |
+|---|---|--:|--:|
+| F04 noise floor | dataset | 26.5 | **59%** |
+| B01 retrieval | dataset | 22.0 | **26%** |
+| G01 target geometries | dataset | 21.5 | **14%** |
+| G01 generated | generated | 18.0 | 1% |
+| D02 | generated | 12.0 | 0% |
+
+Double precision sheds later still (less round-off): the F06 fp64 repeat of F03's
+resolution sweep sheds at t = 31–47, which — not precision acting on converged
+physics — is why its unsteady quantities disagree with fp32.
+
+**What it affects, and what it does not.**
+
+- **F04's noise floor** partly measures onset-time randomness rather than
+  measurement noise on a converged flow. This is the likely mechanism behind
+  F04's finding that `MAX_PHYS_T` dominates every σ.
+- **Generated-against-dataset `Cd` comparisons** — G01 §4b and the B01/G01
+  comparison — set a mostly-shedding flow against a sometimes-not-yet-shedding
+  one. A systematic bias of unmeasured sign and size.
+- **Solver-grid convergence (F03) is readable only where shedding is
+  established.** At Re 751 it is, and the production rule is converged (drag
+  within ~1–2% of 2×, Strouhal within ~1%). At Re 501 every run at ≥1× is still
+  ramping up, so that case cannot show convergence either way.
+- **Not affected:** anything purely geometric (B03 part 1, D01, D02's validity
+  and shape results), and runs on generated shapes, which are almost all
+  established.
+
+**The fix is standard practice, and needs re-runs:** a brief asymmetric
+perturbation at start-up so shedding begins early and consistently, and/or a
+per-run stationarity gate before averaging. Not done — a decision for the
+supervisor, since it re-opens F04's frozen σ.
+
+Figures: `outputs/paper1/figures/fig8_shedding_onset`, `fig9_grid_convergence`.
+Script: `scripts/paper1/p1_make_flow_figures.py`.
+
 ### 2.2 Chordwise-resolved error
 
 ρ is a single number over the whole curve, so it conflates a leading-edge error
