@@ -173,101 +173,113 @@ def save(fig: plt.Figure, stem: str) -> None:
 
 
 def fig4() -> None:
-    """Aspect ratio against node count -- the shape does not move."""
+    """Aspect ratio against node count, styled for the report.
+
+    No in-figure title or notes -- those belong in the LaTeX caption. Targets
+    are told apart by marker shape in a single ink colour so the figure reads
+    in greyscale print. Error bars are the min-max over the three seeds, and
+    the four series are nudged apart in x so the bars do not overlap.
+    """
     man = list(csv.DictReader((_D02 / "manifest.csv").open()))
     labels = sorted({m["label"] for m in man})
     ladder = sorted({int(m["n_nodes"]) for m in man})
-    raw = _load_h5_raw(_RAW / "pOnEllipseInDist.h5")
 
-    fig, ax = plt.subplots(figsize=(7.2, 3.6))
-    ax.axvspan(TRAIN_MIN, TRAIN_MAX, color=BLUE, alpha=0.10, lw=0, zorder=0)
-    ax.text(
-        np.sqrt(TRAIN_MIN * TRAIN_MAX),
-        0.905,
-        "trained range\n52–96 nodes",
-        ha="center",
-        va="top",
-        fontsize=7.2,
-        color=MUTED,
-    )
-
-    worst = 0.0
-    ends: list[tuple[float, str]] = []
+    stats: dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
     for lab in labels:
         mean, lo, hi = [], [], []
         for n in ladder:
-            a = [
+            a_ = [
                 aspect(read_body(_D02 / f"{m['tag']}.dat"))
                 for m in man
                 if m["label"] == lab and int(m["n_nodes"]) == n
             ]
-            mean.append(np.mean(a))
-            lo.append(min(a))
-            hi.append(max(a))
-        mean_a = np.asarray(mean)
-        ref = float(
-            mean_a[
-                [ladder.index(n) for n in ladder if TRAIN_MIN <= n <= TRAIN_MAX]
-            ].mean()
-        )
-        worst = max(worst, float(np.abs(mean_a / ref - 1).max()))
-        ax.fill_between(ladder, lo, hi, color=BAND, alpha=0.45, lw=0, zorder=1)
-        ax.plot(ladder, mean_a, color=INK, lw=1.4, zorder=3)
-        ax.scatter(
-            ladder, mean_a, s=20, color=INK, edgecolor="white", linewidth=0.8, zorder=4
-        )
-        t = int(man[[m["label"] for m in man].index(lab)]["target_idx"])
-        ends.append(
-            (
-                float(mean_a[-1]),
-                f"target {lab[1:]}  (true b/a {true_aspect(raw, t):.2f})",
-            )
-        )
+            mean.append(np.mean(a_))
+            lo.append(min(a_))
+            hi.append(max(a_))
+        stats[lab] = (np.asarray(mean), np.asarray(lo), np.asarray(hi))
 
-    # Direct labels at the right end, pushed apart where lines nearly coincide.
-    ends.sort()
-    placed: list[float] = []
-    for y, txt in ends:
-        y_lab = max(y, placed[-1] + 0.016) if placed else y
-        placed.append(y_lab)
-        ax.annotate(
-            txt,
-            xy=(ladder[-1], y),
-            xytext=(ladder[-1] * 1.10, y_lab),
-            va="center",
-            ha="left",
-            fontsize=7,
+    # Legend order: thickest first, matching top-to-bottom in the plot.
+    order = sorted(labels, key=lambda lab: -float(stats[lab][0].mean()))
+    markers = ("o", "s", "^", "D")
+    nudge = (0.965, 0.988, 1.012, 1.035)
+
+    with plt.rc_context(
+        {
+            "font.size": 9,
+            "axes.labelsize": 9.5,
+            "xtick.labelsize": 8.5,
+            "ytick.labelsize": 8.5,
+            "legend.fontsize": 8.5,
+            "axes.grid": False,
+        }
+    ):
+        fig, ax = plt.subplots(figsize=(6.3, 3.2))
+        ax.axvspan(TRAIN_MIN, TRAIN_MAX, color="#e8edf4", lw=0, zorder=0)
+        ax.grid(axis="y", color="#ececea", lw=0.6, zorder=0)
+        y_top = max(float(stats[lab][2].max()) for lab in labels) + 0.012
+        y_bot = min(float(stats[lab][1].min()) for lab in labels) - 0.03
+        ax.text(
+            np.sqrt(TRAIN_MIN * TRAIN_MAX),
+            y_bot + 0.006,
+            "training range",
+            ha="center",
+            va="bottom",
+            fontsize=8,
             color=MUTED,
-            arrowprops={"arrowstyle": "-", "color": BAND, "lw": 0.7},
         )
+        for i, lab in enumerate(order):
+            mean, lo, hi = stats[lab]
+            xs = np.asarray(ladder, dtype=float) * nudge[i]
+            ax.errorbar(
+                xs,
+                mean,
+                yerr=[mean - lo, hi - mean],
+                fmt="none",
+                ecolor=FAINT,
+                elinewidth=0.8,
+                capsize=1.8,
+                capthick=0.8,
+                zorder=2,
+            )
+            ax.plot(xs, mean, color=INK, lw=0.9, zorder=3)
+            ax.plot(
+                xs,
+                mean,
+                ls="none",
+                marker=markers[i],
+                ms=4.6,
+                mfc="white",
+                mec=INK,
+                mew=0.9,
+                zorder=4,
+                label=f"Target {lab[1:]}",
+            )
 
-    ax.set_xscale("log", base=2)
-    ax.set_xticks(ladder)
-    ax.set_xticklabels([str(n) for n in ladder])
-    ax.minorticks_off()
-    ax.set_xlim(ladder[0] / 1.12, ladder[-1] * 1.12)
-    ax.set_ylim(0.62, 0.91)
-    ax.set_xlabel("boundary nodes in the generated shape")
-    ax.set_ylabel("aspect ratio  b/a")
-    ax.set_title(
-        "The model draws the same shape at every node count",
-        fontsize=10.5,
-        fontweight="bold",
-        loc="left",
-        pad=16,
-    )
-    ax.text(
-        0.0,
-        1.015,
-        f"Four held-out targets, 3 seeds each (band = seed range).  "
-        f"All 144 shapes valid; worst drift from the in-range mean "
-        f"{100 * worst:.1f}% across a 16x range.",
-        transform=ax.transAxes,
-        fontsize=7.4,
-        color=MUTED,
-        va="bottom",
-    )
-    save(fig, "fig4_node_count_invariance")
+        ax.set_xscale("log", base=2)
+        shown = [24, 32, 48, 64, 96, 128, 192, 256, 384]
+        ax.set_xticks(shown)
+        ax.set_xticklabels([str(n) for n in shown])
+        ax.minorticks_off()
+        ax.set_xlim(ladder[0] / 1.15, ladder[-1] * 1.15)
+        ax.set_ylim(y_bot, y_top)
+        ax.set_xlabel("Number of boundary nodes, $N$")
+        ax.set_ylabel("Aspect ratio, $b/a$")
+        ax.legend(
+            loc="lower center",
+            bbox_to_anchor=(0.5, 1.0),
+            ncol=4,
+            frameon=False,
+            handlelength=2.2,
+            columnspacing=1.6,
+        )
+        for ext in ("png", "pdf"):
+            fig.savefig(
+                _OUT / f"fig4_node_count_invariance.{ext}",
+                bbox_inches="tight",
+                dpi=300,
+            )
+        plt.close(fig)
+    print("  fig4_node_count_invariance.png / .pdf")
 
 
 def fig5() -> None:
