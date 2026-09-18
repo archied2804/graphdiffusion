@@ -152,7 +152,8 @@ target pairs:
 > **corr(target-Cp distance, generated-shape distance) = +0.9665**
 
 Ask for two different pressure curves and you get two correspondingly different
-shapes, with a correlation of 0.97. **The model is strongly and correctly steered
+shapes, with a correlation of 0.97. Figure:
+`outputs/paper1/figures/fig5_conditioning_response.{png,pdf}`. **The model is strongly and correctly steered
 by its conditioning**, and C2's mechanism works end to end.
 
 **The 0.26σ figure was an artefact of ρ's compression, not evidence of a

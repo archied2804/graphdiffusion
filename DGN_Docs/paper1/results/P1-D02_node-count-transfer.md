@@ -15,8 +15,9 @@ git_sha: f82c02b
 > split is the finding.
 >
 > **Node count: invariant.** 100% valid geometry at every rung from 24 to 384
-> nodes, a 16× range. The shape the model draws holds to ±1% in aspect ratio
-> across that whole range. Inside the trained range, node count has no
+> nodes, a 16× range. The shape the model draws holds its aspect ratio to
+> within 1.9% of the in-range mean across that whole range — about 1% at most
+> rungs, 1.9% at the coarsest (24 nodes). Inside the trained range, node count has no
 > detectable effect on drag.
 >
 > **Node spacing: not invariant.** The model reads shape from the *spacing* of
@@ -75,8 +76,11 @@ Aspect ratio `b/a` of the generated bodies, mean over seeds:
 | 192 | 0.8117 | 0.6833 | 0.8288 | 0.6847 |
 | 384 | 0.8111 | 0.6810 | 0.8331 | 0.6823 |
 
-**Constant to about ±1% across a 16× range of node counts.** The slight rise at
-low N is what a coarse polygon does when its vertices miss the true extremes.
+**Within 1.9% of the in-range mean across a 16× range of node counts** — about
+1% at most rungs, with the worst case at 24 nodes. That slight rise at low N is
+what a coarse polygon does when its vertices miss the true extremes.
+
+Figure: `outputs/paper1/figures/fig4_node_count_invariance.{png,pdf}`.
 
 This is a capability **no baseline in this suite has.** Nearest-neighbour
 retrieval can only return a stored 52–96-node body. A PCA basis fitted at one
@@ -110,7 +114,7 @@ On the shared targets:
 | t046 | 0.5510 | 0.5157 | −0.035 | 0.6804 | **+0.129** |
 
 Each template gets right the targets that resemble it and gets wrong the ones
-that don't. **The model is taking shape information from the template's node
+that don't. Figure: `outputs/paper1/figures/fig6_template_bias.{png,pdf}`. **The model is taking shape information from the template's node
 positions as well as from the conditioning vector.**
 
 ### Across all twenty G01 targets
@@ -140,7 +144,7 @@ against a truth that reaches 0.784.
 
 | | invariant? | evidence |
 |---|:--:|---|
-| **Node count** | ✅ | aspect ±1% across 24–384; no in-range `Cd` effect (0.51σ) |
+| **Node count** | ✅ | aspect within 1.9% across 24–384; no in-range `Cd` effect (0.51σ) |
 | **Node spacing** | ❌ | template spacing shifts aspect by up to **0.17** |
 
 [[P1-D01_conditioning-invariance|D01]] made the **conditioning descriptor**
