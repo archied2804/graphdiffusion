@@ -245,6 +245,40 @@ What they show:
 - The seed band widens at the leading-edge shoulder (x/c ≈ 0.1–0.15) on thick
   targets — the per-node jitter of D02 §5 reaching the pressure field.
 
+### Summary across all twenty — added 2026-09-18
+
+`fig13_cp_three_examples` (best, median and worst by |ΔCd|, ranks 0, 10, 19) and
+`fig14_cp_summary` compress the result into one figure.
+
+**Surface pressure.** Mean |ΔCp| along the chord, median over the twenty targets:
+
+| | |
+|---|--:|
+| generated − target geometry | **0.052** |
+| dataset (× 2) − target geometry | 0.075 |
+
+The network's pressure error is below the unfitted gap between the dataset's
+solver and this one on the same bodies for **15 of 20** targets. That gap is
+mostly F07's constant 9.35% scale offset, so it is a **scale reference**, not a
+claim that the network beats a CFD solver: it says the network's error is
+within the disagreement between reference solvers before any calibration. The
+error peaks at **x/c = 0.37**, as too little suction (median ΔCp +0.082).
+
+**Drag.** Against the ±2σ_Cd measurement band:
+
+| targets | inside band | mean ΔCd |
+|---|--:|--:|
+| thin, b/a < 0.65 | **12 / 12** | −0.027 |
+| thick, b/a ≥ 0.65 | **2 / 8** | −0.097 |
+| all | 14 / 20 | |
+
+**corr(target b/a, drag error) = −0.83.** Every thin target's drag is matched
+within measurement uncertainty; every miss is a thick target. The 0.65 split is
+chosen after the fact and is illustrative only — the correlation does not depend
+on it. This is the template bias of [[P1-D02_node-count-transfer]] §3 seen in the
+integrated force: thick targets are generated too thin, so they carry too little
+suction and too little drag.
+
 ## 5. Failure structure — rare and severe, not uniform and mild
 
 The spec asks for this distinction explicitly, because the two imply different

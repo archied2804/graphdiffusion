@@ -17,6 +17,9 @@ its two surfaces and averaged onto a common chordwise grid.
 
   fig11  six targets, chosen by rank of drag error at fixed quantiles
   fig12  all twenty targets (appendix)
+  fig13  three targets -- best, median and worst by drag error
+  fig14  summary of all twenty: where along the chord the pressure error sits,
+         and generated against target drag
 
 Usage:
     python scripts/paper1/p1_make_cp_figures.py
@@ -35,8 +38,15 @@ import numpy as np  # noqa: E402
 _ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_ROOT / "src"))
 
+from graph_diffusion.data.pOnEllipse import (  # noqa: E402
+    _H5_COL_X,
+    _H5_COL_Y,
+    _load_h5_raw,
+    _node_count,
+)
 from graph_diffusion.postprocessing.cp_metrics import (  # noqa: E402
     read_cp_csv,
+    read_force_csv,
     read_reference_cp,
     split_branches,
 )
@@ -51,6 +61,8 @@ INK = "#0b0b0b"
 MUTED = "#52514e"
 
 GRID = np.linspace(0.0, 1.0, 201)
+SIGMA_CD = 0.04742  # frozen by P1-F04, PROTOCOL section 6
+_RAW = _ROOT / "data" / "ellipse" / "raw" / "pOnEllipseInDist.h5"
 SEEDS = range(5)
 QUANTILES = (0.0, 0.2, 0.4, 0.6, 0.8, 1.0)
 
@@ -222,11 +234,149 @@ def fig12() -> None:
     print("  fig12_cp_holdout_all.png / .pdf")
 
 
+def fig13() -> None:
+    """Three targets: best, median and worst by drag error."""
+    rows = per_target()
+    picks = [rows[round(q * (len(rows) - 1))] for q in (0.0, 0.5, 1.0)]
+    with plt.rc_context(STYLE):
+        fig, axes = plt.subplots(1, 3, figsize=(6.6, 2.5), sharex=True, sharey=True)
+        for i, (ax, (lab, err)) in enumerate(zip(axes, picks, strict=True)):
+            panel(ax, lab, err, legend=i == 0)
+            ax.set_xlabel("$x/c$")
+        axes[0].invert_yaxis()  # shared y -- invert once, suction up
+        axes[0].set_ylabel("$C_p$")
+        fig.legend(
+            loc="lower center",
+            bbox_to_anchor=(0.5, 0.97),
+            ncol=3,
+            frameon=False,
+            handlelength=2.4,
+            columnspacing=1.4,
+        )
+        fig.tight_layout(w_pad=0.6)
+        for ext in ("png", "pdf"):
+            fig.savefig(_OUT / f"fig13_cp_three_examples.{ext}", bbox_inches="tight")
+        plt.close(fig)
+    print("  fig13_cp_three_examples.png / .pdf")
+
+
+def fig14() -> None:
+    """All twenty targets in one figure: chordwise error and drag parity."""
+    rows = per_target()
+    raw = _load_h5_raw(_RAW)
+
+    d_gen, d_ds, cd_t, cd_g, cd_lo, cd_hi, thick = [], [], [], [], [], [], []
+    for lab, _err in rows:
+        c = curves(lab)
+        d_gen.append(c["gen"].mean(0) - c["truth"])
+        d_ds.append(np.interp(GRID, c["ds_x"], c["ds_cp"]) - c["truth"])
+        cd_t.append(
+            read_force_csv(
+                _G01 / "truth" / f"truth_{lab}" / "tmp" / "ellipse2d_force.csv"
+            ).cd
+        )
+        g = [
+            read_force_csv(
+                _G01 / "solver" / f"{lab}_s{k}" / "tmp" / "ellipse2d_force.csv"
+            ).cd
+            for k in SEEDS
+        ]
+        cd_g.append(np.mean(g))
+        cd_lo.append(min(g))
+        cd_hi.append(max(g))
+        sm = raw[int(lab[-3:])][: _node_count(raw[int(lab[-3:])])]
+        thick.append(np.ptp(sm[:, _H5_COL_Y]) / np.ptp(sm[:, _H5_COL_X]))
+
+    d_gen_a, d_ds_a = np.asarray(d_gen), np.asarray(d_ds)
+    cd_t_a, cd_g_a = np.asarray(cd_t), np.asarray(cd_g)
+    ramp = matplotlib.colors.LinearSegmentedColormap.from_list(
+        "thickness", ["#d3e3f7", "#0f4a99"]
+    )
+
+    with plt.rc_context(STYLE):
+        fig, (ax1, ax2) = plt.subplots(
+            1, 2, figsize=(6.8, 2.9), gridspec_kw={"width_ratios": [1.35, 1.0]}
+        )
+
+        # (a) where along the chord the pressure error sits ----------------
+        for d in d_gen_a:
+            ax1.plot(GRID, d, color=ORANGE, lw=0.5, alpha=0.28, zorder=1)
+        q25, q50, q75 = np.percentile(d_gen_a, [25, 50, 75], axis=0)
+        ax1.fill_between(GRID, q25, q75, color=ORANGE, alpha=0.30, lw=0, zorder=2)
+        ax1.plot(GRID, q50, color=ORANGE, lw=1.6, zorder=4, label="generated − target")
+        ax1.plot(
+            GRID,
+            np.median(d_ds_a, axis=0),
+            color=BLUE,
+            lw=1.3,
+            ls=(0, (4, 2)),
+            zorder=3,
+            label="dataset − target",
+        )
+        ax1.axhline(0, color=MUTED, lw=0.7, zorder=0)
+        ax1.set_xlim(0, 1)
+        ax1.set_xlabel("$x/c$")
+        ax1.set_ylabel("$\\Delta C_p$ against target geometry")
+        ax1.legend(frameon=False, loc="lower right", handlelength=2.2)
+        ax1.text(
+            -0.2, 1.02, "(a)", transform=ax1.transAxes, fontsize=9.5, fontweight="bold"
+        )
+
+        # (b) generated against target drag ----------------------------------
+        lo = min(cd_t_a.min(), np.min(cd_lo)) - 0.04
+        hi = max(cd_t_a.max(), np.max(cd_hi)) + 0.04
+        xs = np.array([lo, hi])
+        ax2.fill_between(
+            xs, xs - 2 * SIGMA_CD, xs + 2 * SIGMA_CD, color="#ecece8", lw=0, zorder=0
+        )
+        ax2.plot(xs, xs, color=MUTED, lw=0.8, ls="--", zorder=1)
+        ax2.errorbar(
+            cd_t_a,
+            cd_g_a,
+            yerr=[cd_g_a - np.asarray(cd_lo), np.asarray(cd_hi) - cd_g_a],
+            fmt="none",
+            ecolor="#9a9a95",
+            elinewidth=0.7,
+            capsize=1.4,
+            zorder=2,
+        )
+        sc = ax2.scatter(
+            cd_t_a,
+            cd_g_a,
+            c=thick,
+            cmap=ramp,
+            s=30,
+            edgecolor=INK,
+            linewidth=0.6,
+            zorder=3,
+        )
+        ax2.set_xlim(lo, hi)
+        ax2.set_ylim(lo, hi)
+        ax2.set_aspect("equal")
+        ax2.set_xlabel("$C_d$, target geometry")
+        ax2.set_ylabel("$C_d$, generated")
+        cb = fig.colorbar(sc, ax=ax2, fraction=0.05, pad=0.03)
+        cb.set_label("target $b/a$", fontsize=8.5)
+        cb.ax.tick_params(labelsize=7.5)
+        cb.outline.set_linewidth(0.5)
+        ax2.text(
+            -0.28, 1.02, "(b)", transform=ax2.transAxes, fontsize=9.5, fontweight="bold"
+        )
+
+        fig.tight_layout(w_pad=2.0)
+        for ext in ("png", "pdf"):
+            fig.savefig(_OUT / f"fig14_cp_summary.{ext}", bbox_inches="tight")
+        plt.close(fig)
+    print("  fig14_cp_summary.png / .pdf")
+
+
 def main() -> None:
     _OUT.mkdir(parents=True, exist_ok=True)
     print(f"\nCp figures -> {_OUT.relative_to(_ROOT)}\n")
     fig11()
     fig12()
+    fig13()
+    fig14()
     print()
 
 
