@@ -219,6 +219,32 @@ anything thicker than 0.686 against a truth reaching 0.784.
 
 A matched-template re-sample is proposed in D02 §7 to measure how much.
 
+## 4d. Surface-pressure comparison with no fitted offset — added 2026-09-18
+
+`outputs/paper1/figures/fig11_cp_holdout.{png,pdf}` (six targets, ranked by
+|ΔCd| and taken at ranks 0, 4, 8, 11, 15, 19) and `fig12_cp_holdout_all` (all
+twenty). Each panel carries three curves, and **no curve is scaled by a fitted
+constant**:
+
+- **target geometry, same solver** — the like-for-like reference for the model
+- **generated** — mean of the five `P1-REF` seeds, min–max band
+- **dataset** — stored `p/ρU²` × 2, the sourced unit conversion of
+  [[P1-F07_normalisation-audit]], replacing the Year-1 fitted 1.74
+
+What they show:
+
+- **Leading edge and stagnation region match on every target.** Error lives in
+  the suction peak (x/c ≈ 0.25–0.5) and the aft body.
+- **The worst targets are the thick ones** (#040, #039, #028, #008, #022), where
+  the model under-produces suction — the same thin bias [[P1-D02_node-count-transfer]]
+  §3 traced to the sampling template.
+- **Dataset against target-geometry is F07's 9.35% residual, now visible**: the
+  dataset curve carries stronger suction than the same body through this solver on
+  most targets. It is a solver-to-solver difference, not a model error, and it is
+  why the model must be judged against the black curve, not the blue.
+- The seed band widens at the leading-edge shoulder (x/c ≈ 0.1–0.15) on thick
+  targets — the per-node jitter of D02 §5 reaching the pressure field.
+
 ## 5. Failure structure — rare and severe, not uniform and mild
 
 The spec asks for this distinction explicitly, because the two imply different
