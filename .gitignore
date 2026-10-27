@@ -20,12 +20,15 @@ wheels/
 outputs/
 generated_shapes.png
 
-# AI
-.claude/
-notebooks# Raw datasets are large and fetched on demand; exclude contents, not the dir,
-# so the frozen Paper 1 partition can be re-included (PROTOCOL §1).
-/data/*
-!/data/splits/
-/data/splits/*
-!/data/splits/*.json
+# Dataset caches created when notebooks run from notebooks/ (re-downloaded)
+notebooks/data/
 **/.ipynb_checkpoints/
+
+# Downloaded papers (arXiv etc.) dropped at the root; cite, don't commit
+/*.pdf
+
+# Claude Code: agents are tracked, local settings are not
+.claude/settings.local.json
+
+# Obsidian: the vault is tracked, the pane layout is not
+DGN_Docs/.obsidian/workspace.json
