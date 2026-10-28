@@ -20,6 +20,7 @@ dependencies = [
     "tensorboard>=2.20.0",
     "h5py>=3.0",
     "requests>=2.31",
+    "scipy>=1.17.1",
 ]
 
 [project.optional-dependencies]
@@ -29,6 +30,10 @@ dev = [
     "ruff>=0.4",
     "black>=24.0",
     "mypy>=1.10",
+]
+notebooks = [
+    "ipykernel>=7.4.0",
+    "ipywidgets>=8.1.9",
 ]
 
 [tool.hatch.build.targets.wheel]

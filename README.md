@@ -20,7 +20,7 @@ the reference recipe). The CFD grader additionally needs OpenLB 1.9.
 ```bash
 git clone https://github.com/archied2804/graphdiffusion DGN_Sup
 cd DGN_Sup
-uv sync --extra dev          # creates .venv from uv.lock (or: make install)
+uv sync --extra dev --extra notebooks   # creates .venv from uv.lock
 make test                    # should pass before anything else
 ```
 
