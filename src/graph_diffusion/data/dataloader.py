@@ -65,11 +65,18 @@ class GraphDataLoader:
         num_workers: int = 0,
         seed: int = 42,
         distributed: bool = False,
+        train_indices: list[int] | None = None,
+        val_indices: list[int] | None = None,
     ) -> None:
         if batch_size < 1:
             raise ValueError(f"batch_size must be >= 1, got {batch_size}")
         if not (0.0 < val_split < 1.0):
             raise ValueError(f"val_split must be in (0, 1), got {val_split}")
+        if (train_indices is None) != (val_indices is None):
+            raise ValueError(
+                "train_indices and val_indices must be supplied together or "
+                "not at all"
+            )
         if num_workers < 0:
             raise ValueError(f"num_workers must be >= 0, got {num_workers}")
         if distributed and not dist.is_initialized():
@@ -84,15 +91,34 @@ class GraphDataLoader:
         self.distributed = distributed
 
         n_total = len(dataset)
-        n_val = max(1, int(n_total * val_split))
-        n_train = n_total - n_val
+        self._train_dataset: Subset[BaseGraphDataset]
+        self._val_dataset: Subset[BaseGraphDataset]
+        if train_indices is not None and val_indices is not None:
+            # Explicit partition (Paper 1): indices come from a frozen JSON so
+            # the split is identical across every run and never re-derived.
+            overlap = set(train_indices) & set(val_indices)
+            if overlap:
+                raise ValueError(
+                    f"train_indices and val_indices overlap on "
+                    f"{len(overlap)} index/indices"
+                )
+            worst = max(max(train_indices, default=-1), max(val_indices, default=-1))
+            if worst >= n_total:
+                raise ValueError(
+                    f"index {worst} out of range for dataset of length {n_total}"
+                )
+            self._train_dataset = Subset(dataset, train_indices)
+            self._val_dataset = Subset(dataset, val_indices)
+        else:
+            n_val = max(1, int(n_total * val_split))
+            n_train = n_total - n_val
 
-        generator = torch.Generator().manual_seed(seed)
-        splits: list[Subset[BaseGraphDataset]] = random_split(
-            dataset, [n_train, n_val], generator=generator
-        )
-        self._train_dataset = splits[0]
-        self._val_dataset = splits[1]
+            generator = torch.Generator().manual_seed(seed)
+            splits: list[Subset[BaseGraphDataset]] = random_split(
+                dataset, [n_train, n_val], generator=generator
+            )
+            self._train_dataset = splits[0]
+            self._val_dataset = splits[1]
 
         # Build distributed samplers when requested
         self._train_sampler: DistributedSampler[Subset[BaseGraphDataset]] | None = None

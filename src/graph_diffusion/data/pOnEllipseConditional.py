@@ -47,68 +47,251 @@ __all__ = [
     "pOnEllipseConditionalDataset",
     "dct_ii",
     "dct_ii_inverse",
+    "quadrature_weights",
+    "uniform_positions",
     "N_CP_GRID_DEFAULT",
+    "VALID_COND_NORMS",
 ]
 
 
 _VALID_COND_MODES = ("fourier", "nodal", "fourier_dual")
 N_CP_GRID_DEFAULT = 64  # interpolation grid for fourier_dual upper/lower halves
 
+#: Normalisation conventions for :func:`dct_ii`.
+#:
+#: ``"forward"``  the ``1/N`` (Riemann-sum) convention. Approximates the
+#:                continuous cosine coefficients, so the descriptor is invariant
+#:                to how many nodes sample the curve. **The default.**
+#: ``"ortho"``    the orthonormal ``sqrt(2/N)`` convention. Preserves the vector
+#:                norm (Parseval) but scales as ``sqrt(N)``. Retained only to
+#:                reproduce checkpoints trained before 2026-08-05.
+VALID_COND_NORMS = ("forward", "ortho")
 
-def dct_ii(x: np.ndarray, k_modes: int) -> np.ndarray:
-    """Real DCT-II of a 1-D signal, truncated to ``k_modes`` coefficients.
 
-    Uses the canonical type-II definition
+def uniform_positions(n_samples: int) -> np.ndarray:
+    """The sample positions implied by the classical DCT-II basis.
 
-        X[k] = sum_{n=0..N-1} x[n] * cos(pi * (2n+1) * k / (2N))
+    The type-II basis evaluates ``cos(pi * k * s_n)`` at
 
-    Orthonormalised: multiplied by ``sqrt(2/N)`` for ``k>0`` and
-    ``sqrt(1/N)`` for ``k=0``, so the encoding is scale-invariant under
-    a change in sample count ``N``. This is what makes the resulting
-    descriptor source-agnostic across different node counts.
+        s_n = (2n + 1) / (2N),   n = 0 .. N-1
+
+    which are exactly the **midpoints of N equal cells** partitioning ``[0, 1]``.
+    That is what makes the ``1/N`` convention a midpoint quadrature rule, and
+    what makes the non-uniform generalisation in :func:`quadrature_weights` a
+    strict extension rather than a different transform.
+
+    Args:
+        n_samples (int): Number of samples ``N``.
+
+    Returns:
+        np.ndarray: Cell-midpoint positions in ``(0, 1)``, shape ``(N,)``.
+    """
+    return (2.0 * np.arange(n_samples, dtype=np.float64) + 1.0) / (2.0 * n_samples)
+
+
+def quadrature_weights(positions: np.ndarray) -> np.ndarray:
+    """Midpoint-rule integration weights for arbitrarily spaced samples.
+
+    Each sample owns the interval bounded by the midpoints to its neighbours,
+    with the domain edges closing the first and last cells:
+
+        edge_0 = 0,  edge_n = (s_{n-1} + s_n) / 2,  edge_N = 1
+        w_n    = edge_{n+1} - edge_n
+
+    The weights sum to exactly 1, and for uniformly spaced midpoints they
+    reduce to ``w_n = 1/N`` — recovering the classical DCT-II exactly. This is
+    what lets the descriptor be invariant to the *distribution* of nodes as
+    well as their count: boundary nodes cluster at the leading and trailing
+    edges, so an unweighted sum silently over-weights those regions.
+
+    Args:
+        positions (np.ndarray): Sample positions in ``[0, 1]``, shape ``(N,)``.
+            Must be sorted ascending.
+
+    Returns:
+        np.ndarray: Integration weights summing to 1, shape ``(N,)``.
+
+    Raises:
+        ValueError: If ``positions`` is not sorted ascending, or falls outside
+            ``[0, 1]``.
+    """
+    s = np.asarray(positions, dtype=np.float64)
+    if s.ndim != 1 or s.size == 0:
+        raise ValueError(f"positions must be a non-empty 1-D array, got {s.shape}")
+    if np.any(np.diff(s) < 0.0):
+        raise ValueError("positions must be sorted ascending")
+    if s[0] < -1e-9 or s[-1] > 1.0 + 1e-9:
+        raise ValueError(f"positions must lie in [0, 1], got [{s[0]}, {s[-1]}]")
+
+    edges = np.empty(s.size + 1, dtype=np.float64)
+    edges[0] = 0.0
+    edges[-1] = 1.0
+    edges[1:-1] = 0.5 * (s[:-1] + s[1:])
+    return np.diff(edges)
+
+
+def dct_ii(
+    x: np.ndarray,
+    k_modes: int,
+    positions: np.ndarray | None = None,
+    norm: str = "forward",
+) -> np.ndarray:
+    r"""Cosine-basis descriptor of a 1-D signal, truncated to ``k_modes`` terms.
+
+    Estimates the continuous cosine coefficients of the curve the samples came
+    from,
+
+    .. math::
+
+        c_0 = \int_0^1 f(s)\,ds,
+        \qquad
+        c_k = 2\int_0^1 f(s)\cos(\pi k s)\,ds \quad (k \ge 1)
+
+    by quadrature over the supplied samples:
+
+    .. math::
+
+        c_0 \approx \sum_n f(s_n) w_n,
+        \qquad
+        c_k \approx 2\sum_n f(s_n)\cos(\pi k s_n)\,w_n
+
+    where :math:`w_n` are the midpoint weights from
+    :func:`quadrature_weights` and :math:`\sum_n w_n = 1`.
+
+    **Why this is invariant.** The weights carry the ``ds`` of the integral.
+    Doubling the sample count halves each :math:`w_n`, so the estimate of a
+    fixed integral is unchanged — only the quadrature error shrinks. Because
+    the weights also track the actual *spacing*, the descriptor is invariant
+    to how the nodes are distributed as well as how many there are.
+
+    For uniformly spaced midpoints this reduces exactly to the classical
+    DCT-II with ``1/N`` (forward) scaling; see :func:`uniform_positions`.
+
+    .. warning::
+
+       ``norm="ortho"`` selects the orthonormal ``sqrt(2/N)`` convention used
+       before 2026-08-05. It preserves the *vector* norm (Parseval), not the
+       integral, and therefore scales as :math:`\sqrt{N}`: resampling the same
+       curve from 96 to 192 points inflates the descriptor by 41%. It is
+       retained **only** to reproduce checkpoints trained under it. See
+       ``DGN_Docs/paper1/results/P1-D01_conditioning-invariance.md`` and the
+       derivation in ``DGN_Docs/paper1/CONDITIONING_MATHS.md``.
 
     Args:
         x (np.ndarray): Real input signal, shape ``(N,)``.
-        k_modes (int): Number of DCT coefficients to retain.
+        k_modes (int): Number of coefficients to retain.
+        positions (np.ndarray | None): Sample positions in ``[0, 1]``, sorted
+            ascending, shape ``(N,)``. If ``None``, uniform cell midpoints are
+            assumed. Ignored when ``norm="ortho"``, which has no notion of
+            sample position.
+        norm (str): One of :data:`VALID_COND_NORMS`. Defaults to ``"forward"``.
 
     Returns:
-        np.ndarray: First ``k_modes`` DCT-II coefficients, shape
-            ``(k_modes,)``, dtype ``float32``.
+        np.ndarray: First ``k_modes`` coefficients, shape ``(k_modes,)``,
+            dtype ``float32``.
+
+    Raises:
+        ValueError: If ``norm`` is not a recognised convention, if ``k_modes``
+            is below 1, or if ``positions`` does not match ``x`` in length.
     """
+    if norm not in VALID_COND_NORMS:
+        raise ValueError(f"norm must be one of {VALID_COND_NORMS}, got '{norm}'")
+    if k_modes < 1:
+        raise ValueError(f"k_modes must be >= 1, got {k_modes}")
+
     n_samples = x.shape[0]
-    n_idx = np.arange(n_samples, dtype=np.float32)
-    k_idx = np.arange(k_modes, dtype=np.float32)[:, None]
-    basis = np.cos(np.pi * (2.0 * n_idx + 1.0) * k_idx / (2.0 * n_samples))
-    coeffs = basis @ x.astype(np.float32)
-    norm = np.full(k_modes, np.sqrt(2.0 / n_samples), dtype=np.float32)
-    norm[0] = np.sqrt(1.0 / n_samples)
-    return (coeffs * norm).astype(np.float32)  # type: ignore[no-any-return]
+    k_idx = np.arange(k_modes, dtype=np.float64)[:, None]
+
+    if norm == "ortho":
+        # Legacy path: index-space basis, orthonormal scaling, no weights.
+        n_idx = np.arange(n_samples, dtype=np.float32)
+        basis = np.cos(
+            np.pi * (2.0 * n_idx + 1.0) * k_idx.astype(np.float32) / (2.0 * n_samples)
+        )
+        coeffs = basis @ x.astype(np.float32)
+        scale = np.full(k_modes, np.sqrt(2.0 / n_samples), dtype=np.float32)
+        scale[0] = np.sqrt(1.0 / n_samples)
+        return (coeffs * scale).astype(np.float32)  # type: ignore[no-any-return]
+
+    if positions is None:
+        s = uniform_positions(n_samples)
+    else:
+        s = np.asarray(positions, dtype=np.float64)
+        if s.shape != (n_samples,):
+            raise ValueError(f"positions must have shape {(n_samples,)}, got {s.shape}")
+    weights = quadrature_weights(s)
+
+    basis = np.cos(np.pi * k_idx * s[None, :])  # (K, N)
+    coeffs = basis @ (x.astype(np.float64) * weights)
+    coeffs[1:] *= 2.0
+    return coeffs.astype(np.float32)  # type: ignore[no-any-return]
 
 
-def dct_ii_inverse(coeffs: np.ndarray, n_samples: int) -> np.ndarray:
-    """Inverse of :func:`dct_ii`: reconstruct a signal from K DCT-II modes.
+def dct_ii_inverse(
+    coeffs: np.ndarray,
+    n_samples: int | None = None,
+    positions: np.ndarray | None = None,
+    norm: str = "forward",
+) -> np.ndarray:
+    r"""Reconstruct a signal from its cosine coefficients.
 
-    Uses the same orthonormalised type-II basis as :func:`dct_ii`, so that
-    for any K-band-limited signal ``s`` of length ``N``::
+    Evaluates the truncated series
 
-        dct_ii(dct_ii_inverse(c, N), K) ≈ c     (round-trip up to float)
+    .. math::
+
+        f(s) \approx c_0 + \sum_{k=1}^{K-1} c_k \cos(\pi k s)
+
+    so that ``dct_ii(dct_ii_inverse(c, N), K) ≈ c`` for any band-limited ``c``.
+
+    Under ``norm="forward"`` the reconstruction is defined **at arbitrary
+    positions**, not merely on the grid the coefficients came from — the
+    coefficients describe a continuous curve, so they can be resampled onto any
+    node distribution. That is what makes round-tripping between different
+    discretisations well posed.
 
     Args:
-        coeffs (np.ndarray): The first ``K`` DCT-II coefficients, shape
-            ``(K,)``.
-        n_samples (int): Length ``N`` of the reconstructed signal.
+        coeffs (np.ndarray): The first ``K`` coefficients, shape ``(K,)``.
+        n_samples (int | None): Length of the reconstruction when evaluating on
+            a uniform grid. Required unless ``positions`` is given.
+        positions (np.ndarray | None): Explicit positions in ``[0, 1]`` at which
+            to evaluate. Takes precedence over ``n_samples``. Ignored when
+            ``norm="ortho"``.
+        norm (str): One of :data:`VALID_COND_NORMS`. Must match the convention
+            used to produce ``coeffs``. Defaults to ``"forward"``.
 
     Returns:
-        np.ndarray: Reconstructed signal of length ``n_samples``, dtype
-            ``float32``.
+        np.ndarray: Reconstructed signal, dtype ``float32``.
+
+    Raises:
+        ValueError: If ``norm`` is unrecognised, or if neither ``n_samples``
+            nor ``positions`` is supplied.
     """
+    if norm not in VALID_COND_NORMS:
+        raise ValueError(f"norm must be one of {VALID_COND_NORMS}, got '{norm}'")
+    if positions is None and n_samples is None:
+        raise ValueError("supply either n_samples or positions")
+
     k_modes = coeffs.shape[0]
-    n_idx = np.arange(n_samples, dtype=np.float32)
-    k_idx = np.arange(k_modes, dtype=np.float32)[:, None]
-    basis = np.cos(np.pi * (2.0 * n_idx + 1.0) * k_idx / (2.0 * n_samples))
-    norm = np.full(k_modes, np.sqrt(2.0 / n_samples), dtype=np.float32)
-    norm[0] = np.sqrt(1.0 / n_samples)
-    return ((coeffs.astype(np.float32) * norm) @ basis).astype(np.float32)  # type: ignore[no-any-return]
+    k_idx = np.arange(k_modes, dtype=np.float64)[:, None]
+
+    if norm == "ortho":
+        if n_samples is None:
+            raise ValueError("norm='ortho' requires n_samples")
+        n_idx = np.arange(n_samples, dtype=np.float32)
+        basis = np.cos(
+            np.pi * (2.0 * n_idx + 1.0) * k_idx.astype(np.float32) / (2.0 * n_samples)
+        )
+        scale = np.full(k_modes, np.sqrt(2.0 / n_samples), dtype=np.float32)
+        scale[0] = np.sqrt(1.0 / n_samples)
+        return ((coeffs.astype(np.float32) * scale) @ basis).astype(np.float32)  # type: ignore[no-any-return]
+
+    if positions is not None:
+        s = np.asarray(positions, dtype=np.float64)
+    else:
+        s = uniform_positions(int(n_samples))  # type: ignore[arg-type]
+
+    basis = np.cos(np.pi * k_idx * s[None, :])  # (K, M)
+    return (coeffs.astype(np.float64) @ basis).astype(np.float32)
 
 
 class pOnEllipseConditionalDataset(pOnEllipseDataset):
@@ -126,6 +309,13 @@ class pOnEllipseConditionalDataset(pOnEllipseDataset):
             (mean Cp per node) for node-level conditioning experiments.
         k_modes (int): Number of DCT coefficients to retain in
             ``Data.cond``. Defaults to ``8``.
+        cond_norm (str): Normalisation convention for the descriptor, one of
+            :data:`VALID_COND_NORMS`. ``"forward"`` (default) makes ``cond``
+            invariant to both node count and node spacing, and passes the true
+            chordwise node positions as quadrature abscissae. ``"ortho"``
+            reproduces the pre-2026-08-05 behaviour — index-space basis, no
+            position information, descriptor scaling as ``sqrt(N)``. Use it
+            only to reproduce checkpoints trained under it.
         feature_mode (str): Coordinate representation for the diffused
             node feature. Same options as the parent class. Defaults to
             ``"radial_norm"``.
@@ -139,6 +329,7 @@ class pOnEllipseConditionalDataset(pOnEllipseDataset):
 
     Raises:
         ValueError: If ``cond_mode`` is not one of the supported strings.
+        ValueError: If ``cond_norm`` is not one of :data:`VALID_COND_NORMS`.
         ValueError: If ``k_modes < 1``.
     """
 
@@ -147,6 +338,7 @@ class pOnEllipseConditionalDataset(pOnEllipseDataset):
         root: str,
         cond_mode: str = "fourier",
         k_modes: int = 8,
+        cond_norm: str = "forward",
         feature_mode: str = "radial_norm",
         split: str = "train",
         n_samples: int | None = None,
@@ -161,10 +353,15 @@ class pOnEllipseConditionalDataset(pOnEllipseDataset):
             raise ValueError(
                 f"cond_mode must be one of {_VALID_COND_MODES}, got '{cond_mode}'"
             )
+        if cond_norm not in VALID_COND_NORMS:
+            raise ValueError(
+                f"cond_norm must be one of {VALID_COND_NORMS}, got '{cond_norm}'"
+            )
         if k_modes < 1:
             raise ValueError(f"k_modes must be >= 1, got {k_modes}")
 
         self.cond_mode = cond_mode
+        self.cond_norm = cond_norm
         self.k_modes = k_modes
 
         super().__init__(
@@ -185,8 +382,10 @@ class pOnEllipseConditionalDataset(pOnEllipseDataset):
         # Include `variant` so the default (AoA=0) and aoa10 caches never
         # collide — they share every other field but hold different data.
         suffix = f"_{self.variant}" if self.variant != "default" else ""
+        # `cond_norm` changes the stored conditioning vectors, so it must key
+        # the cache or a switched run would silently reuse the other convention.
         return [
-            f"data_cond_{self.cond_mode}_K{self.k_modes}"
+            f"data_cond_{self.cond_mode}_K{self.k_modes}_{self.cond_norm}"
             f"_{self.feature_mode}_{self.split}_k{self.k_neighbors}{suffix}.pt"
         ]
 
@@ -228,9 +427,20 @@ class pOnEllipseConditionalDataset(pOnEllipseDataset):
                 )
                 modes = self._fourier_dual_modes(x_over_c, yc, cp_mean)
             else:
+                # Sorting collapses the upper and lower surfaces onto a single
+                # Cp(x/c) curve; the sorted x/c values are the quadrature
+                # abscissae, so nodes clustered at the leading and trailing
+                # edges are weighted by the chord they actually represent
+                # rather than counted equally. Under `cond_norm="ortho"` the
+                # positions are ignored and the legacy index-space basis is
+                # used instead.
                 order = np.argsort(x_over_c)
-                cp_ordered = cp_mean[order]
-                modes = dct_ii(cp_ordered, self.k_modes)  # (K,)
+                modes = dct_ii(
+                    cp_mean[order],
+                    self.k_modes,
+                    positions=x_over_c[order],
+                    norm=self.cond_norm,
+                )  # (K,)
             graph.cond = torch.tensor(modes[None, :], dtype=torch.float32)
 
             if self.cond_mode == "nodal":
@@ -271,7 +481,9 @@ class pOnEllipseConditionalDataset(pOnEllipseDataset):
             xc_sorted = xc_half[order]
             cp_sorted = cp_half[order]
             cp_interp = np.interp(grid, xc_sorted, cp_sorted).astype(np.float32)
-            return dct_ii(cp_interp, self.k_modes)
+            # `grid` is endpoint-inclusive rather than cell-midpoint, so pass
+            # it explicitly instead of letting dct_ii assume midpoints.
+            return dct_ii(cp_interp, self.k_modes, positions=grid, norm=self.cond_norm)
 
         upper = _half_modes(upper_mask)
         lower = _half_modes(lower_mask)

@@ -42,6 +42,25 @@ using namespace olb::names;
 
 namespace olb::parameters {
 
+// Inlet velocity profile. 0 = spatially UNIFORM (U,0) -- the default, and what
+// every ellipse experiment uses. 1 = PARABOLIC (Poiseuille), with the
+// Schaefer-Turek convention maxVelocity = 1.5*U_mean, matching the stock
+// OpenLB cylinder2d example.
+//
+// The uniform inlet is an open-domain simplification: it models a body in a
+// free stream, not in a duct. P1-F06 exists to measure what that choice costs,
+// which is why this is a flag and not a replacement.
+struct INLET_PROFILE      : public descriptors::FIELD_BASE<1> { };
+
+// Top/bottom boundary treatment. 0 = FREE-STREAM velocity Dirichlet (U,0) --
+// the default open-domain behaviour. 1 = NO-SLIP walls (bounce-back), required
+// for a duct benchmark such as Schaefer-Turek.
+//
+// A parabolic inlet without no-slip walls is physically inconsistent, so
+// INLET_PROFILE=1 with WALL_NOSLIP=0 is rejected in prepareLattice rather than
+// silently producing a meaningless run.
+struct WALL_NOSLIP        : public descriptors::FIELD_BASE<1> { };
+
 // Fraction of MAX_PHYS_T over which the inlet + free-stream velocity is ramped
 // from 0 to the full free-stream value (smooth polynomial start-up).
 struct RAMP_UP_END_FRACTION : public descriptors::FIELD_BASE<1> { };
@@ -105,8 +124,23 @@ void prepareLattice(MyCase& myCase)
   //   set. Material 2 here is the flat top/bottom strips only (the inlet/outlet
   //   already claimed the corner cells in prepareGeometry), so the Flat
   //   discrete-normal case of InterpolatedVelocity applies on both edges.
+  const bool wallNoSlip     = parameters.get<parameters::WALL_NOSLIP>()   > T{0.5};
+  const bool parabolicInlet = parameters.get<parameters::INLET_PROFILE>() > T{0.5};
+
+  if (parabolicInlet && !wallNoSlip) {
+    throw std::runtime_error(
+      "INLET_PROFILE=1 (parabolic) requires WALL_NOSLIP=1: a Poiseuille profile "
+      "is only defined between walls. Refusing to run an inconsistent case.");
+  }
+
   boundary::set<boundary::InterpolatedVelocity>(lattice, geometry, 3);
-  boundary::set<boundary::InterpolatedVelocity>(lattice, geometry, 2);
+  if (wallNoSlip) {
+    // Duct walls, as in the stock cylinder2d example.
+    boundary::set<boundary::BounceBack>(lattice, geometry, 2);
+  }
+  else {
+    boundary::set<boundary::InterpolatedVelocity>(lattice, geometry, 2);
+  }
 
   // ----- material 4: pressure OUTLET (p = 0) -------------------------------
   boundary::set<boundary::InterpolatedPressure>(lattice, geometry, 4);
@@ -126,7 +160,8 @@ void prepareLattice(MyCase& myCase)
     const T physLengthY      = H + physDeltaX;
 
     const T shiftX = upstreamChords * chord - body.minX;          // geometry.h:365
-    const T shiftY = (physLengthY / T{2}) - body.centroid[1];     // geometry.h:366
+    const T shiftY = (physLengthY / T{2}) - body.centroid[1]      // geometry.h:366
+                   + parameters.get<parameters::BODY_Y_OFFSET>();
     std::shared_ptr<IndicatorF2D<T>> placedShape =
       makePolygonIndicator<T>(body, Vector<T,2>{shiftX, shiftY});
 
@@ -296,11 +331,26 @@ void setTemporalValues(MyCase& myCase, std::size_t iT)
     PolynomialStartScale<T,std::size_t>(iTmaxStart, T(1))(&frac, &iT);
 
     const T uRamped = U * frac;  // PHYSICAL units; setVelocity rescales
-    AnalyticalConst2D<T,T> uF(uRamped, T{0});
 
-    // Inlet (3) AND free-stream top/bottom (2) ramped together.
-    momenta::setVelocity(lattice, geometry.getMaterialIndicator(3), uF);
-    momenta::setVelocity(lattice, geometry.getMaterialIndicator(2), uF);
+    if (parameters.get<parameters::INLET_PROFILE>() > T{0.5}) {
+      // Parabolic (Poiseuille) inlet. The Schaefer-Turek convention is
+      // U_max = 1.5*U_mean in 2D, and `distance2Wall = 0.5*physDeltaX` places
+      // the no-slip plane half a cell outside the first fluid node -- both
+      // taken from the stock cylinder2d example so L0 and L1 differ only in
+      // the case, not in the profile definition.
+      const T charLength = parameters.get<parameters::CHORD_LENGTH>();
+      const T physDeltaX = charLength / parameters.get<parameters::RESOLUTION>();
+      Poiseuille2D<T> poiseuilleU(
+        geometry, 3, T{1.5} * uRamped, T{0.5} * physDeltaX);
+      momenta::setVelocity(lattice, geometry.getMaterialIndicator(3), poiseuilleU);
+      // Walls are bounce-back under this option; nothing to impose on 2.
+    }
+    else {
+      AnalyticalConst2D<T,T> uF(uRamped, T{0});
+      // Inlet (3) AND free-stream top/bottom (2) ramped together.
+      momenta::setVelocity(lattice, geometry.getMaterialIndicator(3), uF);
+      momenta::setVelocity(lattice, geometry.getMaterialIndicator(2), uF);
+    }
 
     lattice.setProcessingContext<Array<momenta::FixedVelocityMomentumGeneric::VELOCITY>>(
       ProcessingContext::Simulation);

@@ -1,264 +1,112 @@
-# GNN Tutorial – AIRTUK
+# graph_diffusion
 
-> **Graph Neural Networks for Flow Field Reconstruction**
-> A hands-on tutorial developed for the [UK Turbulence Consortium (AIRTUK)](https://www.ukturbulence.co.uk/).
+Denoising diffusion (DDPM) on graph node features for inverse aerodynamic shape
+design, graded by an OpenLB lattice-Boltzmann solver. A score network built from
+Battaglia-style graph-network blocks denoises the radius field `r(θ)` of a
+96-node boundary ring, conditioned on the surface pressure `Cp`; generated shapes
+are then solved in OpenLB to check that they actually produce the requested `Cp`.
 
----
+Primary project of a PhD on generative ML for aerodynamic design (University of
+Manchester). Paper 1 is a pre-registered experiment suite; see
+[`DGN_Docs/paper1/`](DGN_Docs/paper1/) and [`CLAUDE.md`](CLAUDE.md) before
+running or changing any Paper 1 experiment.
 
-### Authors
+## Setup on a fresh machine
 
-- Francesca Cooke (CEO)
-
-## Overview
-
-This tutorial introduces **Graph Neural Networks (GNNs)** as fast surrogate models for Computational Fluid Dynamics (CFD). Rather than solving the governing PDEs numerically at every time step, a GNN is trained to approximate the solution update directly from the mesh — dramatically reducing inference cost while preserving spatial fidelity on unstructured grids.
-
-The tutorial is structured as a Jupyter notebook (`GNNTutorialAIRTUK.ipynb`) and relies on the accompanying **GNN4CFD** library.
-
----
-
-## Learning Objectives
-
-1. Motivate GNNs for CFD by contrasting them with CNNs and MLPs, and understand why the graph is a natural representation of an unstructured mesh.
-2. Load and inspect a CFD dataset (*NsCircle*), understand its physical meaning, and construct a graph from the raw mesh using *k*-nearest-neighbour connectivity.
-3. Build and train a **single-scale GNN** surrogate model and evaluate its rollout accuracy using the coefficient of determination R².
-4. Extend the architecture to a **multi-scale MuS-GNN**, understand the DownMP/UpMP mechanism, and compare performance against the single-scale baseline.
-
----
-
-## Background
-
-### Why GNNs for CFD?
-
-Standard deep learning surrogates (CNNs) require data on a regular Cartesian grid — a fundamental mismatch for CFD, where real geometries require unstructured meshes with variable local resolution. GNNs resolve this by treating the mesh *as-is*:
-
-| Mesh concept      | Graph concept      |
-|-------------------|--------------------|
-| Mesh vertex       | Node vᵢ            |
-| Mesh connectivity | Directed edge eᵢⱼ  |
-| Physical fields (u, v, p) | Node features fᵢ |
-| Relative node positions | Edge features rᵢⱼ |
-
-Key inductive biases exploited: **relational locality** and **permutation invariance**.
-
-### The GNN as a Learned Time-Stepper
-
-The flow fields are governed by the incompressible Navier–Stokes equations. The GNN learns to approximate the time integral at each mesh node and advances the solution via a residual update:
-
-```
-u(t₀+Δt, xᵢ) ← u(t₀, xᵢ) + Iᵢ(t₀ → t₀+Δt, F(u, Re))
-```
-
-This update is applied **autoregressively** to produce a temporal rollout of arbitrary length.
-
----
-
-## Dataset – NsCircle
-
-The dataset is generated with [Nektar++](https://www.nektar.info/) for **2D incompressible Navier–Stokes flow past circular cylinders**.
-
-| Parameter               | Value / Range                          |
-|-------------------------|----------------------------------------|
-| Cylinder diameter D     | 1 (normalised)                         |
-| Centre-to-centre spacing H | Randomly sampled ∈ [4D, 6D]        |
-| Reynolds number Re      | 500–1000 (laminar shedding)            |
-| Training simulations    | 1 000 independent cases                |
-| Nodes per mesh          | ~7 000                                 |
-| Time step Δt            | 0.1                                    |
-| Snapshots per simulation| 100 (after periodic steady-state)      |
-
-**State variables per node:** u (streamwise velocity), v (cross-stream velocity), p (pressure). Re is broadcast as an additional node-level scalar.
-
-**Dataset links:**
-- Primary: https://zenodo.org/records/7870707
-- Secondary (fallback): https://huggingface.co/datasets/mariolino/Ellipse/tree/main
-
----
-
-## Repository Structure
-
-```
-.
-├── GNN4CFD/
-│   ├── cfddataset.py          # Dataset loaders (NsEllipse, etc.)
-│   ├── dataloader.py          # Custom DataLoader
-│   ├── graph.py               # Graph data structure utilities
-│   ├── metrics.py             # Evaluation metrics (R²)
-│   ├── model.py               # High-level model interface
-│   ├── nn/
-│   │   ├── blocks.py          # GNBlock: edge MLP → aggregate → node MLP
-│   │   ├── GNNArchitect.py    # GNNArchBuilder & MultiScaleGNNBuilder
-│   │   ├── losses.py          # GraphLoss (L2 + λ·L1 with Dirichlet weighting)
-│   │   ├── model.py           # Training loop internals
-│   │   └── UniversalGNN.py    # Wraps architecture dict into trainable module
-│   └── transforms/
-│       ├── connect.py         # ConnectKNN – builds k-NN graph edges
-│       ├── geometric.py       # Geometric augmentations
-│       ├── interpolate.py     # Inter-scale interpolation
-│       ├── noise.py           # AddUniformNoise
-│       ├── scale.py           # ScaleNs, ScaleEdgeAttr
-│       └── subset.py          # GridClustering (multi-scale hierarchy)
-├── GNNTutorialAIRTUK.ipynb    # Main tutorial notebook
-├── main.py                    # Script-based training entry point
-├── pyproject.toml             # Project metadata and dependencies
-├── uv.lock                    # Locked dependency versions
-└── README.md
-```
-
----
-
-## Prerequisites
-
-| Requirement | Notes |
-|-------------|-------|
-| Python 3.10+ | Tested with 3.13.9 |
-| PyTorch | https://pytorch.org |
-| PyTorch Geometric (PyG) | https://pytorch-geometric.readthedocs.io/en/latest/ |
-| CUDA-capable GPU | Strongly recommended; CPU fallback supported |
-| `uv` (optional) | Fast dependency manager; `uv.lock` provided |
-
----
-
-## Installation
-
-### Using `uv` (recommended)
+Requirements: Linux, Python 3.13 (pinned in `.python-version`, ≥3.11 supported),
+[uv](https://docs.astral.sh/uv/), and a CUDA GPU for training (8 GB is enough for
+the reference recipe). The CFD grader additionally needs OpenLB 1.9.
 
 ```bash
-git clone <repo-url>
-cd <repo>
-uv sync
+git clone https://github.com/archied2804/graphdiffusion DGN_Sup
+cd DGN_Sup
+uv sync --extra dev          # creates .venv from uv.lock (or: make install)
+make test                    # should pass before anything else
 ```
 
-### Using pip
+### Data (not in git)
+
+`data/` is gitignored except the frozen Paper 1 partition in `data/splits/*.json`,
+which is protocol and *is* tracked. The datasets are the pOnEllipse HDF5 files of
+Lino et al., published at
+[huggingface.co/datasets/mariolinov/Ellipse](https://huggingface.co/datasets/mariolinov/Ellipse).
+They download automatically into `data/ellipse/raw/` the first time a
+`pOnEllipseDataset` is built (see `DatasetUrl` in
+`src/graph_diffusion/data/pOnEllipse.py`), and the processed PyG cache is
+written to `data/ellipse/processed/`. To fetch by hand instead:
 
 ```bash
-pip install torch torchvision
-pip install torch-geometric
-pip install -e .
+mkdir -p data/ellipse/raw && cd data/ellipse/raw
+for f in Train InDist LowRe HighRe Thin Thick AoA10; do
+  curl -LO https://huggingface.co/datasets/mariolinov/Ellipse/resolve/main/pOnEllipse$f.h5
+done
 ```
 
----
+The `data/circle*` and `data/synthetic` sets are generated by the archived
+circle experiments (`archive/circle/`) and are regenerated on demand.
 
-## Running the Tutorial
+### Outputs (not in git)
 
-1. **Download the dataset** from one of the links above and note the path.
-2. **Start Jupyter** and open the notebook:
-   ```bash
-   jupyter notebook GNNTutorialAIRTUK.ipynb
-   ```
-3. Update the `pathtodata` variable in the notebook to point to your local dataset.
-4. Follow the cells in order — each section builds on the previous one.
+`outputs/` (checkpoints, loss logs, figures) and `cfd/ellipse2d/runs/` (solver
+runs) are gitignored and exist only where they were produced. Results that the
+paper relies on are recorded in the results files under `DGN_Docs/`; checkpoints
+must be regenerated from the configs or copied across by hand.
 
----
+## Usage
 
-## Tutorial Sections
+```bash
+# Train the Paper 1 reference recipe
+uv run python train.py --config configs/paper1/P1-F05_reference.yaml --device cuda \
+    --seed 0 --partition data/splits/paper1_partition.json
 
-| Section | Description |
-|---------|-------------|
-| **1. Theory** | Why GNNs for CFD? Inductive biases, comparison with CNNs/MLPs, GNN as a learned time-stepper |
-| **2. Data Representation** | NsCircle dataset, graph construction via k-NN (k=6), feature normalisation |
-| **3. Visualisation** | Loading and plotting u, v, p fields and mesh node positions |
-| **4. Network Architecture** | Encode-Process-Decode workflow, GN Block, MLP structure, multi-scale (MuS-GNN) architecture |
-| **5. Single-Scale GNN** | Architecture definition, training configuration, data loading, training loop, post-processing |
-| **6. Multi-Scale GNN** | Architecture construction (3 scales), DownMP/UpMP mechanism, GridClustering transforms, training and evaluation |
-| **7. Extensions** | Suggested experiments: optimal number of scales, model complexity scaling, different loss functions, other datasets |
+# Exploratory EXP-0xx configs
+uv run python train.py --config configs/EXP-020_fourier_pressure_conditioning.yaml --device cuda
 
----
+# Post-process a checkpoint
+uv run python scripts/postprocess_ellipse.py --checkpoint outputs/<run>/checkpoint.pt --config <config>
 
-## Network Architecture
-
-### Single-Scale GNN
-
-A standard **Encode-Process-Decode** GNN:
-
-```
-Input node features  →  Node MLP Encoder  →  latent v (size: hidden_dim)
-Input edge features  →  Edge MLP Encoder  →  latent e (size: hidden_dim)
-                          ↓
-                     M × GN Block
-                     (Edge update → Aggregate → Node update)
-                          ↓
-                     Node MLP Decoder  →  predicted Δu
+# CSF3 (SLURM)
+sbatch --job-name=P1-XXX --export=CONFIG=...,EPOCHS=...,DEVICE=cuda scripts/run_experiment.slurm
 ```
 
-Default hyperparameters:
+Pre-commit gate: `uv run pytest tests/ -q && uv run ruff check src/ tests/ && uv run black --check src/ tests/ && uv run mypy src/`
 
-| Parameter       | Value |
-|-----------------|-------|
-| `num_mp_blocks` | 8     |
-| `hidden_dim`    | 128   |
-| `edge_encoder_in` | 2  |
-| `node_encoder_in` | 5  |
-| `decoder_out`   | 3     |
-| `mlp_depth`     | 3     |
+### OpenLB grader (`cfd/ellipse2d/`)
 
-### Multi-Scale GNN (MuS-GNN)
+The case lives in this repo but is built from inside the OpenLB tree via a
+symlink, so `OLB_ROOT` must be passed explicitly:
 
-Extends the single-scale architecture with **DownMP** (fine → coarse) and **UpMP** (coarse → fine) message-passing across 3 graph scales:
-
-```
-G_fine   (~7k nodes):   MP → DownMP → UpMP → MP → Decode
-G_coarse (~1.7k nodes):        MP → DownMP → UpMP
-G_coarsest (~400 nodes):              MP
+```bash
+export OPENLB_ROOT=~/Software/OpenLB-1.9-0/olb-release
+ln -s "$PWD/cfd/ellipse2d" $OPENLB_ROOT/examples/ellipse2d   # once per machine
+cd $OPENLB_ROOT/examples/ellipse2d && make OLB_ROOT=$OPENLB_ROOT
 ```
 
-Grid resolutions: `[0.15, 0.30, 0.60]`
+OpenLB itself is downloaded from [openlb.net](https://www.openlb.net/download/)
+and configured with `PLATFORMS := CPU_SISD GPU_CUDA`. See
+[`cfd/ellipse2d/README.md`](cfd/ellipse2d/README.md) for the material map and the
+Cd/Cl/Cp conventions.
 
----
+## Layout
 
-## Training Configuration
+| Path | What |
+|---|---|
+| `src/graph_diffusion/` | the package: `data`, `building_blocks`, `model`, postprocessing |
+| `train.py` | trainer |
+| `configs/` | YAML configs; `configs/paper1/` for the pre-registered suite |
+| `scripts/` | evaluation, OpenLB export/import, figure scripts, SLURM templates |
+| `cfd/ellipse2d/` | OpenLB grader (C++) |
+| `notebooks/` | interactive exploration (EXP-020 Cp conditioning) |
+| `DGN_Docs/` | Obsidian vault: experiments, Paper 1 protocol and specs, reports |
+| `archive/circle/` | completed EXP-00x circle ablations |
+| `CLAUDE.md`, `.claude/agents/` | project rules and agents for Claude Code |
 
-```python
-gfd.nn.TrainConfig(
-    epochs        = ...,
-    num_steps     = [i for i in range(1, 11)],   # curriculum rollout
-    add_steps     = {"tolerance": 0.005, "loss": "training"},
-    batch_size    = 1,
-    lr            = 1e-5,
-    grad_clip     = {"epoch": 0, "limit": 1},
-    scheduler     = {"factor": 0.5, "patience": 5, "loss": "training"},
-    stopping      = 1e-8,
-    mixed_precision = True,
-)
+## Branches
+
+`main` holds merged work; active work is on `branch/<scope>` branches
+(`branch/paper1-suite` for the Paper 1 suite), merged with `--no-ff`.
+Push all of them; several hold work that exists nowhere else:
+
+```bash
+git push origin main 'refs/heads/branch/*:refs/heads/branch/*'
 ```
-
-### Loss Function
-
-```
-L = Σᵢ ‖uᵢ - ûᵢ‖² + λ_d · Σᵢ ‖uᵢ - ûᵢ‖₁
-```
-
-where λ_d = 0.25 applies an additional L1 penalty on Dirichlet boundary nodes (cylinder walls) to improve near-wall accuracy.
-
-### Multi-Step Rollout Curriculum
-
-Training begins on single-step predictions; once the loss drops below `tolerance=0.005`, the rollout is extended by one step (up to 10 steps). This prevents error accumulation during autoregressive inference.
-
----
-
-## Evaluation
-
-Model accuracy is reported using the **coefficient of determination R²**, computed node-wise over the full rollout:
-
-```
-R² = 1 - [ Σᵢ,ₜ (uᵢₜ - ûᵢₜ)² ] / [ Σᵢ,ₜ (uᵢₜ - ū)² ]
-```
-
-R² is computed separately for each field (u, v, p). Pressure typically shows a lower R² than velocity due to global divergence-free constraints.
-
----
-
-## References
-
-- Battaglia et al. (2018). *Relational inductive biases, deep learning, and graph networks.* https://arxiv.org/abs/1806.01261
-- Lino et al. (2022). *Multi-scale rotation-equivariant graph neural networks for unsteady Eulerian fluid dynamics.* https://pubs.aip.org/aip/pof/article/34/8/087850
-
-**Code adapted from:**
-- https://github.com/archied2804/graphs4cfd/cardiac (fork)
-- https://github.com/mario-linov/graphs4cfd (original, Mario Lino)
-
----
-
-## Acknowledgements
-
-Developed for the **UK Turbulence Consortium (AIRTUK)**. Dataset generated using [Nektar++](https://www.nektar.info/).

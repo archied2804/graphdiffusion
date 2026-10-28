@@ -121,8 +121,8 @@ def make_synthetic_target(
         # weaker pressure recovery on the lower surface.
         upper_synth = upper_mean + 0.5 * np.sin(np.pi * x_over_c)
         lower_synth = lower_mean - 0.2 * np.sin(np.pi * x_over_c)
-        upper_modes = dct_ii(upper_synth.astype(np.float32), k_modes)
-        lower_modes = dct_ii(lower_synth.astype(np.float32), k_modes)
+        upper_modes = dct_ii(upper_synth.astype(np.float32), k_modes, norm="ortho")
+        lower_modes = dct_ii(lower_synth.astype(np.float32), k_modes, norm="ortho")
         target_cond = np.concatenate([upper_modes, lower_modes]).astype(np.float32)
         cp_dense = np.concatenate(
             [upper_synth.astype(np.float32), lower_synth.astype(np.float32)]
@@ -131,7 +131,7 @@ def make_synthetic_target(
 
     cp_mean_dense = dct_ii_inverse(mean_cond, N_CP_GRID)
     cp_synth = cp_mean_dense + 0.3 * np.sin(np.pi * x_over_c)
-    target_cond = dct_ii(cp_synth.astype(np.float32), k_modes)
+    target_cond = dct_ii(cp_synth.astype(np.float32), k_modes, norm="ortho")
     return cp_synth.astype(np.float32), target_cond
 
 

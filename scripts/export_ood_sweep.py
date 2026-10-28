@@ -96,7 +96,7 @@ def main() -> None:
     rows = []
     for tag, delta in perturbations(x_over_c).items():
         cp_target = (cp_mean + delta).astype(np.float32)
-        cond = dct_ii(cp_target, k_modes).astype(np.float32)
+        cond = dct_ii(cp_target, k_modes, norm="ortho").astype(np.float32)
         ood_dist = float(np.linalg.norm(train_conds - cond, axis=1).min())
 
         # Sample a shape (plain CFG; DPS degrades OOD — see EXP-042).

@@ -22,8 +22,12 @@ Usage:
 """
 
 import argparse
+import datetime
+import hashlib
 import json
+import subprocess
 import sys
+import time
 from pathlib import Path
 
 import matplotlib
@@ -56,6 +60,60 @@ from graph_diffusion.model.pressure_head import PressurePredictionHead
 from graph_diffusion.model.score_network import ScoreNetwork
 
 
+def _sha256(path: Path) -> str:
+    """Return the SHA-256 of a file, streamed in 1 MiB blocks."""
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        for block in iter(lambda: fh.read(1 << 20), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
+# Paths whose state determines the computation.  A change anywhere else -- an
+# Obsidian vault autosave, a docs edit, an analysis script -- cannot alter what
+# a training run computes, so it must not mark the run unusable (PROTOCOL §7).
+_CODE_PATHS = ("train.py", "src/", "configs/", "data/splits/")
+
+
+def _git_state() -> dict[str, object]:
+    """Return the commit SHA and whether the *code* paths are dirty.
+
+    Called at process start, not at the end: the run must be attributed to the
+    commit it actually executed, and later commits in the same session would
+    otherwise be recorded instead.
+
+    Returns:
+        dict[str, object]: ``git_sha``, ``git_dirty`` (code paths only),
+            ``git_dirty_files`` (the full repo-wide list, for audit).
+    """
+    try:
+        sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        all_dirty = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        code_dirty = subprocess.run(
+            ["git", "status", "--porcelain", "--", *_CODE_PATHS],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        return {
+            "git_sha": sha,
+            "git_dirty": bool(code_dirty),
+            "git_dirty_files": all_dirty.splitlines(),
+        }
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return {"git_sha": None, "git_dirty": None, "git_dirty_files": []}
+
+
 def load_config(path: str) -> dict:  # type: ignore[type-arg]
     """Load YAML configuration file."""
     with open(path) as f:  # noqa: PTH123
@@ -85,6 +143,9 @@ def _build_dataset(config: dict) -> pOnEllipseDataset:  # type: ignore[type-arg]
         return pOnEllipseConditionalDataset(
             cond_mode=ds_cfg.get("cond_mode", "fourier"),
             k_modes=ds_cfg.get("k_modes", 8),
+            # Defaults to the node-count- and spacing-invariant convention.
+            # Set explicitly to "ortho" to reproduce a pre-2026-08-05 run.
+            cond_norm=ds_cfg.get("cond_norm", "forward"),
             **common,
         )
     return pOnEllipseDataset(**common)
@@ -119,10 +180,62 @@ def main() -> None:
         default="generated_shapes.png",
         help="Path to save generated shapes plot",
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Training seed (model init + batch order). Paper 1 requires it.",
+    )
+    parser.add_argument(
+        "--partition",
+        type=str,
+        default=None,
+        help="Path to a frozen partition JSON (e.g. data/splits/paper1_partition.json)",
+    )
+    parser.add_argument(
+        "--exp-id",
+        type=str,
+        default=None,
+        help="Paper 1 experiment ID, recorded in run_meta.json",
+    )
     args = parser.parse_args()
+
+    _t0 = time.time()
+    _started_at = datetime.datetime.now(datetime.UTC).isoformat()
+    # Captured at START so the run is attributed to the commit it executed.
+    _git = _git_state()
 
     config = load_config(args.config)
     device = torch.device(args.device)
+
+    # --- Seeding -------------------------------------------------------------
+    # Set before any module is constructed so weight init is reproducible.
+    if args.seed is not None:
+        torch.manual_seed(args.seed)
+        np.random.seed(args.seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(args.seed)
+        print(f"Training seed: {args.seed}")
+
+    # --- Frozen partition (Paper 1) -----------------------------------------
+    train_indices: list[int] | None = None
+    val_indices: list[int] | None = None
+    partition_meta: dict = {}
+    if args.partition:
+        with open(args.partition) as f:  # noqa: PTH123
+            part = json.load(f)
+        train_indices = part["train_indices"]
+        val_indices = part["val_indices"]
+        partition_meta = {
+            "partition_file": args.partition,
+            "partition_sha256": _sha256(Path(args.partition)),
+            "n_train": len(train_indices),
+            "n_val": len(val_indices),
+        }
+        print(
+            f"Frozen partition: {len(train_indices)} train / "
+            f"{len(val_indices)} val  <- {args.partition}"
+        )
 
     # --- Feature transform (optional bounded diffusion) ---
     feature_transform: FeatureTransform | None = None
@@ -149,6 +262,8 @@ def main() -> None:
         num_workers=data_cfg.get("num_workers", 0),
         shuffle=data_cfg.get("shuffle", True),
         seed=42,
+        train_indices=train_indices,
+        val_indices=val_indices,
     )
 
     # --- Noise schedule ---
@@ -358,6 +473,32 @@ def main() -> None:
     with open(output_dir / "loss_log.json", "w") as f:
         json.dump(loss_log, f, indent=2)
     print(f"Saved loss log to {output_dir / 'loss_log.json'}")
+
+    # --- Reproducibility record (PROTOCOL §7) -------------------------------
+    run_meta: dict = {
+        "exp_id": args.exp_id,
+        **_git,
+        "config_path": args.config,
+        "config_sha256": _sha256(Path(args.config)),
+        "train_seed": args.seed,
+        "sample_seed": args.seed,
+        **partition_meta,
+        "param_count": sum(p.numel() for p in score_network.parameters()),
+        "device": str(device),
+        "torch": torch.__version__,
+        "epochs": args.epochs,
+        "lr": args.lr,
+        "started": _started_at,
+        "wall_clock_s": round(time.time() - _t0, 1),
+    }
+    with open(output_dir / "run_meta.json", "w") as f:
+        json.dump(run_meta, f, indent=2)
+    print(f"Saved run metadata to {output_dir / 'run_meta.json'}")
+    if run_meta.get("git_dirty"):
+        print(
+            "  WARNING: git tree is dirty — per PROTOCOL §7 this run may not be "
+            "used for a reported number."
+        )
 
     # --- Generate and plot sample shapes ---
     model.eval()

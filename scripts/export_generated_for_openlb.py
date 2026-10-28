@@ -197,7 +197,11 @@ def main() -> None:
         raw_path = args.out_dir / f"{tgt['label']}_raw.dat"
         smooth_path = args.out_dir / f"{tgt['label']}_smooth.dat"
         write_dat(raw_path, xy, hdr + " (raw)")
-        write_dat(smooth_path, xy_smooth, hdr + f" (Fourier-smoothed, {args.smooth_modes} modes)")
+        write_dat(
+            smooth_path,
+            xy_smooth,
+            hdr + f" (Fourier-smoothed, {args.smooth_modes} modes)",
+        )
 
         x_over_c, cp = target_cp(tgt["cond"])
         cp_path = args.out_dir / f"{tgt['label']}_target_cp.csv"
@@ -220,7 +224,9 @@ def main() -> None:
 
     print(f"Exported {len(rows)} generated shapes (raw + smoothed) to {args.out_dir}")
     for row in rows:
-        print(f"  {row['label']:>12}: Re={row['re']:.4g} H={row['h']:.4g} n={row['n_nodes']}")
+        print(
+            f"  {row['label']:>12}: Re={row['re']:.4g} H={row['h']:.4g} n={row['n_nodes']}"
+        )
 
 
 if __name__ == "__main__":

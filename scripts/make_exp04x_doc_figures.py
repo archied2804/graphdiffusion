@@ -24,11 +24,15 @@ from __future__ import annotations
 
 import csv
 import re
+import sys
 from pathlib import Path
 
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # for sibling scripts
+from _report_style import apply_house_style  # noqa: E402
 
 RUNS = Path("cfd/ellipse2d/runs")
 BASE = Path("cfd/ellipse2d/shapes/baseline")
@@ -115,9 +119,15 @@ def _trace(log: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 
 
 def domain_schematic() -> None:
-    """Draw the LBM domain and boundary-condition layout (to-scale-ish)."""
-    # Geometry (chords): upstream 6, body 1, downstream 17 -> length 24; H=5.3.
-    length, height, sponge_x0 = 24.0, 5.3, 20.0
+    """Draw the corrected LBM domain and boundary-condition layout (to-scale-ish).
+
+    The channel height ``H`` is taken from the dataset (5--6 chords) with the
+    body centred at ``H/2`` -- the corrected geometry used by the EXP-043
+    validation sweep, not the free-chosen height of the superseded EXP-040 run.
+    """
+    # Geometry (chords): upstream 6, body 1, downstream 17 -> length 24.
+    # H = dataset channel height (5.5 shown), body centred at H/2.
+    length, height, sponge_x0 = 24.0, 5.5, 20.0
     body_cx, body_a, body_b = 6.5, 0.5, 0.255
     fig, ax = plt.subplots(figsize=(11, 3.2))
     ax.add_patch(mpatches.Rectangle((0, 0), length, height, fc="#eef4fb", ec="none"))
@@ -180,6 +190,23 @@ def domain_schematic() -> None:
         fontsize=9,
         arrowprops=dict(arrowstyle="->", color="0.3"),
     )
+    # Channel-height annotation (upstream, inside the domain where it is clear):
+    # H from the dataset, body centred at H/2.
+    ax.annotate(
+        "",
+        (1.6, 0),
+        (1.6, height),
+        arrowprops=dict(arrowstyle="<->", color="0.5"),
+    )
+    ax.text(
+        1.85,
+        height / 2,
+        "$H$ (dataset,\nbody at $H/2$)",
+        va="center",
+        ha="left",
+        fontsize=8,
+        color="0.4",
+    )
     ax.annotate(
         "",
         (0.2, -0.2),
@@ -198,11 +225,10 @@ def domain_schematic() -> None:
     ax.set_ylim(-1.6, height + 0.9)
     ax.set_aspect("equal")
     ax.axis("off")
-    ax.set_title("EXP-040: 2D OpenLB domain & boundary conditions", fontsize=11)
     fig.tight_layout()
-    fig.savefig(ASSETS / "EXP-040_domain_schematic.png", dpi=130, bbox_inches="tight")
+    fig.savefig(ASSETS / "EXP-043_domain_schematic.png", dpi=150, bbox_inches="tight")
     plt.close(fig)
-    print("wrote EXP-040_domain_schematic.png")
+    print("wrote EXP-043_domain_schematic.png")
 
 
 def stability_trace() -> None:
@@ -342,12 +368,18 @@ def creep_ladder() -> None:
 
 
 def main() -> None:
-    """Generate all four EXP-04x documentation figures."""
+    """Generate the EXP-04x documentation figures still used by the report.
+
+    Only the domain schematic remains in the report and is regenerated here, in
+    the shared house style. The ``stability_trace`` / ``correlation_bars`` /
+    ``creep_ladder`` figures were superseded (the acoustic-breathing trace was
+    dropped; the corrected creep ladder and inverse-design overlays are now
+    produced by ``make_report_results_figures.py``); their builders are kept
+    below for reference but are no longer wired into the report.
+    """
+    apply_house_style()
     ASSETS.mkdir(parents=True, exist_ok=True)
     domain_schematic()
-    stability_trace()
-    correlation_bars()
-    creep_ladder()
 
 
 if __name__ == "__main__":

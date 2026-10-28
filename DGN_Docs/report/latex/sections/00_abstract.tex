@@ -1,0 +1,16 @@
+\begin{abstract}
+We present a graph-diffusion generative model for aerodynamic inverse design: conditioned on a
+target surface-pressure curve $C_p(x/c)$, it produces the 2D shape that should carry it. The model
+denoises the radial field $r(\theta)$ of a closed boundary with a graph-network score function,
+treating the boundary as a graph of surface nodes. The target pressure is encoded as a fixed-size
+discrete cosine transform (DCT) spectrum and injected through a jointly-trained DeepSets head, so
+the conditioning is order-invariant and decoupled from sampling resolution. The decisive
+contribution is \emph{independent physical validation}: generated shapes are run through a
+from-scratch 2D OpenLB lattice-Boltzmann solve, and the measured $C_p$ is compared to the
+conditioning target --- a check that never touches the model's own pressure head. The loop
+reproduces dataset pressure on known ellipses at correlation up to $\approx 1.0$ (mean 0.96 across an
+$(Re, H)$ validation grid), establishing the baseline gate, and grades generated shapes at correlation
+$\approx 0.95$ in-distribution. This couples a
+generative inverse-design model to an independent physics ground truth rather than a self-graded
+surrogate.
+\end{abstract}

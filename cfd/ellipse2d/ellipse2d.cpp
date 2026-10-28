@@ -129,6 +129,14 @@ int main(int argc, char* argv[])
     // to damp the trapped longitudinal acoustic mode (the +/-15% avgRho
     // "breathing"). Graded SpongeLayerDynamics relaxing toward the freestream.
     // SPONGE_CHORDS must be < DOWNSTREAM_CHORDS so it stays clear of the wake.
+    // --- P1-F06 benchmark options; defaults preserve the open-domain case ---
+    //   INLET_PROFILE 0 = uniform (U,0), WALL_NOSLIP 0 = free-stream top/bottom,
+    //   BODY_Y_OFFSET 0 = body on the centreline. Set all three (plus
+    //   SPONGE_CHORDS=0) to run a Schaefer-Turek duct configuration.
+    myCaseParameters.set<INLET_PROFILE>(0.);
+    myCaseParameters.set<WALL_NOSLIP>(0.);
+    myCaseParameters.set<BODY_Y_OFFSET>(0.);
+
     myCaseParameters.set<SPONGE_CHORDS>(4.);
     myCaseParameters.set<SPONGE_SIGMA_MAX>(0.7);
     // CHORD_LENGTH defaults to 0 (prepareGeometry/prepareLattice fill it from

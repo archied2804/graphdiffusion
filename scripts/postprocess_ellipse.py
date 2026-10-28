@@ -297,9 +297,7 @@ def main() -> None:
     per_sample_metrics: list[dict] = []  # type: ignore[type-arg]
 
     # Scale factor for radial_norm reconstruction
-    r_scale_factor = (
-        template.r_scale.item() if hasattr(template, "r_scale") else 1.0
-    )
+    r_scale_factor = template.r_scale.item() if hasattr(template, "r_scale") else 1.0
 
     all_radii_norm: list[np.ndarray] = []
 

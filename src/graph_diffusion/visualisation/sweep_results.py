@@ -122,8 +122,8 @@ def plot_sample_gallery(
         inset.set_aspect("equal")
         inset.set_xticks([])
         inset.set_yticks([])
-        ax.set_xlabel("x/c", fontsize=7)
-        ax.set_ylabel("Cp", fontsize=7)
+        ax.set_xlabel("$x/c$", fontsize=7)
+        ax.set_ylabel("$C_p$", fontsize=7)
         ax.tick_params(labelsize=6)
     fig.tight_layout()
     return fig
@@ -133,6 +133,7 @@ def plot_design_space_context(
     raw: np.ndarray,
     samples: list[SampleRecord],
     figsize: tuple[float, float] = (7.0, 5.0),
+    title: bool = True,
 ) -> matplotlib.figure.Figure:
     """Sample (Re, H) points over the full dataset cloud.
 
@@ -140,6 +141,8 @@ def plot_design_space_context(
         raw (np.ndarray): Full HDF5 array.
         samples (list[SampleRecord]): Samples to overlay.
         figsize (tuple[float, float]): Figure size.
+        title (bool): Draw the in-plot title (off for report figures whose
+            caption carries the description).
 
     Returns:
         matplotlib.figure.Figure: The rendered figure.
@@ -155,11 +158,12 @@ def plot_design_space_context(
         facecolors="none",
         edgecolors="red",
         linewidths=1.5,
-        label="samples",
+        label="validation cases",
     )
     ax.set_xlabel("Reynolds number $Re$")
     ax.set_ylabel("channel height $H$")
-    ax.set_title("Samples in dataset design space")
+    if title:
+        ax.set_title("Samples in dataset design space")
     ax.legend()
     fig.tight_layout()
     return fig
@@ -170,6 +174,7 @@ def plot_cp_manifold_context(
     samples: list[SampleRecord],
     n_grid: int = 128,
     figsize: tuple[float, float] = (7.0, 5.0),
+    title: bool = True,
 ) -> matplotlib.figure.Figure:
     """Project sample target & measured Cp into the dataset Cp-PCA plane.
 
@@ -182,6 +187,7 @@ def plot_cp_manifold_context(
         samples (list[SampleRecord]): Samples to project.
         n_grid (int): Cp grid for the basis.
         figsize (tuple[float, float]): Figure size.
+        title (bool): Draw the in-plot title (off for report figures).
 
     Returns:
         matplotlib.figure.Figure: The rendered figure.
@@ -199,9 +205,10 @@ def plot_cp_manifold_context(
         ax.scatter(mea[0], mea[1], marker="o", s=35, c="C3", zorder=2)
     ax.scatter([], [], marker="s", c="C0", label="target")
     ax.scatter([], [], marker="o", c="C3", label="measured")
-    ax.set_xlabel("Cp PC 1")
-    ax.set_ylabel("Cp PC 2")
-    ax.set_title("Samples on the dataset Cp manifold")
+    ax.set_xlabel("$C_p$ principal component 1")
+    ax.set_ylabel("$C_p$ principal component 2")
+    if title:
+        ax.set_title("Samples on the dataset Cp manifold")
     ax.legend()
     fig.tight_layout()
     return fig
@@ -240,8 +247,8 @@ def plot_cp_envelope_overlay(
     ax.plot([], [], "C0--", label="sample target")
     ax.plot([], [], "C3-", label="sample measured")
     ax.invert_yaxis()
-    ax.set_xlabel("x/c")
-    ax.set_ylabel("Cp")
+    ax.set_xlabel("$x/c$")
+    ax.set_ylabel("$C_p$")
     ax.set_title("Samples vs dataset Cp envelope")
     ax.legend(fontsize=8)
     fig.tight_layout()
@@ -250,13 +257,25 @@ def plot_cp_envelope_overlay(
 
 def plot_results_summary(
     samples: list[SampleRecord],
-    figsize: tuple[float, float] = (11.0, 4.0),
+    figsize: tuple[float, float] | None = None,
+    title: bool = True,
+    baseline_a: float | None = None,
+    stacked: bool = False,
 ) -> matplotlib.figure.Figure:
     """Correlation, affine slope ``a``, and drag Cd vs OOD distance across samples.
 
     Args:
         samples (list[SampleRecord]): Samples (need ``ood_dist`` set).
-        figsize (tuple[float, float]): Figure size.
+        figsize (tuple[float, float] | None): Figure size. Defaults to a wide
+            ``(11, 4)`` for the side-by-side layout, or a tall ``(4.8, 9)`` for
+            the vertically stacked layout.
+        title (bool): Draw per-panel in-plot titles (off for report figures;
+            the y-axis labels already distinguish the panels).
+        baseline_a (float | None): If given, draw a reference line on the slope
+            panel at this value (e.g. the validated in-distribution baseline).
+        stacked (bool): If True, stack the three panels vertically with a shared
+            x-axis (only the bottom panel carries the x-label); otherwise lay
+            them out side by side.
 
     Returns:
         matplotlib.figure.Figure: Three-panel figure (corr, a, and Cd vs ood_dist).
@@ -268,19 +287,36 @@ def plot_results_summary(
     corr = np.array([m["corr"] for m in metrics])
     aff = np.array([m["affine_a"] for m in metrics])
     cd = np.array([s.cd if s.cd is not None else np.nan for s in samples])
-    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=figsize)
+    if figsize is None:
+        figsize = (4.8, 9.0) if stacked else (11.0, 4.0)
+    if stacked:
+        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=figsize, sharex=True)
+    else:
+        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=figsize)
+    xlabel = "out-of-distribution distance"
     ax1.scatter(ood, corr, c="C0")
-    ax1.set_xlabel("OOD distance")
     ax1.set_ylabel(r"correlation $\rho$")
-    ax1.set_title("Fidelity vs OOD distance")
     ax2.scatter(ood, aff, c="C3")
-    ax2.axhline(1.0, color="0.6", ls="--", lw=1)
-    ax2.set_xlabel("OOD distance")
-    ax2.set_ylabel("affine slope $a$ (magnitude)")
-    ax2.set_title("Magnitude creep vs OOD distance")
+    ref = baseline_a if baseline_a is not None else 1.0
+    ax2.axhline(
+        ref,
+        color="0.5",
+        ls="--",
+        lw=1,
+        label=f"baseline $a={ref:.2f}$" if baseline_a is not None else None,
+    )
+    if baseline_a is not None:
+        ax2.legend(loc="best")
+    ax2.set_ylabel(r"affine slope $a$ ($C_p$ magnitude)")
     ax3.scatter(ood, cd, c="C2")
-    ax3.set_xlabel("OOD distance")
-    ax3.set_ylabel("drag $C_d$")
-    ax3.set_title("Drag vs OOD distance")
+    ax3.set_ylabel("drag coefficient $C_d$")
+    # With a shared x-axis only the bottom panel needs the x-label; otherwise
+    # every panel is independent and labels its own x-axis.
+    for ax in (ax1, ax2, ax3) if not stacked else (ax3,):
+        ax.set_xlabel(xlabel)
+    if title:
+        ax1.set_title("Fidelity vs OOD distance")
+        ax2.set_title("Magnitude creep vs OOD distance")
+        ax3.set_title("Drag vs OOD distance")
     fig.tight_layout()
     return fig

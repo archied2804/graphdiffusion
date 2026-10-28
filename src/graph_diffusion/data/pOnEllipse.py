@@ -77,9 +77,29 @@ class DatasetUrl(enum.Enum):
         "https://huggingface.co/datasets/mariolinov/Ellipse"
         "/resolve/main/pOnEllipseTrain.h5"
     )
-    TEST_H5 = (
+    # NOTE: there is no ``pOnEllipseTest.h5`` in the upstream repository — the
+    # URL previously listed here returned 404 and had never been fetched.  The
+    # publisher instead provides one in-distribution held-out set and four
+    # physically-constructed out-of-distribution sets, listed below.
+    INDIST_H5 = (
         "https://huggingface.co/datasets/mariolinov/Ellipse"
-        "/resolve/main/pOnEllipseTest.h5"
+        "/resolve/main/pOnEllipseInDist.h5"
+    )
+    LOWRE_H5 = (
+        "https://huggingface.co/datasets/mariolinov/Ellipse"
+        "/resolve/main/pOnEllipseLowRe.h5"
+    )
+    HIGHRE_H5 = (
+        "https://huggingface.co/datasets/mariolinov/Ellipse"
+        "/resolve/main/pOnEllipseHighRe.h5"
+    )
+    THIN_H5 = (
+        "https://huggingface.co/datasets/mariolinov/Ellipse"
+        "/resolve/main/pOnEllipseThin.h5"
+    )
+    THICK_H5 = (
+        "https://huggingface.co/datasets/mariolinov/Ellipse"
+        "/resolve/main/pOnEllipseThick.h5"
     )
     TIME_TRAIN_NPY = (
         "https://huggingface.co/datasets/mariolinov/Ellipse"
@@ -228,7 +248,31 @@ def _node_count(sample: np.ndarray) -> int:
 # ---------------------------------------------------------------------------
 
 _VALID_FEATURE_MODES = ("radial", "radial_norm", "cartesian", "normalised")
-_VALID_VARIANTS = ("default", "aoa10")
+
+# ``default`` is the training corpus; every other variant is an evaluation set
+# published alongside it.  ``indist`` is the in-distribution hold-out; the rest
+# are out-of-distribution along one interpretable physical axis each.
+_VALID_VARIANTS = (
+    "default",
+    "indist",
+    "lowre",
+    "highre",
+    "thin",
+    "thick",
+    "aoa10",
+)
+
+# Variants that exist only as an evaluation set (no train split published).
+_EVAL_ONLY_VARIANTS = ("indist", "lowre", "highre", "thin", "thick", "aoa10")
+
+_VARIANT_URLS = {
+    "indist": DatasetUrl.INDIST_H5,
+    "lowre": DatasetUrl.LOWRE_H5,
+    "highre": DatasetUrl.HIGHRE_H5,
+    "thin": DatasetUrl.THIN_H5,
+    "thick": DatasetUrl.THICK_H5,
+    "aoa10": DatasetUrl.AOA10_H5,
+}
 
 
 class pOnEllipseDataset(BaseGraphDataset):
@@ -301,10 +345,11 @@ class pOnEllipseDataset(BaseGraphDataset):
             raise ValueError(
                 f"variant must be one of {_VALID_VARIANTS}, got '{variant}'"
             )
-        if variant == "aoa10" and split == "test":
+        if variant in _EVAL_ONLY_VARIANTS and split == "test":
             raise ValueError(
-                "variant='aoa10' currently only has a train split; "
-                "no pOnEllipseAoA10Test.h5 is published."
+                f"variant='{variant}' is itself an evaluation set and has no "
+                "further train/test subdivision; use split='train' to load all "
+                "of its samples."
             )
         if k_neighbors < 1:
             raise ValueError(f"k_neighbors must be >= 1, got {k_neighbors}")
@@ -327,9 +372,9 @@ class pOnEllipseDataset(BaseGraphDataset):
         super().__init__(root, transform=transform, pre_transform=pre_transform)
 
     def _url(self) -> DatasetUrl:
-        if self.variant == "aoa10":
-            return DatasetUrl.AOA10_H5
-        return DatasetUrl.TRAIN_H5 if self.split == "train" else DatasetUrl.TEST_H5
+        if self.variant in _VARIANT_URLS:
+            return _VARIANT_URLS[self.variant]
+        return DatasetUrl.TRAIN_H5
 
     @property
     def raw_file_names(self) -> list[str]:

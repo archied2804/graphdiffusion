@@ -36,6 +36,39 @@ from graph_diffusion.data.pOnEllipseConditional import dct_ii, dct_ii_inverse
 _DEFAULT_HANDLE_X = np.array([0.0, 0.15, 0.30, 0.50, 0.70, 0.85, 1.0], dtype=np.float32)
 
 
+def cp_spline_and_dct(
+    handle_x: np.ndarray,
+    handle_y: np.ndarray,
+    x_grid: np.ndarray,
+    k_modes: int,
+    cond_norm: str = "forward",
+) -> tuple[np.ndarray, np.ndarray]:
+    """Natural cubic spline through the handles and its DCT-k reconstruction.
+
+    Args:
+        handle_x: Handle x-positions, shape ``(n_handles,)``.
+        handle_y: Handle y-values, shape ``(n_handles,)``.
+        x_grid: Dense ``x/c`` grid, shape ``(n_grid,)``.
+        k_modes: Number of DCT-II coefficients kept.
+        cond_norm: Descriptor convention; must match the checkpoint being
+            driven. ``"ortho"`` for models trained before 2026-08-05.
+
+    Returns:
+        Tuple ``(spline, dct_curve)``, each shape ``(n_grid,)`` and
+        ``float32``. ``spline`` is the cubic-spline curve the user
+        "draws"; ``dct_curve`` is the DCT-k reconstruction the model sees.
+    """
+    spline_fn = CubicSpline(handle_x, handle_y, bc_type="natural")
+    spline: np.ndarray = spline_fn(x_grid).astype(np.float32)
+    # x_grid is an explicit dense grid, so pass it as the quadrature abscissae
+    # rather than letting dct_ii assume cell midpoints.
+    coeffs = dct_ii(spline, int(k_modes), positions=x_grid, norm=cond_norm)
+    dct_curve: np.ndarray = dct_ii_inverse(
+        coeffs, int(x_grid.shape[0]), positions=x_grid, norm=cond_norm
+    ).astype(np.float32)
+    return spline, dct_curve
+
+
 class CpCurveEditor:
     """Draggable Cp(x/c) curve editor.
 
@@ -67,11 +100,13 @@ class CpCurveEditor:
         k_modes: int = 8,
         on_release: Callable[[np.ndarray], None] | None = None,
         handle_pick_radius: float = 10.0,
+        cond_norm: str = "forward",
     ) -> None:
         if n_control_points < 2:
             raise ValueError(f"n_control_points must be >= 2, got {n_control_points}")
         self.ax = ax
         self.k_modes = int(k_modes)
+        self.cond_norm = str(cond_norm)
         self.on_release = on_release
         self.handle_pick_radius = float(handle_pick_radius)
 
@@ -129,7 +164,12 @@ class CpCurveEditor:
 
     def get_cond_vector(self) -> np.ndarray:
         """Return the current cond vector ``(K,)`` (DCT-II of the spline)."""
-        return dct_ii(self._spline_curve(), self.k_modes)
+        return dct_ii(
+            self._spline_curve(),
+            self.k_modes,
+            positions=self._x_grid,
+            norm=self.cond_norm,
+        )
 
     def get_dct_curve(self) -> np.ndarray:
         """Return the dense DCT-K reconstruction ``(N_grid,)`` of the spline."""
@@ -172,17 +212,38 @@ class CpCurveEditor:
         return out
 
     def _spline_curve(self) -> np.ndarray:
-        spline = CubicSpline(self._control_x, self._control_y, bc_type="natural")
-        out: np.ndarray = spline(self._x_grid).astype(np.float32)
-        return out
+        spline, _ = cp_spline_and_dct(
+            self._control_x,
+            self._control_y,
+            self._x_grid,
+            self.k_modes,
+            self.cond_norm,
+        )
+        return spline
 
     def _compute_dct_curve(self) -> np.ndarray:
-        coeffs = dct_ii(self._spline_curve(), self.k_modes)
-        return dct_ii_inverse(coeffs, self._n_grid)
+        _, dct_curve = cp_spline_and_dct(
+            self._control_x,
+            self._control_y,
+            self._x_grid,
+            self.k_modes,
+            self.cond_norm,
+        )
+        return dct_curve
 
     def _redraw(self) -> None:
-        self._spline_line.set_ydata(self._spline_curve())
-        self._dct_line.set_ydata(self._compute_dct_curve())
+        # Compute spline + DCT in one pass so a drag event builds the
+        # CubicSpline only once (the two getters above are kept for the
+        # public API and tests, which call them independently).
+        spline, dct_curve = cp_spline_and_dct(
+            self._control_x,
+            self._control_y,
+            self._x_grid,
+            self.k_modes,
+            self.cond_norm,
+        )
+        self._spline_line.set_ydata(spline)
+        self._dct_line.set_ydata(dct_curve)
         self._handles_line.set_data(self._control_x, self._control_y)
         if self.ax.figure.canvas is not None:
             self.ax.figure.canvas.draw_idle()
